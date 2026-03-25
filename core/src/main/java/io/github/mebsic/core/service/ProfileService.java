@@ -338,7 +338,7 @@ public class ProfileService {
         try {
             store.save(profile);
         } catch (Exception ex) {
-            plugin.getLogger().warning("Failed to save profile for " + profile.getUuid() + ": " + ex.getMessage());
+            plugin.getLogger().warning("Failed to save profile for " + profile.getUuid() + "!\n" + ex.getMessage());
         }
     }
 }

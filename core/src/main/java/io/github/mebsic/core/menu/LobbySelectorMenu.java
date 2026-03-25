@@ -685,9 +685,9 @@ public class LobbySelectorMenu extends Menu {
             out.writeUTF(targetServer.trim());
             player.sendPluginMessage(plugin, CHANNEL, bytes.toByteArray());
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to switch lobbies right now.");
+            player.sendMessage(ChatColor.RED + "Failed to switch lobbies right now!");
             if (plugin != null) {
-                plugin.getLogger().warning("Failed to send lobby connect request: " + ex.getMessage());
+                plugin.getLogger().warning("Failed to send lobby connect request!\n" + ex.getMessage());
             }
         }
     }

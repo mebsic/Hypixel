@@ -13,11 +13,13 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -50,6 +52,7 @@ public class HubItemListener implements Listener {
     private static final int PROFILE_SLOT = 1;
     private static final int TOGGLE_SLOT = 7;
     private static final int LOBBY_SELECTOR_SLOT = 8;
+    private static final int PORTAL_TRIGGER_RADIUS_BLOCKS = 2;
 
     private final CorePlugin plugin;
     private final GameMenu gameMenu;
@@ -96,6 +99,28 @@ public class HubItemListener implements Listener {
         lastFriendRefreshAt.remove(uuid);
         friendRefreshInProgress.remove(uuid);
         lobbySelectorMenu.clear(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        if (isNpcPlayer(player)) {
+            return;
+        }
+        if (event.getFrom() == null || event.getTo() == null) {
+            return;
+        }
+        if (event.getFrom().getBlockX() == event.getTo().getBlockX()
+                && event.getFrom().getBlockY() == event.getTo().getBlockY()
+                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
+            return;
+        }
+
+        boolean nearPortal = isNearNetherPortal(player);
+        if (!nearPortal) {
+            return;
+        }
+        gameMenu.open(player);
     }
 
     @EventHandler
@@ -198,6 +223,36 @@ public class HubItemListener implements Listener {
         friendRefreshInProgress.clear();
         gameMenu.shutdown();
         lobbySelectorMenu.shutdown();
+    }
+
+    private boolean isNearNetherPortal(Player player) {
+        if (player == null) {
+            return false;
+        }
+        World world = player.getWorld();
+        if (world == null) {
+            return false;
+        }
+        int centerX = player.getLocation().getBlockX();
+        int centerY = player.getLocation().getBlockY();
+        int centerZ = player.getLocation().getBlockZ();
+        int radius = PORTAL_TRIGGER_RADIUS_BLOCKS;
+        for (int x = centerX - radius; x <= centerX + radius; x++) {
+            for (int y = centerY - 1; y <= centerY + 2; y++) {
+                for (int z = centerZ - radius; z <= centerZ + radius; z++) {
+                    Material type = world.getBlockAt(x, y, z).getType();
+                    if (isNetherPortal(type)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isNetherPortal(Material material) {
+        return material == Material.matchMaterial("NETHER_PORTAL")
+                || material == Material.matchMaterial("PORTAL");
     }
 
     private boolean resolveInitialVisibility(Player player) {

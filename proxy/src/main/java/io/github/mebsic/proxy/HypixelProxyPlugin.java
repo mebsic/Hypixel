@@ -673,7 +673,7 @@ public class HypixelProxyPlugin {
         try {
             this.config = loader.load(dataDir);
         } catch (IOException e) {
-            logger.error("Failed to load proxy config", e);
+            logger.error("Failed to load proxy config!", e);
             this.config = new ProxyConfig();
         }
     }
@@ -836,7 +836,7 @@ public class HypixelProxyPlugin {
             try {
                 return Favicon.create(iconPath);
             } catch (IOException e) {
-                logger.warn("Failed to load server icon from {}", iconPath, e);
+                logger.warn("Failed to load server icon from {}!", iconPath, e);
                 return null;
             }
         }
@@ -1025,7 +1025,7 @@ public class HypixelProxyPlugin {
             try {
                 player.disconnect(reason);
             } catch (Exception ex) {
-                logger.warn("Failed to disconnect {} during infrastructure failover.", player.getUsername(), ex);
+                logger.warn("Failed to disconnect {} during infrastructure failover!", player.getUsername(), ex);
             }
         }
         proxy.getScheduler().buildTask(this, () -> proxy.shutdown())

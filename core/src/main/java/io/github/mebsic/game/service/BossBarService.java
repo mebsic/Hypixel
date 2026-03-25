@@ -345,7 +345,7 @@ public class BossBarService {
                 }
                 plugin.getServer().getScheduler().runTask(plugin, () -> applyLoadedMessages(loadedGame, loadedHub));
             } catch (Exception ex) {
-                plugin.getLogger().log(Level.WARNING, "Failed to refresh boss bar messages from MongoDB.", ex);
+                plugin.getLogger().log(Level.WARNING, "Failed to refresh boss bar messages from MongoDB!", ex);
             }
         });
     }

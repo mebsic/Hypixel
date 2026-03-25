@@ -553,7 +553,10 @@ public final class MapConfigResolver {
             if (!target.equalsIgnoreCase(worldDirectory) && !target.equalsIgnoreCase(name)) {
                 continue;
             }
-            String value = readHubSpawnFromMapObject(map);
+            String value = readExplicitHubSpawnFromMapObject(map);
+            if (value == null) {
+                value = readHubSpawnFromMapObject(map);
+            }
             if (value != null) {
                 return value;
             }
@@ -621,10 +624,7 @@ public final class MapConfigResolver {
         if (map == null) {
             return null;
         }
-        String value = readLocationValue(childElement(map, "hubSpawn"));
-        if (value == null) {
-            value = readLocationValue(childElement(map, "lobbySpawn"));
-        }
+        String value = readExplicitHubSpawnFromMapObject(map);
         if (value == null) {
             value = readLocationValue(childElement(map, "spawn"));
         }
@@ -643,6 +643,17 @@ public final class MapConfigResolver {
             }
         }
         return null;
+    }
+
+    private static String readExplicitHubSpawnFromMapObject(JsonObject map) {
+        if (map == null) {
+            return null;
+        }
+        String value = readLocationValue(childElement(map, "hubSpawn"));
+        if (value == null) {
+            value = readLocationValue(childElement(map, "lobbySpawn"));
+        }
+        return value;
     }
 
     private static String readLocationValue(JsonElement value) {

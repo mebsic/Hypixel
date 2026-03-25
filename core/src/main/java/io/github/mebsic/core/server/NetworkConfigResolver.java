@@ -25,7 +25,7 @@ public final class NetworkConfigResolver {
         try (FileReader reader = new FileReader(configFile)) {
             root = new JsonParser().parse(reader).getAsJsonObject();
         } catch (Exception ex) {
-            plugin.getLogger().warning("Failed to load " + CONFIG_FILE_NAME + ": " + ex.getMessage());
+            plugin.getLogger().warning("Failed to load " + CONFIG_FILE_NAME + "!\n" + ex.getMessage());
             return;
         }
 

@@ -241,9 +241,9 @@ public class PartyCommand implements SimpleCommand {
                 continue;
             }
             if (!parties.invite(player.getUniqueId(), targetId)) {
-                lines.add(Component.text("Unable to invite ", NamedTextColor.RED)
+                lines.add(Component.text("Failed to invite ", NamedTextColor.RED)
                         .append(LEGACY.deserialize(formatNameWithRank(targetId, target.getUsername())))
-                        .append(Component.text(" right now.", NamedTextColor.RED)));
+                        .append(Component.text(" right now!", NamedTextColor.RED)));
                 continue;
             }
             sendPartyInviteNotification(target, inviterDisplay, player.getUsername());
@@ -1292,7 +1292,7 @@ public class PartyCommand implements SimpleCommand {
         if (player == null) {
             return;
         }
-        String safeMessage = message == null ? "Unable to invite that player." : message;
+        String safeMessage = message == null ? "Failed to invite that player!" : message;
         player.sendMessage(PartyComponents.longSeparator());
         player.sendMessage(Component.text(safeMessage, NamedTextColor.RED));
         player.sendMessage(PartyComponents.longSeparator());

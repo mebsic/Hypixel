@@ -317,8 +317,8 @@ public class GameMenu extends Menu {
             out.writeUTF(targetServer.trim());
             player.sendPluginMessage(plugin, CHANNEL, bytes.toByteArray());
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to switch lobbies right now.");
-            plugin.getLogger().warning("Failed to send game menu connect request: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to switch lobbies right now!");
+            plugin.getLogger().warning("Failed to send game menu connect request!\n" + ex.getMessage());
         }
     }
 }

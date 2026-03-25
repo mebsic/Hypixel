@@ -25,18 +25,27 @@ public final class LocationUtil {
             return null;
         }
         String[] parts = data.split(",");
-        if (parts.length < 6) {
+        if (parts.length < 4) {
             return null;
         }
         World world = resolveWorld(parts[0]);
         if (world == null) {
             return null;
         }
-        double x = Double.parseDouble(parts[1]);
-        double y = Double.parseDouble(parts[2]);
-        double z = Double.parseDouble(parts[3]);
-        float yaw = Float.parseFloat(parts[4]);
-        float pitch = Float.parseFloat(parts[5]);
+        Double x = parseDouble(parts[1]);
+        Double y = parseDouble(parts[2]);
+        Double z = parseDouble(parts[3]);
+        if (x == null || y == null || z == null) {
+            return null;
+        }
+        Float yaw = parts.length > 4 ? parseFloat(parts[4]) : 0.0f;
+        Float pitch = parts.length > 5 ? parseFloat(parts[5]) : 0.0f;
+        if (yaw == null) {
+            yaw = 0.0f;
+        }
+        if (pitch == null) {
+            pitch = 0.0f;
+        }
         return new Location(world, x, y, z, yaw, pitch);
     }
 
@@ -64,5 +73,27 @@ public final class LocationUtil {
             return null;
         }
         return Bukkit.getWorlds().get(0);
+    }
+
+    private static Double parseDouble(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static Float parseFloat(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Float.parseFloat(raw.trim());
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }

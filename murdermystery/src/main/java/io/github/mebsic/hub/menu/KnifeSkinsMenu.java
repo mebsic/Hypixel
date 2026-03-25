@@ -232,7 +232,7 @@ public class KnifeSkinsMenu extends Menu {
                 return;
             }
             if (!coreApi.toggleFavoriteCosmetic(player.getUniqueId(), CosmeticType.KNIFE, option)) {
-                player.sendMessage(ChatColor.RED + "Unable to update favorite state.");
+                player.sendMessage(ChatColor.RED + "Failed to update favorite state!");
                 return;
             }
             boolean favoriteNow = coreApi.isFavoriteCosmetic(player.getUniqueId(), CosmeticType.KNIFE, option);

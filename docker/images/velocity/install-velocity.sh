@@ -72,7 +72,7 @@ else
 fi
 
 if [ -z "${url}" ]; then
-  echo "Failed to resolve Velocity download URL for version ${version}." >&2
+  echo "Failed to resolve Velocity download URL for version ${version}!" >&2
   exit 1
 fi
 

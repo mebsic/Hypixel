@@ -65,6 +65,7 @@ public class BuildMapConfigService {
     private static final String MAP_CREATED_AT_KEY = "createdAt";
     private static final String MAP_PREGAME_SPAWN_KEY = "pregameSpawn";
     private static final String MAP_HUB_SPAWN_KEY = "hubSpawn";
+    private static final String MAP_LOBBY_SPAWN_KEY = "lobbySpawn";
     private static final String MAP_NPCS_KEY = "npcs";
     private static final String MAP_PROFILE_NPCS_KEY = "profileNpcs";
     private static final String MAP_LEADERBOARDS_KEY = "leaderboards";
@@ -247,13 +248,13 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return;
         }
 
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return;
         }
 
@@ -312,7 +313,7 @@ public class BuildMapConfigService {
 
             sourceWorld.save();
             if (!Bukkit.unloadWorld(sourceWorld, true)) {
-                player.sendMessage(ChatColor.RED + "Failed to unload world \"" + sourceWorldName + "\".");
+                player.sendMessage(ChatColor.RED + "Failed to unload world \"" + sourceWorldName + "\"!");
                 Player online = Bukkit.getPlayer(playerUuid);
                 if (movedForExport && online != null && online.isOnline()) {
                     online.teleport(returnLocation);
@@ -321,7 +322,7 @@ public class BuildMapConfigService {
                 return;
             }
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Failed to prepare world export: " + safeString(ex.getMessage()));
+            player.sendMessage(ChatColor.RED + "Failed to prepare world!\n" + safeString(ex.getMessage()));
             worldExportLocks.remove(lockKey);
             return;
         }
@@ -352,7 +353,7 @@ public class BuildMapConfigService {
                     Player online = Bukkit.getPlayer(playerUuid);
                     if (reloadedWorld == null) {
                         if (online != null && online.isOnline()) {
-                            online.sendMessage(ChatColor.RED + "Export finished, but failed to reload world \"" + sourceWorldName + "\".");
+                            online.sendMessage(ChatColor.RED + "Export finished, but failed to reload world \"" + sourceWorldName + "\"!");
                         }
                         return;
                     }
@@ -360,11 +361,11 @@ public class BuildMapConfigService {
                     if (online != null && online.isOnline()) {
                         online.teleport(remapLocationToWorld(returnLocation, reloadedWorld));
                         if (finalExportError.isEmpty() && finalMetadataError.isEmpty()) {
-                            online.sendMessage(ChatColor.GREEN + "Exported world to /maps/" + gameKey + "/" + sourceWorldName + ".");
+                            online.sendMessage(ChatColor.GREEN + "Done!");
                         } else if (finalExportError.isEmpty()) {
-                            online.sendMessage(ChatColor.RED + "Exported world files, but failed to update map config: " + finalMetadataError);
+                            online.sendMessage(ChatColor.RED + "Exported finished, but failed to update map config!\n" + finalMetadataError);
                         } else {
-                            online.sendMessage(ChatColor.RED + "Export failed: " + finalExportError);
+                            online.sendMessage(ChatColor.RED + "Export failed!\n" + finalExportError);
                         }
                     }
                 } finally {
@@ -383,13 +384,13 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return true;
         }
 
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return true;
         }
         MapConfigStore store = mapConfigStore();
@@ -415,7 +416,7 @@ public class BuildMapConfigService {
             }
             sendDone(player, location, null);
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to update map config in MongoDB: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
         }
         return true;
     }
@@ -433,13 +434,13 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return true;
         }
 
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return true;
         }
         MapConfigStore store = mapConfigStore();
@@ -466,7 +467,7 @@ public class BuildMapConfigService {
             }
             sendDone(player, location, "waiting_spawn");
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to update map config in MongoDB: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
         }
         return true;
     }
@@ -484,12 +485,12 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return true;
         }
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return true;
         }
         MapConfigStore store = mapConfigStore();
@@ -505,13 +506,18 @@ public class BuildMapConfigService {
                 JsonArray maps = getOrCreateArray(gameSection, "maps");
                 JsonObject map = findOrCreateMapByWorldDirectory(maps, mapWorld);
                 String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
-                map.add(MAP_HUB_SPAWN_KEY, toLocationJson(location, System.currentTimeMillis()));
+                long createdAt = System.currentTimeMillis();
+                map.add(MAP_HUB_SPAWN_KEY, toLocationJson(location, createdAt));
+                // Keep legacy-compatible field in sync for older readers.
+                map.add(MAP_LOBBY_SPAWN_KEY, toLocationJson(location, createdAt));
                 applyMapRotationDefaults(gameSection, resolvedMapName);
+                // Setting hub spawn should always promote this map to active.
+                gameSection.addProperty("activeMap", resolvedMapName);
                 saveMapConfigRoot(store, gameKey, root);
             }
             sendDone(player, location, null);
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to update map config in MongoDB: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
         }
         return true;
     }
@@ -533,12 +539,12 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return true;
         }
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return true;
         }
         MapConfigStore store = mapConfigStore();
@@ -583,7 +589,7 @@ public class BuildMapConfigService {
             );
             player.sendMessage(ChatColor.GREEN + "Done!");
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to update map config in MongoDB: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
         }
         return true;
     }
@@ -601,12 +607,12 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return true;
         }
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return true;
         }
         MapConfigStore store = mapConfigStore();
@@ -646,7 +652,7 @@ public class BuildMapConfigService {
             spawnNpcRuntime(entityId, location, ownerName, DEFAULT_PROFILE_NPC_COLOR, true, false, ownerUuid, gameType, mapWorld);
             player.sendMessage(ChatColor.GREEN + "Done!");
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to update map config in MongoDB: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
         }
         return true;
     }
@@ -684,12 +690,12 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return true;
         }
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return true;
         }
         MapConfigStore store = mapConfigStore();
@@ -729,7 +735,7 @@ public class BuildMapConfigService {
             spawnLeaderboardRuntime(entityId, location, gameType, mapWorld, selectedMetric, player.getUniqueId(), player.getName());
             sendDone(player, location, null);
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to update map config in MongoDB: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
         }
         return true;
     }
@@ -747,7 +753,7 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return true;
         }
         if (hasParkourCourseConfigured(gameType, mapWorld)) {
@@ -797,7 +803,7 @@ public class BuildMapConfigService {
 
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return true;
         }
         MapConfigStore store = mapConfigStore();
@@ -843,7 +849,7 @@ public class BuildMapConfigService {
             player.sendMessage(ChatColor.GREEN + "Parkour route saved with " + draft.checkpoints.size() + " checkpoints!");
             parkourDraftsByPlayer.remove(uuid);
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to update map config in MongoDB: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
         }
         return true;
     }
@@ -879,12 +885,12 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return true;
         }
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return true;
         }
         MapConfigStore store = mapConfigStore();
@@ -917,7 +923,7 @@ public class BuildMapConfigService {
                 }
             }
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to update map config in MongoDB: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
             return true;
         }
 
@@ -1191,12 +1197,12 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return true;
         }
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return true;
         }
         MapConfigStore store = mapConfigStore();
@@ -1225,7 +1231,7 @@ public class BuildMapConfigService {
             }
             sendDone(player, location, selectedItem.name());
         } catch (Exception ex) {
-            player.sendMessage(ChatColor.RED + "Unable to update map config in MongoDB: " + ex.getMessage());
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
         }
         return true;
     }
@@ -1262,12 +1268,12 @@ public class BuildMapConfigService {
             mapWorld = safeString(player.getWorld().getName());
         }
         if (mapWorld.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve the map world.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
             return false;
         }
         String gameKey = gameKeyForType(gameType);
         if (gameKey.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Unable to resolve game key for that game type.");
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
             return false;
         }
         MapConfigStore store = mapConfigStore();
@@ -1297,6 +1303,7 @@ public class BuildMapConfigService {
             map.add(MAP_PARKOURS_KEY, new JsonArray());
             map.remove(MAP_PREGAME_SPAWN_KEY);
             map.remove(MAP_HUB_SPAWN_KEY);
+            map.remove(MAP_LOBBY_SPAWN_KEY);
             saveMapConfigRoot(store, gameKey, root);
         }
         despawnAllRuntimeArtifacts();
@@ -1379,10 +1386,11 @@ public class BuildMapConfigService {
                 return true;
             }
             if (entry.getType() == MapLocationType.HUB_SPAWN) {
-                if (!map.has(MAP_HUB_SPAWN_KEY)) {
+                if (!map.has(MAP_HUB_SPAWN_KEY) && !map.has(MAP_LOBBY_SPAWN_KEY)) {
                     return false;
                 }
                 map.remove(MAP_HUB_SPAWN_KEY);
+                map.remove(MAP_LOBBY_SPAWN_KEY);
                 saveMapConfigRoot(store, gameKey, root);
                 return true;
             }

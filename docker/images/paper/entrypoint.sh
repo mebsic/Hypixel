@@ -525,7 +525,7 @@ preload_build_world_templates() {
       if copy_world_template_if_needed "${template_dir}" "${target_world_dir}" "${force_copy}" "${map_identifier}"; then
         copied_any="true"
       else
-        echo "[bootstrap] Failed to preload world template ${map_identifier} into ${target_world_dir}." >&2
+        echo "[bootstrap] Failed to preload world template ${map_identifier} into ${target_world_dir}!" >&2
       fi
     done
   done
@@ -575,9 +575,9 @@ download_build_plugin() {
     if curl -fL -H "User-Agent: ${USER_AGENT}" -o "${target_file}" "${plugin_url}"; then
       return 0
     fi
-    echo "[bootstrap] Failed to download ${file_name} from ${plugin_url}. Trying next source..." >&2
+    echo "[bootstrap] Failed to download ${file_name} from ${plugin_url}! Trying next source..." >&2
   done
-  echo "[bootstrap] Failed to download ${file_name} from all configured sources." >&2
+  echo "[bootstrap] Failed to download ${file_name} from all configured sources!" >&2
   return 1
 }
 
@@ -630,7 +630,7 @@ extract_world_archive() {
 
   echo "[bootstrap] Downloading world archive from ${archive_url}..."
   if ! curl -fL -H "User-Agent: ${USER_AGENT}" -o "${tmp_archive}" "${archive_url}"; then
-    echo "[bootstrap] Failed to download world archive: ${archive_url}" >&2
+    echo "[bootstrap] Failed to download world archive from ${archive_url}!" >&2
     rm -f "${tmp_archive}"
     rm -rf "${tmp_extract}"
     return 1
@@ -825,7 +825,7 @@ if [[ -n "${MAP_NAME}" ]]; then
         LEVEL_NAME="${target_world_name}"
         echo "[bootstrap] Using level-name=${LEVEL_NAME} from map directory ${map_identifier} (mode=${MAP_APPLY_MODE})."
       else
-        echo "[bootstrap] Failed to apply map template from ${world_template_dir}. Starting with generated ${WORLD_NAME} world." >&2
+        echo "[bootstrap] Failed to apply map template from ${world_template_dir}! Starting with generated ${WORLD_NAME} world." >&2
       fi
     else
       echo "[bootstrap] Starting with a freshly generated ${WORLD_NAME} world instead."
@@ -947,7 +947,7 @@ DYNAMIC_PORT_ALLOCATED=0
 
 if [[ -z "${SERVER_PORT:-}" || "${SERVER_PORT,,}" == "auto" ]]; then
   allocated_port="$(allocate_dynamic_port "${SERVER_ID}")" || {
-    echo "[bootstrap] Failed to allocate dynamic server port from ${PORT_ALLOC_MIN}-${PORT_ALLOC_MAX}." >&2
+    echo "[bootstrap] Failed to allocate dynamic server port from ${PORT_ALLOC_MIN}-${PORT_ALLOC_MAX}!" >&2
     exit 1
   }
   SERVER_PORT="${allocated_port}"

@@ -288,7 +288,7 @@ public class GameManager {
             plugin.getLogger().info("Reloaded game map config via " + safeString(source)
                     + " for key '" + resolveMapConfigGameKey() + "' (active map: " + beforeMap + " -> " + afterMap + ").");
         } catch (Exception ex) {
-            plugin.getLogger().warning("Failed to hot reload game map config: " + ex.getMessage());
+            plugin.getLogger().warning("Failed to hot reload game map config!\n" + ex.getMessage());
         }
     }
 
@@ -925,7 +925,7 @@ public class GameManager {
             store.setActiveMap(gameKey, activeName);
         } catch (Exception ex) {
             plugin.getLogger().warning("Failed to persist rotated map '" + activeName + "' for key '"
-                    + gameKey + "': " + ex.getMessage());
+                    + gameKey + "'!\n" + ex.getMessage());
         }
     }
 
@@ -1429,7 +1429,7 @@ public class GameManager {
             accepted = Bukkit.dispatchCommand(console, "restart");
         } catch (Exception ex) {
             if (plugin != null) {
-                plugin.getLogger().warning("Failed to execute restart command: " + ex.getMessage());
+                plugin.getLogger().warning("Failed to execute restart command!\n" + ex.getMessage());
             }
         }
 

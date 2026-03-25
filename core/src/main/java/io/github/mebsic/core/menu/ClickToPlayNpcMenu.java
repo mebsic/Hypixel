@@ -78,7 +78,7 @@ public class ClickToPlayNpcMenu extends Menu {
                 return;
             } catch (Exception ex) {
                 if (plugin != null) {
-                    plugin.getLogger().warning("Failed to queue click-to-play request: " + ex.getMessage());
+                    plugin.getLogger().warning("Failed to queue click-to-play request!\n" + ex.getMessage());
                 }
             }
         }
@@ -228,7 +228,7 @@ public class ClickToPlayNpcMenu extends Menu {
             player.sendPluginMessage(plugin, CHANNEL, bytes.toByteArray());
         } catch (Exception ex) {
             player.sendMessage(ChatColor.RED + "An error occurred when sending you to " + destination + "! Please try again later.");
-            plugin.getLogger().warning("Failed to send click-to-play connect request: " + ex.getMessage());
+            plugin.getLogger().warning("Failed to send click-to-play connect request!\n" + ex.getMessage());
         }
     }
 

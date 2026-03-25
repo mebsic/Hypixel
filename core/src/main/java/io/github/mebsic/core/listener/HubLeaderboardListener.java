@@ -49,7 +49,7 @@ public class HubLeaderboardListener implements Listener {
     private static final String LEADERBOARD_METRIC_WINS_AS_MURDERER = "wins_as_murderer";
     private static final String LEGACY_LEADERBOARD_METRIC_KILLS_AS_MURDERER = "kills_as_murderer";
     private static final String MURDER_MYSTERY_WINS_AS_MURDERER_KEY = "murdermystery.winsAsMurderer";
-    private static final double HOLOGRAM_LINE_SPACING = 0.30d;
+    private static final double HOLOGRAM_LINE_SPACING = 0.40d;
     private static final double LEADERBOARD_HOLOGRAM_BASE_Y_OFFSET = 2.4d;
     private static final double LEADERBOARD_HOLOGRAM_COLUMN_RADIUS_SQUARED = 0.04d;
     private static final double LEADERBOARD_HOLOGRAM_Y_TOLERANCE = 0.15d;
@@ -668,7 +668,7 @@ public class HubLeaderboardListener implements Listener {
             try {
                 entriesByMetric = fetchLeaderboardEntriesByMetrics(metrics);
             } catch (Exception ex) {
-                plugin.getLogger().warning("Failed to refresh hub leaderboards: " + ex.getMessage());
+                plugin.getLogger().warning("Failed to refresh hub leaderboards!\n" + ex.getMessage());
             }
             Map<String, List<LeaderboardEntry>> resolvedEntriesByMetric = entriesByMetric;
             try {
@@ -694,7 +694,7 @@ public class HubLeaderboardListener implements Listener {
                 });
             } catch (Exception ex) {
                 refreshInFlight.set(false);
-                plugin.getLogger().warning("Failed to apply hub leaderboard refresh: " + ex.getMessage());
+                plugin.getLogger().warning("Failed to apply hub leaderboard refresh!\n" + ex.getMessage());
             }
         });
     }

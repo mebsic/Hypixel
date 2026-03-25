@@ -204,7 +204,7 @@ public class UpdateCommand implements SimpleCommand {
             try {
                 online.disconnect(reason);
             } catch (Exception ex) {
-                logger.warn("Failed to disconnect {} during /update shutdown.", online.getUsername(), ex);
+                logger.warn("Failed to disconnect {} during /update shutdown!", online.getUsername(), ex);
             }
         }
         triggerRolloutRestart();
@@ -216,7 +216,7 @@ public class UpdateCommand implements SimpleCommand {
         try {
             proxy.shutdown();
         } catch (Exception ex) {
-            logger.warn("Failed to shutdown proxy cleanly after /update.", ex);
+            logger.warn("Failed to shutdown proxy cleanly after /update!", ex);
         }
     }
 
@@ -253,7 +253,7 @@ public class UpdateCommand implements SimpleCommand {
         } catch (InterruptedException ex) {
             logger.info("Rollout webhook request interrupted (proxy likely restarting).");
         } catch (Exception ex) {
-            logger.warn("Failed to trigger rollout webhook.", ex);
+            logger.warn("Failed to trigger rollout webhook!", ex);
         }
     }
 
@@ -288,7 +288,7 @@ public class UpdateCommand implements SimpleCommand {
             try {
                 task.cancel();
             } catch (Exception ex) {
-                logger.warn("Failed to cancel scheduled /update task.", ex);
+                logger.warn("Failed to cancel scheduled /update task!", ex);
             }
         }
         scheduledTasks.clear();

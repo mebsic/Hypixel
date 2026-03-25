@@ -130,6 +130,12 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
     }
 
     public Location getHubSpawn() {
+        if (hubSpawn == null && corePlugin != null) {
+            Location refreshed = LocationUtil.deserialize(corePlugin.getConfig().getString("hub.spawn", ""));
+            if (refreshed != null) {
+                this.hubSpawn = refreshed;
+            }
+        }
         return hubSpawn;
     }
 

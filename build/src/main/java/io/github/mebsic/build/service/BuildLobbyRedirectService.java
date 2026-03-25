@@ -257,7 +257,7 @@ public class BuildLobbyRedirectService {
             player.sendPluginMessage(channelPlugin, BUNGEE_CHANNEL, bytes.toByteArray());
             return true;
         } catch (Exception ex) {
-            plugin.getLogger().warning("Failed to send lobby redirect for " + player.getName() + ": " + ex.getMessage());
+            plugin.getLogger().warning("Failed to send lobby redirect for " + player.getName() + "!\n" + ex.getMessage());
             return false;
         }
     }

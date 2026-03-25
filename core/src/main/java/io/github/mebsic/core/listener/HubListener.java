@@ -10,6 +10,8 @@ import io.github.mebsic.game.service.TitleService;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.ChatColor;
+import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -34,7 +36,8 @@ public class HubListener implements Listener {
     private static final String JOIN_SUFFIX = ChatColor.GOLD + " joined the lobby!";
     private static final long JOIN_MESSAGE_RETRY_INTERVAL_TICKS = 10L;
     private static final int JOIN_MESSAGE_MAX_RETRIES = 10;
-    private static final int HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS = 4;
+    private static final int HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS = 2;
+    private static final int HUB_SPAWN_OFFSET_ATTEMPTS = 24;
 
     private final HubContext plugin;
     private final CoreApi coreApi;
@@ -66,7 +69,7 @@ public class HubListener implements Listener {
         Profile profile = coreApi.getProfile(uuid);
         String plusColor = profile == null ? null : profile.getPlusColor();
         String mvpPlusPlusPrefixColor = profile == null ? null : profile.getMvpPlusPlusPrefixColor();
-        teleportToHubSpawn(player);
+        teleportToHubSpawn(player, true);
         plugin.handleHubJoin(player);
         applySpeed(player, rank);
         applySpeedAfterProfileLoad(player);
@@ -95,7 +98,7 @@ public class HubListener implements Listener {
         if (to == null || to.getY() >= 0.0D) {
             return;
         }
-        teleportToHubSpawn(player);
+        teleportToHubSpawn(player, false);
     }
 
     private void applySpeed(Player player, Rank rank) {
@@ -243,7 +246,7 @@ public class HubListener implements Listener {
         }
     }
 
-    private void teleportToHubSpawn(Player player) {
+    private void teleportToHubSpawn(Player player, boolean randomizeHorizontal) {
         if (player == null) {
             return;
         }
@@ -254,10 +257,15 @@ public class HubListener implements Listener {
         if (spawn == null) {
             return;
         }
-        Location randomized = randomizeHubSpawn(spawn);
-        player.teleport(randomized);
+        final double databaseY = spawn.getY();
+        Location target = spawn.clone();
+        target.setY(databaseY);
+        if (randomizeHorizontal) {
+            target = randomizeHubSpawn(spawn, databaseY);
+        }
+        player.teleport(target);
         if (plugin instanceof Plugin) {
-            final Location delayed = randomized.clone();
+            final Location delayed = target.clone();
             Bukkit.getScheduler().runTask((Plugin) plugin, () -> {
                 if (player.isOnline()) {
                     player.teleport(delayed);
@@ -266,22 +274,69 @@ public class HubListener implements Listener {
         }
     }
 
-    private Location randomizeHubSpawn(Location spawn) {
+    private Location randomizeHubSpawn(Location spawn, double exactY) {
         Location randomized = spawn.clone();
-        int offsetX = 0;
-        int offsetZ = 0;
-        while (offsetX == 0 && offsetZ == 0) {
-            offsetX = ThreadLocalRandom.current().nextInt(
-                    -HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS,
-                    HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS + 1
-            );
-            offsetZ = ThreadLocalRandom.current().nextInt(
-                    -HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS,
-                    HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS + 1
-            );
+        randomized.setY(exactY);
+        World world = randomized.getWorld();
+        if (world == null) {
+            return randomized;
         }
-        randomized.setX(randomized.getX() + offsetX);
-        randomized.setZ(randomized.getZ() + offsetZ);
+
+        for (int attempt = 0; attempt < HUB_SPAWN_OFFSET_ATTEMPTS; attempt++) {
+            int offsetX;
+            int offsetZ;
+            do {
+                offsetX = ThreadLocalRandom.current().nextInt(
+                        -HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS,
+                        HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS + 1
+                );
+                offsetZ = ThreadLocalRandom.current().nextInt(
+                        -HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS,
+                        HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS + 1
+                );
+            } while (offsetX == 0 && offsetZ == 0);
+
+            double targetX = spawn.getX() + offsetX;
+            double targetZ = spawn.getZ() + offsetZ;
+            if (!isSafeAtExactY(world, targetX, exactY, targetZ)) {
+                continue;
+            }
+            randomized.setX(targetX);
+            randomized.setZ(targetZ);
+            return randomized;
+        }
+
+        // If no nearby offset is safe at the configured Y, keep the exact DB location.
+        randomized.setX(spawn.getX());
+        randomized.setZ(spawn.getZ());
         return randomized;
+    }
+
+    private boolean isSafeAtExactY(World world, double x, double y, double z) {
+        if (world == null) {
+            return false;
+        }
+        Location feet = new Location(world, x, y, z);
+        Location head = feet.clone().add(0.0d, 1.0d, 0.0d);
+        Location below = feet.clone().add(0.0d, -1.0d, 0.0d);
+        Material feetType = feet.getBlock().getType();
+        Material headType = head.getBlock().getType();
+        Material belowType = below.getBlock().getType();
+        if (isSolid(feetType) || isSolid(headType)) {
+            return false;
+        }
+        return isSolid(belowType);
+    }
+
+    private boolean isSolid(Material material) {
+        if (material == null) {
+            return false;
+        }
+        try {
+            return material.isSolid();
+        } catch (NoSuchMethodError ignored) {
+            // Legacy safety fallback.
+            return material != Material.AIR;
+        }
     }
 }

@@ -62,7 +62,7 @@ public class SpectatorListener implements Listener {
     private static final String NO_GAME_AVAILABLE_MESSAGE =
             ChatColor.RED + "No available servers were found for this game right now.";
     private static final String TRANSFER_FAILED_MESSAGE =
-            ChatColor.RED + "Unable to send you to another game server right now.";
+            ChatColor.RED + "Failed to send you to another game server right now!";
 
     private final CorePlugin plugin;
     private final GameManager gameManager;

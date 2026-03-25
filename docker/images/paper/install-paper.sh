@@ -52,7 +52,7 @@ resolve_latest_legacy_version() {
 
 url="$(resolve_url "${version}" || true)"
 if [ -z "${url}" ]; then
-  echo "Unable to find Paper ${version}. Trying latest available 1.8.x build." >&2
+  echo "Failed to find Paper ${version}! Trying latest available 1.8.x build." >&2
   fallback="$(resolve_latest_legacy_version || true)"
   if [ -z "${fallback}" ]; then
     echo "No fallback Paper 1.8.x version is available from the API." >&2
@@ -63,7 +63,7 @@ if [ -z "${url}" ]; then
 fi
 
 if [ -z "${url}" ]; then
-  echo "Failed to resolve a Paper download URL." >&2
+  echo "Failed to resolve a Paper download URL!" >&2
   exit 1
 fi
 

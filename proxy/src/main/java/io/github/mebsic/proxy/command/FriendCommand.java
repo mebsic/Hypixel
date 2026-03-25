@@ -178,7 +178,7 @@ public class FriendCommand implements SimpleCommand {
             return;
         }
         if (!friends.request(player.getUniqueId(), targetId)) {
-            sendFramed(player, Component.text("Unable to send a friend request right now.", NamedTextColor.RED));
+            sendFramed(player, Component.text("Failed to send a friend request right now!", NamedTextColor.RED));
             return;
         }
         String senderFormattedName = friends.formatNameWithRank(player.getUniqueId());
@@ -302,7 +302,7 @@ public class FriendCommand implements SimpleCommand {
         String nickname = args.length >= 3 ? joinArgs(args, 2).trim() : "";
         if (nickname.isEmpty()) {
             if (!friends.setFriendNickname(player.getUniqueId(), targetId, null)) {
-                sendFramed(player, Component.text("Unable to set that nickname right now.", NamedTextColor.RED));
+                sendFramed(player, Component.text("Failed to set that nickname right now!", NamedTextColor.RED));
                 return;
             }
             sendFramed(player,
@@ -318,7 +318,7 @@ public class FriendCommand implements SimpleCommand {
             return;
         }
         if (!friends.setFriendNickname(player.getUniqueId(), targetId, nickname)) {
-            sendFramed(player, Component.text("Unable to set that nickname right now.", NamedTextColor.RED));
+            sendFramed(player, Component.text("Failed to set that nickname right now!", NamedTextColor.RED));
             return;
         }
         sendFramed(player,

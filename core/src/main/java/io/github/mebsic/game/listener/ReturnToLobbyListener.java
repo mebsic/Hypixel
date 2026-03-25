@@ -44,7 +44,7 @@ public class ReturnToLobbyListener implements Listener {
     private static final String NO_HUB_AVAILABLE_MESSAGE =
             ChatColor.RED + CommonMessages.NO_SERVERS_AVAILABLE;
     private static final String TRANSFER_FAILED_MESSAGE =
-            ChatColor.RED + "Unable to switch to a lobby right now.";
+            ChatColor.RED + "Failed to switch to a lobby right now!";
 
     private final CorePlugin plugin;
     private final ServerType hubType;
@@ -134,7 +134,7 @@ public class ReturnToLobbyListener implements Listener {
             player.sendPluginMessage(plugin, CHANNEL, bytes.toByteArray());
         } catch (Exception ex) {
             player.sendMessage(TRANSFER_FAILED_MESSAGE);
-            plugin.getLogger().warning("Failed to send hub connect request: " + ex.getMessage());
+            plugin.getLogger().warning("Failed to send hub connect request!\n" + ex.getMessage());
         }
     }
 
