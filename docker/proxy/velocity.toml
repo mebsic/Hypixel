@@ -1,0 +1,28 @@
+bind = "0.0.0.0:25565"
+# What should be the MOTD? This gets displayed when the player adds your server to
+# their server list. Only MiniMessage format is accepted.
+motd = "<red>Maintenance mode</red>"
+show-max-players = 200
+online-mode = true
+#Should the proxy enforce the new public key security standard? By default, this is on.
+force-key-authentication = false
+prevent-client-proxy-connections = false
+player-info-forwarding-mode = "legacy"
+#If you are using modern or BungeeGuard IP forwarding, configure a file that contains a unique secret here.
+#The file is expected to be UTF-8 encoded and not empty.
+forwarding-secret-file = "forwarding.secret"
+announce-forge = false
+kick-existing-players = false
+ping-passthrough = "disabled"
+enable-player-address-logging = true
+config-version = "2.7"
+
+[servers]
+	try = ["placeholder"]
+	placeholder = "127.0.0.1:1"
+[forced-hosts]
+[advanced]
+	bungee-plugin-message-channel = true
+	#Allows players transferred from other hosts via the
+	#Transfer packet (Minecraft 1.20.5) to be received.
+	accepts-transfers = false

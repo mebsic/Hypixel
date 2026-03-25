@@ -1,0 +1,41 @@
+name: Hypixel
+main: io.github.mebsic.core.CorePlugin
+version: 0.1
+commands:
+  ban:
+    usage: /ban <player> [duration] [reason]
+  unban:
+    usage: /unban <player>
+  mute:
+    usage: /mute <player> [duration] [reason]
+  unmute:
+    usage: /unmute <player>
+  kick:
+    usage: /kick <player> [reason]
+  rank:
+    usage: /rank <player> <rank>
+  rankcolor:
+    usage: /rankcolor
+  networklevel:
+    usage: /networklevel <player> <level>
+  gamemode:
+    usage: /gamemode <mode> [onlinePlayer]
+    aliases: [gm]
+  give:
+    usage: /give [onlinePlayer] <item> <quantity>
+  clear:
+    usage: /clear [onlinePlayer]
+  teleport:
+    usage: /teleport <player> | /teleport <from> <to> | /teleport all
+    aliases: [tp]
+  fly:
+    usage: /fly
+  parkour:
+    usage: /parkour [start|reset|checkpoint|cancel]
+  help:
+    usage: /help [report|general|linking]
+  whereami:
+    usage: /whereami
+  map:
+    usage: /map
+    aliases: [wtfmap]

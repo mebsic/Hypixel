@@ -1,0 +1,40 @@
+{
+  "mongo": {
+    "enabled": true,
+    "uri": "mongodb://app_user:change_me@mongo:27017/hypixel?authSource=hypixel",
+    "database": "hypixel"
+  },
+  "redis": {
+    "enabled": true,
+    "host": "redis",
+    "port": 6379,
+    "password": "change_me",
+    "database": 0
+  },
+  "registry": {
+    "staleSeconds": 20
+  },
+  "server": {
+    "heartbeatSeconds": 1,
+    "minPlayers": 2
+  },
+  "menus": {
+    "registryDataRefreshTicks": 2,
+    "gameMenuRefreshTicks": 2,
+    "lobbySelectorRefreshTicks": 2,
+    "lobbySelectorDataRefreshTicks": 2
+  },
+  "motd": {
+    "collection": "proxy_settings",
+    "documentId": "motd",
+    "field": "text",
+    "cacheTtlSeconds": 5
+  },
+  "proxy": {
+    "registryCollection": "server_registry",
+    "registryGroup": "",
+    "registryRefreshSeconds": 1,
+    "registryStaleSeconds": 20,
+    "friendsCollection": "friends"
+  }
+}

@@ -1,0 +1,280 @@
+x-network-env: &network-env
+  MONGO_URI: "mongodb://${MONGO_APP_USERNAME:?Set MONGO_APP_USERNAME in .env}:${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD in .env}@mongo:27017/${MONGO_APP_DATABASE:-hypixel}?authSource=${MONGO_APP_DATABASE:-hypixel}"
+  MONGO_DATABASE: "${MONGO_APP_DATABASE:-hypixel}"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"
+  REDIS_DATABASE: "${REDIS_DATABASE:-0}"
+
+services:
+  mongo:
+    container_name: mongo
+    image: "mongo:${MONGO_VERSION:-8.2}"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}"
+      MONGO_APP_USERNAME: "${MONGO_APP_USERNAME:?Set MONGO_APP_USERNAME in .env}"
+      MONGO_APP_PASSWORD: "${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD in .env}"
+      MONGO_APP_DATABASE: "${MONGO_APP_DATABASE:-hypixel}"
+    ports:
+      - "${MONGO_BIND_IP:-127.0.0.1}:${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+      - ./docker/mongo/create-mongo-user.sh:/docker-entrypoint-initdb.d/create-mongo-user.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --username \"$$MONGO_INITDB_ROOT_USERNAME\" --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval 'db.runCommand({ ping: 1 }).ok'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    container_name: redis
+    image: "redis:${REDIS_VERSION:-8.6}"
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  control-panel:
+    container_name: control-panel
+    build:
+      context: ./docker/images/control-panel
+    mem_limit: 2g
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *network-env
+      ROLLOUT_TOKEN: "${ROLLOUT_WEBHOOK_TOKEN:-}"
+      COMPOSE_PROJECT: "${COMPOSE_PROJECT_NAME:-}"
+      ROLLOUT_INCLUDE_SERVICES: "${ROLLOUT_INCLUDE_SERVICES:-velocity,build}"
+      ROLLOUT_INCLUDE_PREFIXES: "${ROLLOUT_INCLUDE_PREFIXES:-hub,game}"
+      ROLLOUT_RESTART_MODE: "${ROLLOUT_RESTART_MODE:-restart}"
+      ROLLOUT_MIN_HUB_REPLICAS: "${ROLLOUT_MIN_HUB_REPLICAS:-2}"
+      ROLLOUT_MIN_GAME_REPLICAS: "${ROLLOUT_MIN_GAME_REPLICAS:-2}"
+      ROLLOUT_RESTART_TIMEOUT_SECONDS: "${ROLLOUT_RESTART_TIMEOUT_SECONDS:-10}"
+      ROLLOUT_COMPOSE_WORKDIR: "${PWD}"
+      ROLLOUT_COMPOSE_FILE: "${PWD}/docker-compose.yml"
+      ROLLOUT_COMPOSE_ENV_FILE: "${PWD}/.env"
+      AUTOSCALE_ENABLED: "${AUTOSCALE_ENABLED:-true}"
+      AUTOSCALE_INTERVAL_SECONDS: "${AUTOSCALE_INTERVAL_SECONDS:-60}"
+      AUTOSCALE_STARTUP_GRACE_SECONDS: "${AUTOSCALE_STARTUP_GRACE_SECONDS:-60}"
+      AUTOSCALE_STARTUP_WAIT_FOR_READY_SERVICES: "${AUTOSCALE_STARTUP_WAIT_FOR_READY_SERVICES:-true}"
+      AUTOSCALE_STARTUP_WAIT_TIMEOUT_SECONDS: "${AUTOSCALE_STARTUP_WAIT_TIMEOUT_SECONDS:-300}"
+      AUTOSCALE_DEFAULT_GAME_TYPE: "${AUTOSCALE_DEFAULT_GAME_TYPE:-murdermystery}"
+      AUTOSCALE_REGISTRY_COLLECTION: "${AUTOSCALE_REGISTRY_COLLECTION:-server_registry}"
+      AUTOSCALE_COLLECTION: "${AUTOSCALE_COLLECTION:-autoscale}"
+      AUTOSCALE_STALE_HEARTBEAT_MILLIS: "${AUTOSCALE_STALE_HEARTBEAT_MILLIS:-120000}"
+      AUTOSCALE_PLAYERS_TTL_SECONDS: "${AUTOSCALE_PLAYERS_TTL_SECONDS:-180}"
+      AUTOSCALE_DRAIN_TIMEOUT_SECONDS: "${AUTOSCALE_DRAIN_TIMEOUT_SECONDS:-240}"
+      AUTOSCALE_SCALE_UP_COOLDOWN_SECONDS: "${AUTOSCALE_SCALE_UP_COOLDOWN_SECONDS:-90}"
+      AUTOSCALE_SCALE_DOWN_COOLDOWN_SECONDS: "${AUTOSCALE_SCALE_DOWN_COOLDOWN_SECONDS:-300}"
+      AUTOSCALE_HYSTERESIS_PLAYERS: "${AUTOSCALE_HYSTERESIS_PLAYERS:-20}"
+      AUTOSCALE_POLICY_DEFAULT_PLAYERS_PER_STEP: "${AUTOSCALE_POLICY_DEFAULT_PLAYERS_PER_STEP:-75}"
+      AUTOSCALE_POLICY_DEFAULT_HUB_PER_STEP: "${AUTOSCALE_POLICY_DEFAULT_HUB_PER_STEP:-1}"
+      AUTOSCALE_POLICY_DEFAULT_GAME_PER_STEP: "${AUTOSCALE_POLICY_DEFAULT_GAME_PER_STEP:-1}"
+      AUTOSCALE_POLICY_DEFAULT_BASE_HUB: "${AUTOSCALE_POLICY_DEFAULT_BASE_HUB:-2}"
+      AUTOSCALE_POLICY_DEFAULT_BASE_GAME: "${AUTOSCALE_POLICY_DEFAULT_BASE_GAME:-2}"
+      AUTOSCALE_POLICY_DEFAULT_MIN_HUB: "${AUTOSCALE_POLICY_DEFAULT_MIN_HUB:-2}"
+      AUTOSCALE_POLICY_DEFAULT_MIN_GAME: "${AUTOSCALE_POLICY_DEFAULT_MIN_GAME:-2}"
+      AUTOSCALE_POLICY_DEFAULT_MAX_HUB: "${AUTOSCALE_POLICY_DEFAULT_MAX_HUB:-12}"
+      AUTOSCALE_POLICY_DEFAULT_MAX_GAME: "${AUTOSCALE_POLICY_DEFAULT_MAX_GAME:-24}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/workspace:ro
+      - "${PWD}:${PWD}:ro"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8080/readyz\", timeout=2)'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  hub:
+    build:
+      context: ./docker/images/paper
+      args:
+        PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
+        USER_AGENT: "hypixel-docker/2.0 (https://example.com)"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control-panel:
+        condition: service_healthy
+    environment:
+      <<: *network-env
+      JAVA_OPTS: "${PAPER_JAVA_OPTS:--Xms2G -Xmx8G}"
+      MAP_ROOT: /maps
+      MAP_APPLY_MODE: copy
+      LEVEL_TYPE: FLAT
+      WORLD_NAME: world
+      SERVER_PORT: "auto"
+      PORT_ALLOC_MIN: "25590"
+      PORT_ALLOC_MAX: "29999"
+      SERVER_HEARTBEAT_SECONDS: "1"
+      CONFIG_SOURCE: /bootstrap/config.json
+      SERVER_KIND: hub
+      SERVER_TYPE: MURDER_MYSTERY_HUB
+      SERVER_GROUP: murdermystery
+      GAME_TYPE: murdermystery
+      SERVER_MAX_PLAYERS: "100"
+      FORCE_MAP_COPY: "true"
+    volumes:
+      - ./docker/config.json:/bootstrap/config.json:ro
+      - ./docker/maps:/maps
+      - ./docker/plugins/Hypixel.jar:/data/plugins/Hypixel.jar:ro
+      - ./docker/plugins/MurderMystery.jar:/data/plugins/MurderMystery.jar:ro
+      - server-port-alloc:/var/lib/hypixel-port
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'port=$(grep -m1 \"^server-port=\" /data/server.properties | cut -d= -f2); [ -n \"$${port}\" ] || port=25565; echo > /dev/tcp/127.0.0.1/$${port}'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    mem_limit: 8g
+
+  game:
+    build:
+      context: ./docker/images/paper
+      args:
+        PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
+        USER_AGENT: "hypixel-docker/2.0 (https://example.com)"
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control-panel:
+        condition: service_healthy
+    environment:
+      <<: *network-env
+      JAVA_OPTS: "${PAPER_JAVA_OPTS:--Xms2G -Xmx8G}"
+      MAP_ROOT: /maps
+      MAP_APPLY_MODE: copy
+      LEVEL_TYPE: FLAT
+      WORLD_NAME: world
+      SERVER_PORT: "auto"
+      PORT_ALLOC_MIN: "25590"
+      PORT_ALLOC_MAX: "29999"
+      SERVER_HEARTBEAT_SECONDS: "1"
+      CONFIG_SOURCE: /bootstrap/config.json
+      SERVER_KIND: game
+      SERVER_TYPE: MURDER_MYSTERY
+      SERVER_GROUP: murdermystery
+      GAME_TYPE: murdermystery
+      SERVER_MAX_PLAYERS: "16"
+      FORCE_MAP_COPY: "true"
+    volumes:
+      - ./docker/config.json:/bootstrap/config.json:ro
+      - ./docker/maps:/maps
+      - ./docker/plugins/Hypixel.jar:/data/plugins/Hypixel.jar:ro
+      - ./docker/plugins/MurderMystery.jar:/data/plugins/MurderMystery.jar:ro
+      - server-port-alloc:/var/lib/hypixel-port
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'port=$(grep -m1 \"^server-port=\" /data/server.properties | cut -d= -f2); [ -n \"$${port}\" ] || port=25565; echo > /dev/tcp/127.0.0.1/$${port}'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    mem_limit: 8g
+
+  build:
+    container_name: build
+    image: hypixel-build
+    build:
+      context: ./docker/images/paper
+      args:
+        PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
+        USER_AGENT: "hypixel-docker/2.0 (https://example.com)"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control-panel:
+        condition: service_healthy
+    environment:
+      <<: *network-env
+      JAVA_OPTS: "${PAPER_JAVA_OPTS:--Xms2G -Xmx8G}"
+      MAP_ROOT: /maps
+      WORLD_NAME: world
+      FORCE_MAP_COPY: "true"
+      SERVER_PORT: "auto"
+      PORT_ALLOC_MIN: "25590"
+      PORT_ALLOC_MAX: "29999"
+      SERVER_HEARTBEAT_SECONDS: "1"
+      CONFIG_SOURCE: /bootstrap/config.json
+      SERVER_KIND: build
+      SERVER_TYPE: BUILD
+      SERVER_GROUP: build
+      GAME_TYPE: build
+      SERVER_ID: build
+      SERVER_MAX_PLAYERS: "10"
+      WORLD_ARCHIVE_URL: "${BUILD_WORLD_ARCHIVE_URL:-}"
+      WORLD_ARCHIVE_FORCE_EXTRACT: "${BUILD_WORLD_ARCHIVE_FORCE_EXTRACT:-false}"
+    volumes:
+      - build-data:/data
+      - ./docker/config.json:/bootstrap/config.json:ro
+      - ./docker/maps:/maps
+      - ./docker/plugins/Hypixel.jar:/data/plugins/Hypixel.jar:ro
+      - ./docker/plugins/HypixelBuild.jar:/data/plugins/HypixelBuild.jar:ro
+      - server-port-alloc:/var/lib/hypixel-port
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'port=$(grep -m1 \"^server-port=\" /data/server.properties | cut -d= -f2); [ -n \"$${port}\" ] || port=25565; echo > /dev/tcp/127.0.0.1/$${port}'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    mem_limit: 8g
+
+  velocity:
+    container_name: proxy
+    image: hypixel-proxy
+    build:
+      context: ./docker/images/velocity
+      args:
+        VELOCITY_VERSION: "latest"
+        USER_AGENT: "hypixel-docker/2.0 (https://example.com)"
+    ports:
+      - "25565:25565"
+    depends_on:
+      hub:
+        condition: service_healthy
+      game:
+        condition: service_healthy
+    environment:
+      <<: *network-env
+      JAVA_OPTS: "${VELOCITY_JAVA_OPTS:--Xms512M -Xmx1G}"
+      CONFIG_SOURCE: /bootstrap/config.json
+      ROLLOUT_WEBHOOK_URL: "${ROLLOUT_WEBHOOK_URL:-http://control-panel:8080/restart}"
+      ROLLOUT_WEBHOOK_TOKEN: "${ROLLOUT_WEBHOOK_TOKEN:-}"
+    volumes:
+      - ./docker/proxy/velocity.toml:/server/velocity.toml
+      - ./server-icon.png:/server/server-icon.png:ro
+      - ./server-icon.png:/server/plugins/hypixelproxy/server-icon.png:ro
+      - ./docker/proxy:/bootstrap/proxy:ro
+      - ./docker/config.json:/bootstrap/config.json:ro
+      - ./docker/plugins/HypixelProxy.jar:/server/plugins/HypixelProxy.jar:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/25565'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    mem_limit: 1g
+
+volumes:
+  mongo-data:
+  build-data:
+  server-port-alloc:
