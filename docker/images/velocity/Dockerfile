@@ -1,7 +1,7 @@
 FROM eclipse-temurin:17-jre
 
 ARG VELOCITY_VERSION=latest
-ARG USER_AGENT="hypixel-docker/2.0 (https://example.com)"
+ARG USER_AGENT="hypixel-docker/2.0 (https://example.net)"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends bash curl jq ca-certificates \

@@ -2,7 +2,7 @@
 set -eu
 
 version="${VELOCITY_VERSION:-latest}"
-user_agent="${USER_AGENT:-hypixel-docker/2.0 (https://example.com)}"
+user_agent="${USER_AGENT:-hypixel-docker/2.0 (https://example.net)}"
 api_root="https://api.papermc.io/v2/projects/velocity"
 
 list_versions() {

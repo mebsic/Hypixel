@@ -42,9 +42,9 @@ public enum BanReasonType {
     UN_INTENTIONALLY_CAUSING_DISTRESS_3("Unintentionally/Intentionally Causing distress.", "UI3"),
     INAPPROPRIATE_CONTENT_LVL2("Talking or sharing inappropriate content with adult themes on the server.", "IC2"),
     ACCOUNT_DELETION("Upon request, data for this user has been deleted. https://support." + NetworkConstants.DOMAIN, "ACCOUNT_DELETION"),
-    CREATOR_BAN("Please contact creators@example.com for assistance.", "CREATOR_BAN"),
+    CREATOR_BAN("Please contact creators@example.net for assistance.", "CREATOR_BAN"),
     CREATOR_ACCOUNT_SECURITY_ALERT(
-            "Your account has a security alert, please secure it and contact creators@example.com for assistance.",
+            "Your account has a security alert, please secure it and contact creators@example.net for assistance.",
             "CREATOR_ACCOUNT_SECURITY_ALERT",
             "Creator Compromised Account",
             "Creator Account Security Alert"

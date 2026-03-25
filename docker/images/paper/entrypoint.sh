@@ -24,7 +24,7 @@ RESTART_SCRIPT_PATH="${RESTART_SCRIPT_PATH:-/usr/local/bin/paper-restart.sh}"
 PORT_ALLOC_ROOT="${PORT_ALLOC_ROOT:-/var/lib/hypixel-port}"
 PORT_ALLOC_MIN="${PORT_ALLOC_MIN:-25590}"
 PORT_ALLOC_MAX="${PORT_ALLOC_MAX:-29999}"
-USER_AGENT="${USER_AGENT:-hypixel-docker/2.0 (https://example.com)}"
+USER_AGENT="${USER_AGENT:-hypixel-docker/2.0 (https://example.net)}"
 
 mkdir -p "${DATA_DIR}" "${DATA_DIR}/plugins" "${DATA_DIR}/plugins/Hypixel"
 

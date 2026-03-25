@@ -107,7 +107,7 @@ services:
       context: ./docker/images/paper
       args:
         PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
-        USER_AGENT: "hypixel-docker/2.0 (https://example.com)"
+        USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
     depends_on:
       mongo:
         condition: service_healthy
@@ -151,7 +151,7 @@ services:
       context: ./docker/images/paper
       args:
         PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
-        USER_AGENT: "hypixel-docker/2.0 (https://example.com)"
+        USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
     restart: unless-stopped
     depends_on:
       mongo:
@@ -198,7 +198,7 @@ services:
       context: ./docker/images/paper
       args:
         PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
-        USER_AGENT: "hypixel-docker/2.0 (https://example.com)"
+        USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
     depends_on:
       mongo:
         condition: service_healthy
@@ -246,7 +246,7 @@ services:
       context: ./docker/images/velocity
       args:
         VELOCITY_VERSION: "latest"
-        USER_AGENT: "hypixel-docker/2.0 (https://example.com)"
+        USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
     ports:
       - "25565:25565"
     depends_on:
