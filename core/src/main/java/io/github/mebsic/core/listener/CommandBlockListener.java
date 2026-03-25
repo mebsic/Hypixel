@@ -38,7 +38,6 @@ public class CommandBlockListener implements Listener {
                 "/?",
                 "/whitelist",
                 "/stop",
-                "/restart",
                 "/reload",
                 "/rl",
                 "/op",

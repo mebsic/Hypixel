@@ -281,6 +281,17 @@ def ordered_target_services(targets):
     return ordered
 
 
+def resolve_restart_targets(containers, requested_services=None):
+    base_targets = [item for item in containers if is_restart_target_service(item.get("service", ""))]
+    ordered = ordered_restart_targets(base_targets)
+    if requested_services is None:
+        return ordered
+    requested = set((service or "").strip().lower() for service in requested_services if service)
+    if not requested:
+        return ordered
+    return [item for item in ordered if (item.get("service", "") or "").strip().lower() in requested]
+
+
 def count_ready_service_containers(compose_project, service_name):
     ready = 0
     containers = list_project_containers(compose_project, include_all=True)
@@ -350,6 +361,49 @@ def wait_for_service_ready(compose_project, service_name, expected_count, timeou
 def normalize_restart_mode(value):
     mode = str(value or "").strip().lower()
     return mode if mode in VALID_RESTART_MODES else ""
+
+
+def parse_requested_services(value):
+    if value is None:
+        return True, None
+
+    raw_values = []
+    if isinstance(value, str):
+        raw_values = clean_csv(value, "")
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            if not isinstance(item, str):
+                return False, None
+            raw_values.append(item)
+    else:
+        return False, None
+
+    requested = []
+    seen = set()
+    for item in raw_values:
+        normalized = (item or "").strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        requested.append(normalized)
+    return True, requested
+
+
+def merge_requested_services(primary, secondary):
+    if primary is None and secondary is None:
+        return None
+    merged = []
+    seen = set()
+    for values in (primary, secondary):
+        if values is None:
+            continue
+        for item in values:
+            normalized = (item or "").strip().lower()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            merged.append(normalized)
+    return merged
 
 
 def stop_and_remove_container(container_id):
@@ -1374,6 +1428,16 @@ class RolloutHandler(http.server.BaseHTTPRequestHandler):
                 self.json_response(400, {"error": "mode must be one of: restart, recreate, rebuild"})
                 return
 
+            services_valid, requested_services = parse_requested_services(payload.get("services"))
+            if not services_valid:
+                self.json_response(400, {"error": "services must be a string or list of strings"})
+                return
+            service_valid, single_service = parse_requested_services(payload.get("service"))
+            if not service_valid:
+                self.json_response(400, {"error": "service must be a string"})
+                return
+            requested_services = merge_requested_services(requested_services, single_service)
+
             restart_mode = requested_mode or ROLLOUT_RESTART_MODE
             if payload.get("rebuild") is True:
                 restart_mode = "rebuild"
@@ -1385,8 +1449,18 @@ class RolloutHandler(http.server.BaseHTTPRequestHandler):
                 if not compose_project:
                     raise RuntimeError("compose project not detected; set COMPOSE_PROJECT")
                 project_containers = list_project_containers(compose_project, include_all=True)
-                targets = [item for item in project_containers if is_restart_target_service(item.get("service", ""))]
-                targets = ordered_restart_targets(targets)
+                available_targets = resolve_restart_targets(project_containers)
+                targets = resolve_restart_targets(project_containers, requested_services)
+                if requested_services is not None and not targets:
+                    self.json_response(
+                        400,
+                        {
+                            "error": "requested services did not match any restart targets",
+                            "requestedServices": requested_services,
+                            "availableServices": ordered_target_services(available_targets),
+                        },
+                    )
+                    return
                 target_services = ordered_target_services(targets)
                 scaled_to_minimum = []
                 for service in ("hub", "game"):
@@ -1430,8 +1504,7 @@ class RolloutHandler(http.server.BaseHTTPRequestHandler):
                         }
                     )
 
-                targets = [item for item in project_containers if is_restart_target_service(item.get("service", ""))]
-                targets = ordered_restart_targets(targets)
+                targets = resolve_restart_targets(project_containers, requested_services)
                 target_services = ordered_target_services(targets)
                 restarted = []
                 failed = []
@@ -1514,6 +1587,7 @@ class RolloutHandler(http.server.BaseHTTPRequestHandler):
                         "targetCount": len(targets),
                         "orderedTargets": [target["name"] for target in targets],
                         "targetServices": target_services,
+                        "requestedServices": requested_services,
                         "restartMode": restart_mode,
                         "targets": [target["name"] for target in targets],
                         "restarted": restarted,

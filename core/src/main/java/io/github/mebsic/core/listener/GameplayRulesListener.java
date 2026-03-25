@@ -14,6 +14,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
+import org.bukkit.event.hanging.HangingBreakByEntityEvent;
 import org.bukkit.event.player.PlayerAchievementAwardedEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -31,6 +32,8 @@ public class GameplayRulesListener implements Listener {
     private final boolean containerInteractionBlocked;
     private final boolean mechanismInteractionBlocked;
     private final boolean farmlandTrampleBlocked;
+    private final boolean paintingBreakBlocked;
+    private final boolean beaconInteractionBlocked;
     private final boolean weatherCycleEnabled;
     private final boolean vanillaAchievementsEnabled;
 
@@ -46,6 +49,8 @@ public class GameplayRulesListener implements Listener {
         this.containerInteractionBlocked = this.serverType == ServerType.MURDER_MYSTERY_HUB || this.serverType == ServerType.MURDER_MYSTERY;
         this.mechanismInteractionBlocked = this.serverType == ServerType.MURDER_MYSTERY_HUB;
         this.farmlandTrampleBlocked = this.serverType == ServerType.MURDER_MYSTERY_HUB || this.serverType == ServerType.MURDER_MYSTERY;
+        this.paintingBreakBlocked = this.serverType != null && this.serverType.isHub();
+        this.beaconInteractionBlocked = this.serverType != null && this.serverType.isHub();
         boolean weatherEnabled = resolveToggle(config, "gameplay.weatherCycle", this.serverType, serverName, true);
         if (this.serverType == ServerType.MURDER_MYSTERY_HUB || this.serverType == ServerType.MURDER_MYSTERY) {
             weatherEnabled = false;
@@ -67,6 +72,8 @@ public class GameplayRulesListener implements Listener {
                         + ", containerInteractionBlocked=" + containerInteractionBlocked
                         + ", mechanismInteractionBlocked=" + mechanismInteractionBlocked
                         + ", farmlandTrampleBlocked=" + farmlandTrampleBlocked
+                        + ", paintingBreakBlocked=" + paintingBreakBlocked
+                        + ", beaconInteractionBlocked=" + beaconInteractionBlocked
                         + ", weatherCycle=" + weatherCycleEnabled
                         + ", vanillaAchievements=" + vanillaAchievementsEnabled
         );
@@ -119,6 +126,17 @@ public class GameplayRulesListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPaintingBreak(HangingBreakByEntityEvent event) {
+        if (!paintingBreakBlocked || event == null || event.getRemover() == null) {
+            return;
+        }
+        if (!(event.getRemover() instanceof Player)) {
+            return;
+        }
+        event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockInteract(PlayerInteractEvent event) {
         if (event == null) {
             return;
@@ -135,6 +153,10 @@ public class GameplayRulesListener implements Listener {
                 return;
             }
             if (containerInteractionBlocked && isBlockedContainerInteractionMaterial(type)) {
+                event.setCancelled(true);
+                return;
+            }
+            if (beaconInteractionBlocked && isBeacon(type)) {
                 event.setCancelled(true);
                 return;
             }
@@ -250,6 +272,13 @@ public class GameplayRulesListener implements Listener {
         }
         String name = material.name();
         return "SOIL".equals(name) || "FARMLAND".equals(name);
+    }
+
+    private boolean isBeacon(Material material) {
+        if (material == null) {
+            return false;
+        }
+        return "BEACON".equals(material.name());
     }
 
     private boolean resolveToggle(FileConfiguration config,

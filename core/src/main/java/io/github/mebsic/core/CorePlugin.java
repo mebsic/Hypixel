@@ -77,6 +77,7 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.Sound;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.util.Vector;
 import org.bson.Document;
 
 import java.util.Collections;
@@ -99,6 +100,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     private static final String FRIENDS_COLLECTION = "friends";
     private static final String FRIEND_VISIBILITY_UPDATE_CHANNEL = "friend_visibility_update";
     private static final long BLOCKED_CACHE_TTL_MILLIS = 5_000L;
+    private static final int HOTBAR_SLOT_ONE_INDEX = 0;
 
     private MongoManager mongo;
     private RedisManager redis;
@@ -426,10 +428,21 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        profileService.handleJoin(event.getPlayer());
-        ensureFriendDocumentAsync(event.getPlayer().getUniqueId(), event.getPlayer().getName());
-        enforceAdventureMode(event.getPlayer().getGameMode(), event.getPlayer());
-        applyHubFlightState(event.getPlayer());
+        Player player = event.getPlayer();
+        forceHotbarSlotOne(player);
+        profileService.handleJoin(player);
+        ensureFriendDocumentAsync(player.getUniqueId(), player.getName());
+        enforceAdventureMode(player.getGameMode(), player);
+        applyHubFlightState(player);
+        scheduleHubFlightReapply(player.getUniqueId(), 2L);
+        scheduleHubFlightReapply(player.getUniqueId(), 20L);
+    }
+
+    private void forceHotbarSlotOne(Player player) {
+        if (player == null) {
+            return;
+        }
+        player.getInventory().setHeldItemSlot(HOTBAR_SLOT_ONE_INDEX);
     }
 
     @EventHandler
@@ -727,6 +740,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
                 return;
             }
             applyHubFlightState(player, profile);
+            scheduleHubFlightReapply(profile.getUuid(), 2L);
             applyHubSpeedState(player, profile.getRank());
             if (hubItemListener != null) {
                 hubItemListener.applyProfileVisibility(profile);
@@ -869,6 +883,26 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             return;
         }
         player.setFlying(true);
+        if (!player.isOnGround()) {
+            Vector velocity = player.getVelocity();
+            if (velocity != null && velocity.getY() < 0.0d) {
+                player.setVelocity(new Vector(velocity.getX(), 0.0d, velocity.getZ()));
+            }
+        }
+    }
+
+    private void scheduleHubFlightReapply(UUID uuid, long delayTicks) {
+        if (uuid == null || !isHubServer()) {
+            return;
+        }
+        long safeDelay = Math.max(1L, delayTicks);
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player == null || !player.isOnline()) {
+                return;
+            }
+            applyHubFlightState(player);
+        }, safeDelay);
     }
 
     private void applyHubSpeedState(Player player, Rank rank) {

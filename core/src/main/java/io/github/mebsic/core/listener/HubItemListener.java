@@ -6,11 +6,13 @@ import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.menu.GameMenu;
 import io.github.mebsic.core.menu.LobbySelectorMenu;
+import io.github.mebsic.core.menu.MenuHolder;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.service.QueueClient;
 import io.github.mebsic.core.service.ServerRegistrySnapshot;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
@@ -21,6 +23,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -53,6 +57,8 @@ public class HubItemListener implements Listener {
     private static final int TOGGLE_SLOT = 7;
     private static final int LOBBY_SELECTOR_SLOT = 8;
     private static final int PORTAL_TRIGGER_RADIUS_BLOCKS = 2;
+    private static final long PORTAL_MENU_REOPEN_COOLDOWN_MS = 500L;
+    private static final long PORTAL_MENU_FREEZE_MS = 450L;
 
     private final CorePlugin plugin;
     private final GameMenu gameMenu;
@@ -62,6 +68,9 @@ public class HubItemListener implements Listener {
     private final Map<UUID, Set<UUID>> cachedFriendUuids;
     private final Map<UUID, Long> lastFriendRefreshAt;
     private final Set<UUID> friendRefreshInProgress;
+    private final Set<UUID> playersInPortalZone;
+    private final Map<UUID, Long> portalMenuReopenAllowedAt;
+    private final Map<UUID, Long> portalFreezeUntil;
 
     public HubItemListener(CorePlugin plugin, QueueClient queueClient, ServerRegistrySnapshot registrySnapshot) {
         this.plugin = plugin;
@@ -72,6 +81,9 @@ public class HubItemListener implements Listener {
         this.cachedFriendUuids = new ConcurrentHashMap<>();
         this.lastFriendRefreshAt = new ConcurrentHashMap<>();
         this.friendRefreshInProgress = ConcurrentHashMap.newKeySet();
+        this.playersInPortalZone = ConcurrentHashMap.newKeySet();
+        this.portalMenuReopenAllowedAt = new ConcurrentHashMap<>();
+        this.portalFreezeUntil = new ConcurrentHashMap<>();
         subscribeToFriendVisibilityUpdates();
     }
 
@@ -83,6 +95,10 @@ public class HubItemListener implements Listener {
         }
         visibility.put(player.getUniqueId(), resolveInitialVisibility(player));
         refreshFriendUuidsIfNeeded(player.getUniqueId(), true);
+        UUID uuid = player.getUniqueId();
+        playersInPortalZone.remove(uuid);
+        portalMenuReopenAllowedAt.remove(uuid);
+        portalFreezeUntil.remove(uuid);
         giveItems(player);
         applyExistingVisibility(player);
     }
@@ -98,6 +114,9 @@ public class HubItemListener implements Listener {
         cachedFriendUuids.remove(uuid);
         lastFriendRefreshAt.remove(uuid);
         friendRefreshInProgress.remove(uuid);
+        playersInPortalZone.remove(uuid);
+        portalMenuReopenAllowedAt.remove(uuid);
+        portalFreezeUntil.remove(uuid);
         lobbySelectorMenu.clear(event.getPlayer());
     }
 
@@ -110,17 +129,38 @@ public class HubItemListener implements Listener {
         if (event.getFrom() == null || event.getTo() == null) {
             return;
         }
-        if (event.getFrom().getBlockX() == event.getTo().getBlockX()
+        UUID uuid = player.getUniqueId();
+        boolean sameBlock = event.getFrom().getBlockX() == event.getTo().getBlockX()
                 && event.getFrom().getBlockY() == event.getTo().getBlockY()
-                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
+                && event.getFrom().getBlockZ() == event.getTo().getBlockZ();
+        if (sameBlock && !playersInPortalZone.contains(uuid) && !isInsideNetherPortal(event.getTo())) {
             return;
         }
 
-        boolean nearPortal = isNearNetherPortal(player);
+        boolean nearPortal = isNearNetherPortal(event.getTo());
         if (!nearPortal) {
+            playersInPortalZone.remove(uuid);
+            portalFreezeUntil.remove(uuid);
             return;
         }
+        playersInPortalZone.add(uuid);
+
+        long now = System.currentTimeMillis();
+        if (isViewingGameMenu(player) && now < portalFreezeUntil.getOrDefault(uuid, 0L)) {
+            event.setTo(event.getFrom());
+            return;
+        }
+        if (isViewingGameMenu(player)) {
+            return;
+        }
+        if (now < portalMenuReopenAllowedAt.getOrDefault(uuid, 0L)) {
+            return;
+        }
+
         gameMenu.open(player);
+        portalMenuReopenAllowedAt.put(uuid, now + PORTAL_MENU_REOPEN_COOLDOWN_MS);
+        portalFreezeUntil.put(uuid, now + PORTAL_MENU_FREEZE_MS);
+        player.setVelocity(player.getVelocity().zero());
     }
 
     @EventHandler
@@ -221,21 +261,24 @@ public class HubItemListener implements Listener {
         cachedFriendUuids.clear();
         lastFriendRefreshAt.clear();
         friendRefreshInProgress.clear();
+        playersInPortalZone.clear();
+        portalMenuReopenAllowedAt.clear();
+        portalFreezeUntil.clear();
         gameMenu.shutdown();
         lobbySelectorMenu.shutdown();
     }
 
-    private boolean isNearNetherPortal(Player player) {
-        if (player == null) {
+    private boolean isNearNetherPortal(Location center) {
+        if (center == null) {
             return false;
         }
-        World world = player.getWorld();
+        World world = center.getWorld();
         if (world == null) {
             return false;
         }
-        int centerX = player.getLocation().getBlockX();
-        int centerY = player.getLocation().getBlockY();
-        int centerZ = player.getLocation().getBlockZ();
+        int centerX = center.getBlockX();
+        int centerY = center.getBlockY();
+        int centerZ = center.getBlockZ();
         int radius = PORTAL_TRIGGER_RADIUS_BLOCKS;
         for (int x = centerX - radius; x <= centerX + radius; x++) {
             for (int y = centerY - 1; y <= centerY + 2; y++) {
@@ -253,6 +296,35 @@ public class HubItemListener implements Listener {
     private boolean isNetherPortal(Material material) {
         return material == Material.matchMaterial("NETHER_PORTAL")
                 || material == Material.matchMaterial("PORTAL");
+    }
+
+    private boolean isInsideNetherPortal(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return false;
+        }
+        World world = location.getWorld();
+        int x = location.getBlockX();
+        int y = location.getBlockY();
+        int z = location.getBlockZ();
+        if (isNetherPortal(world.getBlockAt(x, y, z).getType())) {
+            return true;
+        }
+        return isNetherPortal(world.getBlockAt(x, y + 1, z).getType());
+    }
+
+    private boolean isViewingGameMenu(Player player) {
+        if (player == null) {
+            return false;
+        }
+        InventoryView view = player.getOpenInventory();
+        if (view == null) {
+            return false;
+        }
+        Inventory top = view.getTopInventory();
+        if (top == null || !(top.getHolder() instanceof MenuHolder)) {
+            return false;
+        }
+        return ((MenuHolder) top.getHolder()).getMenu() == gameMenu;
     }
 
     private boolean resolveInitialVisibility(Player player) {
