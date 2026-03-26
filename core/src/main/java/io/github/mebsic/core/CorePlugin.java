@@ -3,8 +3,11 @@ package io.github.mebsic.core;
 import io.github.mebsic.core.command.BanCommand;
 import io.github.mebsic.core.command.ClearCommand;
 import io.github.mebsic.core.command.FlyCommand;
+import io.github.mebsic.core.command.FireworkCommand;
 import io.github.mebsic.core.command.GiveCommand;
 import io.github.mebsic.core.command.GamemodeCommand;
+import io.github.mebsic.core.command.GiftCommand;
+import io.github.mebsic.core.command.GoldCommand;
 import io.github.mebsic.core.command.HelpCommand;
 import io.github.mebsic.core.command.KickCommand;
 import io.github.mebsic.core.command.MapCommand;
@@ -13,7 +16,9 @@ import io.github.mebsic.core.command.NetworkLevelCommand;
 import io.github.mebsic.core.command.ParkourCommand;
 import io.github.mebsic.core.command.RankCommand;
 import io.github.mebsic.core.command.RankColorCommand;
+import io.github.mebsic.core.command.Reset100RanksGiftedCommand;
 import io.github.mebsic.core.command.TeleportCommand;
+import io.github.mebsic.core.command.Unlock100RanksGiftedCommand;
 import io.github.mebsic.core.command.UnbanCommand;
 import io.github.mebsic.core.command.UnmuteCommand;
 import io.github.mebsic.core.command.WhereAmICommand;
@@ -29,12 +34,14 @@ import io.github.mebsic.core.model.CosmeticType;
 import io.github.mebsic.core.model.GameResult;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
+import io.github.mebsic.core.book.BookPromptService;
 import io.github.mebsic.core.service.CoreApi;
 import io.github.mebsic.core.service.CosmeticService;
 import io.github.mebsic.core.manager.LeaderboardsManager;
 import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.service.ProfileService;
 import io.github.mebsic.core.service.ProfileCommandSyncService;
+import io.github.mebsic.core.service.GiftRequestService;
 import io.github.mebsic.core.service.PunishmentService;
 import io.github.mebsic.core.service.QueueClient;
 import io.github.mebsic.core.service.ServerRegistrySnapshot;
@@ -101,6 +108,8 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     private static final String FRIEND_VISIBILITY_UPDATE_CHANNEL = "friend_visibility_update";
     private static final long BLOCKED_CACHE_TTL_MILLIS = 5_000L;
     private static final int HOTBAR_SLOT_ONE_INDEX = 0;
+    private static final int RANK_COLOR_GIFTED_RANKS_REQUIRED = 100;
+    private static final String RANKS_GIFTED_COUNTER_KEY = "ranksGifted";
 
     private MongoManager mongo;
     private RedisManager redis;
@@ -113,6 +122,8 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     private PubSubService pubSub;
     private PunishmentService punishments;
     private ProfileCommandSyncService profileCommandSync;
+    private GiftRequestService giftRequestService;
+    private BookPromptService bookPromptService;
     private ServerType serverType;
     private QueueClient queueClient;
     private ServerRegistrySnapshot registrySnapshot;
@@ -144,6 +155,9 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         getServer().getPluginManager().registerEvents(new ChatFormatListener(this, this), this);
         getServer().getPluginManager().registerEvents(new CommandBlockListener(serverType), this);
         getServer().getPluginManager().registerEvents(new MenuListener(), this);
+        if (bookPromptService != null) {
+            getServer().getPluginManager().registerEvents(bookPromptService, this);
+        }
         if (serverType != null && serverType.isGame()) {
             getServer().getPluginManager().registerEvents(
                     new GameJoinListener(this, this, serverType, new DefaultGameTypePlayerCountProvider()),
@@ -175,6 +189,18 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (getCommand("networklevel") != null) {
             getCommand("networklevel").setExecutor(new NetworkLevelCommand(this));
         }
+        if (getCommand("gold") != null) {
+            getCommand("gold").setExecutor(new GoldCommand(this));
+        }
+        if (getCommand("gift") != null) {
+            getCommand("gift").setExecutor(new GiftCommand(this));
+        }
+        if (getCommand("unlock100ranksgifted") != null) {
+            getCommand("unlock100ranksgifted").setExecutor(new Unlock100RanksGiftedCommand(this));
+        }
+        if (getCommand("reset100ranksgifted") != null) {
+            getCommand("reset100ranksgifted").setExecutor(new Reset100RanksGiftedCommand(this));
+        }
         if (getCommand("gamemode") != null) {
             getCommand("gamemode").setExecutor(new GamemodeCommand(this));
         }
@@ -189,6 +215,9 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         }
         if (getCommand("fly") != null) {
             getCommand("fly").setExecutor(new FlyCommand(this));
+        }
+        if (getCommand("firework") != null) {
+            getCommand("firework").setExecutor(new FireworkCommand(this));
         }
         if (getCommand("parkour") != null) {
             getCommand("parkour").setExecutor(new ParkourCommand(this));
@@ -263,6 +292,8 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         this.cosmetics = new CosmeticService(knifeSkins);
         this.profileService = new ProfileService(this, profileStore, cosmetics);
         this.leaderboards = new LeaderboardsManager(this);
+        this.giftRequestService = new GiftRequestService();
+        this.bookPromptService = new BookPromptService(this);
         if (isRedisEnabled()) {
             this.redis = new RedisManager(
                     getConfig().getString("redis.host"),
@@ -292,6 +323,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         mongo.ensureCollection("server_registry");
         mongo.ensureCollection("boss_bar_messages");
         mongo.ensureCollection("core_migrations");
+        mongo.ensureCollection("rank_gift_history");
         mongo.ensureCollection(MapConfigStore.COLLECTION_NAME);
     }
 
@@ -390,6 +422,14 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         return queueClient;
     }
 
+    public GiftRequestService getGiftRequestService() {
+        return giftRequestService;
+    }
+
+    public BookPromptService getBookPromptService() {
+        return bookPromptService;
+    }
+
     public PubSubService getPubSubService() {
         return pubSub;
     }
@@ -408,6 +448,10 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (leaderboards != null) {
             leaderboards.stop();
         }
+        if (bookPromptService != null) {
+            bookPromptService.shutdown();
+            bookPromptService = null;
+        }
         if (hubItemListener != null) {
             hubItemListener.shutdown();
             hubItemListener = null;
@@ -422,6 +466,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (redis != null) {
             redis.close();
         }
+        giftRequestService = null;
         blockedCache.clear();
         getServer().getMessenger().unregisterOutgoingPluginChannel(this);
     }
@@ -447,9 +492,33 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        profileService.handleQuit(event.getPlayer());
-        if (event != null && event.getPlayer() != null) {
-            blockedCache.remove(event.getPlayer().getUniqueId());
+        if (event == null || event.getPlayer() == null) {
+            return;
+        }
+        Player player = event.getPlayer();
+        profileService.handleQuit(player);
+        UUID playerUuid = player.getUniqueId();
+        blockedCache.remove(playerUuid);
+        cancelPendingGiftRequests(playerUuid);
+    }
+
+    private void cancelPendingGiftRequests(UUID playerUuid) {
+        if (playerUuid == null || giftRequestService == null) {
+            return;
+        }
+        List<GiftRequestService.GiftRequest> removed = giftRequestService.removeByParticipant(playerUuid);
+        if (removed == null || removed.isEmpty() || bookPromptService == null) {
+            return;
+        }
+        for (GiftRequestService.GiftRequest request : removed) {
+            if (request == null) {
+                continue;
+            }
+            UUID targetUuid = request.getTargetUuid();
+            if (targetUuid == null || playerUuid.equals(targetUuid)) {
+                continue;
+            }
+            bookPromptService.cancelPrompt(targetUuid);
         }
     }
 
@@ -612,6 +681,29 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         return profileService.getProfile(uuid);
     }
 
+    public boolean isKnownPlayerName(String name) {
+        String trimmed = name == null ? "" : name.trim();
+        if (trimmed.isEmpty()) {
+            return false;
+        }
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (online == null || online.getName() == null) {
+                continue;
+            }
+            if (online.getName().equalsIgnoreCase(trimmed)) {
+                return true;
+            }
+        }
+        if (!isMongoEnabled() || profileStore == null) {
+            return false;
+        }
+        try {
+            return profileStore.existsByName(trimmed);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     public void saveProfile(Profile profile) {
         if (profile == null) {
             return;
@@ -772,9 +864,36 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     }
 
     @Override
+    public int getNetworkGold(UUID uuid) {
+        Profile profile = profileService.getProfile(uuid);
+        return profile == null ? 0 : profile.getNetworkGold();
+    }
+
+    @Override
+    public void setNetworkGold(UUID uuid, int amount) {
+        Profile profile = profileService.getProfile(uuid);
+        if (profile == null) {
+            return;
+        }
+        profile.setNetworkGold(amount);
+        profileService.saveProfile(profile);
+    }
+
+    @Override
     public void setPlusColor(UUID uuid, String colorId) {
         Profile profile = profileService.getProfile(uuid);
         if (profile == null) {
+            return;
+        }
+        RankColorUtil.PlusColor color = RankColorUtil.getPlusColorById(colorId);
+        if (color == null) {
+            return;
+        }
+        int giftedRanks = profile.getStats() == null
+                ? 0
+                : Math.max(0, profile.getStats().getCustomCounter(RANKS_GIFTED_COUNTER_KEY));
+        boolean giftedRewardUnlocked = giftedRanks >= RANK_COLOR_GIFTED_RANKS_REQUIRED;
+        if (!RankColorUtil.isPlusColorUnlocked(color, profile.getNetworkLevel(), giftedRewardUnlocked)) {
             return;
         }
         profile.setPlusColor(colorId);

@@ -10,6 +10,7 @@ import io.github.mebsic.core.util.HypixelExperienceUtil;
 import io.github.mebsic.core.manager.MongoManager;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.UpdateOptions;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import static com.mongodb.client.model.Filters.eq;
 
@@ -42,6 +44,7 @@ public class ProfileStore {
     private static final String GIFTED_COUNTER_KEY = "ranks_gifted";
     private static final String GIFTED_COUNTER_CAMEL_KEY = "ranksGifted";
     private static final String GIFTED_COUNTER_FLAT_KEY = "ranksgifted";
+    private static final String RANKS_GIFTED_TOP_LEVEL_KEY = "ranksGifted";
 
     static {
         BASE_STATS_KEYS.add(LEGACY_WINS_KEY);
@@ -86,6 +89,18 @@ public class ProfileStore {
         return loadWithState(uuid, name).getProfile();
     }
 
+    public boolean existsByName(String name) {
+        String trimmed = name == null ? "" : name.trim();
+        if (trimmed.isEmpty()) {
+            return false;
+        }
+        MongoCollection<Document> collection = mongo.getProfiles();
+        Document doc = collection.find(Filters.regex("name", "^" + Pattern.quote(trimmed) + "$", "i"))
+                .projection(Projections.include("uuid"))
+                .first();
+        return doc != null;
+    }
+
     public LoadResult loadWithState(UUID uuid, String name) {
         MongoCollection<Document> collection = mongo.getProfiles();
         Document doc = collection.find(eq("uuid", uuid.toString())).first();
@@ -118,6 +133,10 @@ public class ProfileStore {
                 profile.setNetworkLevel(networkLevel);
                 profile.setHypixelExperience(HypixelExperienceUtil.getTotalExpForLevel(networkLevel));
             }
+        }
+        Integer networkGold = doc.getInteger("networkGold");
+        if (networkGold != null) {
+            profile.setNetworkGold(networkGold);
         }
         String plusColor = doc.getString("plusColor");
         if (plusColor != null && !plusColor.trim().isEmpty()) {
@@ -192,6 +211,7 @@ public class ProfileStore {
                 s.addCustomCounter(entry.getKey(), ((Number) value).intValue());
             }
         }
+        syncGiftedCounters(profile.getStats(), readStoredGiftedRanks(doc, profile.getStats()));
         Document cosmetics = doc.get("cosmetics", Document.class);
         if (cosmetics != null) {
             for (CosmeticType type : CosmeticType.values()) {
@@ -275,6 +295,9 @@ public class ProfileStore {
             if (entry == null || entry.getKey() == null) {
                 continue;
             }
+            if (isGiftedCounterKey(entry.getKey())) {
+                continue;
+            }
             Integer value = entry.getValue();
             if (value == null) {
                 continue;
@@ -330,11 +353,14 @@ public class ProfileStore {
         if (canUseMvpPlusPlusPrefixColor(rank)) {
             mvpPlusPlusPrefixColor = RankColorUtil.getEffectiveMvpPlusPlusPrefixColorId(profile.getMvpPlusPlusPrefixColor());
         }
+        int giftedRanks = readGiftedRanks(profile.getStats());
 
         Document doc = new Document("uuid", profile.getUuid().toString())
                 .append("name", profile.getName())
                 .append("rank", rank.name())
                 .append("networkLevel", profile.getNetworkLevel())
+                .append("networkGold", profile.getNetworkGold())
+                .append(RANKS_GIFTED_TOP_LEVEL_KEY, giftedRanks)
                 .append("hypixelExperience", profile.getHypixelExperience())
                 .append("plusColor", profile.getPlusColor())
                 .append("mvpPlusPlusPrefixColor", mvpPlusPlusPrefixColor)
@@ -496,6 +522,17 @@ public class ProfileStore {
                 new com.mongodb.client.model.UpdateOptions().upsert(true));
     }
 
+    public void updateNetworkGold(UUID uuid, String name, int amount) {
+        MongoCollection<Document> collection = mongo.getProfiles();
+        Document update = new Document("networkGold", Math.max(0, amount));
+        if (name != null && !name.trim().isEmpty()) {
+            update.append("name", name);
+        }
+        collection.updateOne(eq("uuid", uuid.toString()),
+                new Document("$set", update).append("$setOnInsert", spectatorDefaultsDocument()),
+                new com.mongodb.client.model.UpdateOptions().upsert(true));
+    }
+
     public ProfileMeta loadProfileMeta(UUID uuid, String fallbackName) {
         if (uuid == null) {
             return null;
@@ -510,6 +547,8 @@ public class ProfileStore {
                         "flightEnabled",
                         "playerVisibilityEnabled",
                         "networkLevel",
+                        "networkGold",
+                        RANKS_GIFTED_TOP_LEVEL_KEY,
                         "hypixelExperience",
                         "stats." + GIFTED_COUNTER_KEY,
                         "stats." + GIFTED_COUNTER_CAMEL_KEY,
@@ -557,7 +596,9 @@ public class ProfileStore {
                 networkLevel = Math.max(0, level);
             }
         }
-        int giftedRanks = readGiftedRanks(doc.get("stats", Document.class));
+        Integer networkGoldRaw = doc.getInteger("networkGold");
+        int networkGold = networkGoldRaw == null ? 0 : Math.max(0, networkGoldRaw);
+        int giftedRanks = readStoredGiftedRanks(doc, doc.get("stats", Document.class));
         return new ProfileMeta(
                 name == null ? fallbackName : name,
                 rank,
@@ -566,6 +607,7 @@ public class ProfileStore {
                 flightEnabled != null && flightEnabled,
                 playerVisibilityEnabled == null || playerVisibilityEnabled,
                 networkLevel,
+                networkGold,
                 giftedRanks
         );
     }
@@ -586,7 +628,8 @@ public class ProfileStore {
                 .append("spectatorAutoTeleportEnabled", false)
                 .append("spectatorNightVisionEnabled", true)
                 .append("spectatorHideOtherSpectatorsEnabled", false)
-                .append("spectatorFirstPersonEnabled", false);
+                .append("spectatorFirstPersonEnabled", false)
+                .append(RANKS_GIFTED_TOP_LEVEL_KEY, 0);
     }
 
     private static boolean canUseMvpPlusPlusPrefixColor(Rank rank) {
@@ -612,6 +655,70 @@ public class ProfileStore {
         return gifted;
     }
 
+    private int readGiftedRanks(Stats stats) {
+        if (stats == null) {
+            return 0;
+        }
+        int gifted = 0;
+        gifted = Math.max(gifted, Math.max(0, stats.getCustomCounter(GIFTED_COUNTER_KEY)));
+        gifted = Math.max(gifted, Math.max(0, stats.getCustomCounter(GIFTED_COUNTER_CAMEL_KEY)));
+        gifted = Math.max(gifted, Math.max(0, stats.getCustomCounter(GIFTED_COUNTER_FLAT_KEY)));
+        return gifted;
+    }
+
+    private int readStoredGiftedRanks(Document profile, Document stats) {
+        int gifted = readGiftedRanks(stats);
+        if (profile != null) {
+            Integer topLevel = profile.getInteger(RANKS_GIFTED_TOP_LEVEL_KEY);
+            if (topLevel != null) {
+                gifted = Math.max(gifted, Math.max(0, topLevel));
+            }
+        }
+        return gifted;
+    }
+
+    private int readStoredGiftedRanks(Document profile, Stats stats) {
+        int gifted = readGiftedRanks(stats);
+        if (profile != null) {
+            Integer topLevel = profile.getInteger(RANKS_GIFTED_TOP_LEVEL_KEY);
+            if (topLevel != null) {
+                gifted = Math.max(gifted, Math.max(0, topLevel));
+            }
+        }
+        return gifted;
+    }
+
+    private void syncGiftedCounters(Stats stats, int value) {
+        if (stats == null) {
+            return;
+        }
+        int safeValue = Math.max(0, value);
+        setGiftedCounter(stats, GIFTED_COUNTER_CAMEL_KEY, safeValue);
+        clearGiftedCounter(stats, GIFTED_COUNTER_KEY);
+        clearGiftedCounter(stats, GIFTED_COUNTER_FLAT_KEY);
+    }
+
+    private void setGiftedCounter(Stats stats, String key, int value) {
+        if (stats == null || key == null || key.trim().isEmpty()) {
+            return;
+        }
+        int current = stats.getCustomCounter(key);
+        if (current == value) {
+            return;
+        }
+        stats.addCustomCounter(key, value - current);
+    }
+
+    private void clearGiftedCounter(Stats stats, String key) {
+        if (stats == null || key == null || key.trim().isEmpty()) {
+            return;
+        }
+        int current = stats.getCustomCounter(key);
+        if (current > 0) {
+            stats.addCustomCounter(key, -current);
+        }
+    }
+
     private int readGiftedCounter(Document source, String key) {
         if (source == null || key == null || key.trim().isEmpty()) {
             return 0;
@@ -623,6 +730,16 @@ public class ProfileStore {
         return 0;
     }
 
+    private boolean isGiftedCounterKey(String key) {
+        if (key == null || key.trim().isEmpty()) {
+            return false;
+        }
+        String normalized = key.trim();
+        return GIFTED_COUNTER_KEY.equals(normalized)
+                || GIFTED_COUNTER_CAMEL_KEY.equals(normalized)
+                || GIFTED_COUNTER_FLAT_KEY.equals(normalized);
+    }
+
     public static final class ProfileMeta {
         private final String name;
         private final Rank rank;
@@ -631,6 +748,7 @@ public class ProfileStore {
         private final boolean flightEnabled;
         private final boolean playerVisibilityEnabled;
         private final int networkLevel;
+        private final int networkGold;
         private final int giftedRanks;
 
         public ProfileMeta(String name,
@@ -640,6 +758,7 @@ public class ProfileStore {
                            boolean flightEnabled,
                            boolean playerVisibilityEnabled,
                            int networkLevel,
+                           int networkGold,
                            int giftedRanks) {
             this.name = name;
             this.rank = rank == null ? Rank.DEFAULT : rank;
@@ -648,6 +767,7 @@ public class ProfileStore {
             this.flightEnabled = flightEnabled;
             this.playerVisibilityEnabled = playerVisibilityEnabled;
             this.networkLevel = Math.max(0, networkLevel);
+            this.networkGold = Math.max(0, networkGold);
             this.giftedRanks = Math.max(0, giftedRanks);
         }
 
@@ -677,6 +797,10 @@ public class ProfileStore {
 
         public int getNetworkLevel() {
             return networkLevel;
+        }
+
+        public int getNetworkGold() {
+            return networkGold;
         }
 
         public int getGiftedRanks() {

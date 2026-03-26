@@ -264,14 +264,6 @@ public class HubListener implements Listener {
             target = randomizeHubSpawn(spawn, databaseY);
         }
         player.teleport(target);
-        if (plugin instanceof Plugin) {
-            final Location delayed = target.clone();
-            Bukkit.getScheduler().runTask((Plugin) plugin, () -> {
-                if (player.isOnline()) {
-                    player.teleport(delayed);
-                }
-            });
-        }
     }
 
     private Location randomizeHubSpawn(Location spawn, double exactY) {

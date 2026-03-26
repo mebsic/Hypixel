@@ -14,6 +14,7 @@ public class ProfileCommandSyncService {
     private static final String CHANNEL = "profile_command_action";
     private static final String ACTION_SET_RANK = "SET_RANK";
     private static final String ACTION_SET_NETWORK_LEVEL = "SET_NETWORK_LEVEL";
+    private static final String ACTION_SET_NETWORK_GOLD = "SET_NETWORK_GOLD";
     private static final String ACTION_SET_COUNTER = "SET_COUNTER";
 
     private final CorePlugin plugin;
@@ -57,6 +58,22 @@ public class ProfileCommandSyncService {
                 null,
                 null,
                 Math.max(0, networkLevel),
+                targetMessage
+        ));
+    }
+
+    public void dispatchNetworkGoldUpdate(UUID targetUuid, int networkGold, String targetMessage) {
+        if (targetUuid == null) {
+            return;
+        }
+        publish(new ProfileCommandAction(
+                localServerId,
+                ACTION_SET_NETWORK_GOLD,
+                targetUuid.toString(),
+                null,
+                null,
+                null,
+                Math.max(0, networkGold),
                 targetMessage
         ));
     }
@@ -158,6 +175,11 @@ public class ProfileCommandSyncService {
                 sendTargetMessage(target, action.targetMessage);
                 return;
             }
+            case ACTION_SET_NETWORK_GOLD: {
+                plugin.setNetworkGold(targetUuid, Math.max(0, action.networkGold));
+                sendTargetMessage(target, action.targetMessage);
+                return;
+            }
             case ACTION_SET_COUNTER: {
                 applyCounterSet(targetUuid, action.counterKey, action.counterValue, action.clearCounterKey);
                 sendTargetMessage(target, action.targetMessage);
@@ -236,6 +258,7 @@ public class ProfileCommandSyncService {
         private String counterKey;
         private String clearCounterKey;
         private int networkLevel;
+        private int networkGold;
         private int counterValue;
         private String targetMessage;
 
@@ -258,6 +281,8 @@ public class ProfileCommandSyncService {
             this.clearCounterKey = clearCounterKey;
             if (ACTION_SET_NETWORK_LEVEL.equals(action)) {
                 this.networkLevel = value;
+            } else if (ACTION_SET_NETWORK_GOLD.equals(action)) {
+                this.networkGold = value;
             } else {
                 this.counterValue = value;
             }

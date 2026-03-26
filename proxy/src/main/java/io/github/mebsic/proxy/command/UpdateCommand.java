@@ -17,7 +17,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,6 +41,7 @@ public class UpdateCommand implements SimpleCommand {
     private final RankResolver rankResolver;
     private final Logger logger;
     private final AtomicBoolean updateInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean joinLockActive = new AtomicBoolean(false);
     private final List<ScheduledTask> scheduledTasks = new CopyOnWriteArrayList<ScheduledTask>();
 
     public UpdateCommand(ProxyServer proxy,
@@ -74,6 +77,7 @@ public class UpdateCommand implements SimpleCommand {
             player.sendMessage(Component.text("An update has already started!", NamedTextColor.RED));
             return;
         }
+        joinLockActive.set(false);
 
         cancelScheduledTasks();
         player.sendMessage(Component.text("Done! ", NamedTextColor.GREEN)
@@ -83,11 +87,27 @@ public class UpdateCommand implements SimpleCommand {
         scheduleFinalShutdown(duration.minutes);
     }
 
+    @Override
+    public List<String> suggest(Invocation invocation) {
+        String[] args = invocation.arguments();
+        if (args == null || args.length <= 1) {
+            String prefix = normalizeToken(args == null || args.length == 0 ? "" : args[0]);
+            List<String> suggestions = new ArrayList<String>();
+            for (DurationOption option : DURATION_OPTIONS) {
+                if (prefix.isEmpty() || option.token.startsWith(prefix)) {
+                    suggestions.add(option.token);
+                }
+            }
+            return suggestions;
+        }
+        return List.of();
+    }
+
     private DurationOption parseDuration(String[] args) {
         if (args == null || args.length != 1) {
             return null;
         }
-        String normalizedDuration = args[0] == null ? "" : args[0].trim().toLowerCase();
+        String normalizedDuration = args[0] == null ? "" : args[0].trim().toLowerCase(Locale.ROOT);
         for (DurationOption option : DURATION_OPTIONS) {
             if (option.token.equals(normalizedDuration) || String.valueOf(option.minutes).equals(normalizedDuration)) {
                 return option;
@@ -193,13 +213,11 @@ public class UpdateCommand implements SimpleCommand {
     }
 
     private void shutdownNow() {
-        updateInProgress.set(false);
+        joinLockActive.set(true);
         // Avoid cancelling the currently executing shutdown task; that can interrupt
         // the rollout webhook HTTP call before it completes.
         scheduledTasks.clear();
-        Component reason = Component.text("This proxy is restarting. Please reconnect to ", NamedTextColor.RED)
-                .append(Component.text(RECONNECT_HOST, NamedTextColor.AQUA))
-                .append(Component.text("!", NamedTextColor.RED));
+        Component reason = restartDisconnectReason();
         for (Player online : proxy.getAllPlayers()) {
             try {
                 online.disconnect(reason);
@@ -216,6 +234,8 @@ public class UpdateCommand implements SimpleCommand {
         try {
             proxy.shutdown();
         } catch (Exception ex) {
+            updateInProgress.set(false);
+            joinLockActive.set(false);
             logger.warn("Failed to shutdown proxy cleanly after /update!", ex);
         }
     }
@@ -276,8 +296,19 @@ public class UpdateCommand implements SimpleCommand {
 
     public boolean cancelUpdate() {
         boolean hadActiveUpdate = updateInProgress.getAndSet(false);
+        joinLockActive.set(false);
         cancelScheduledTasks();
         return hadActiveUpdate;
+    }
+
+    public boolean isJoinLockActive() {
+        return joinLockActive.get();
+    }
+
+    public Component restartDisconnectReason() {
+        return Component.text("This proxy is restarting. Please reconnect to ", NamedTextColor.RED)
+                .append(Component.text(RECONNECT_HOST, NamedTextColor.AQUA))
+                .append(Component.text("!", NamedTextColor.RED));
     }
 
     private void cancelScheduledTasks() {
@@ -292,6 +323,13 @@ public class UpdateCommand implements SimpleCommand {
             }
         }
         scheduledTasks.clear();
+    }
+
+    private String normalizeToken(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.trim().toLowerCase(Locale.ROOT);
     }
 
     private static final class DurationOption {

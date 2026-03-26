@@ -123,6 +123,7 @@ public class HypixelProxyPlugin {
     private ChatRestrictionService chatRestrictionService;
     private PartyService partyService;
     private StaffChatService staffChatService;
+    private UpdateCommand updateCommand;
     private final AtomicBoolean infrastructureFailure = new AtomicBoolean(false);
     private final AtomicInteger mongoHealthFailures = new AtomicInteger(0);
     private final AtomicInteger redisHealthFailures = new AtomicInteger(0);
@@ -187,10 +188,10 @@ public class HypixelProxyPlugin {
             commands.register("l", hubCommand);
             commands.register("lobby", hubCommand);
             commands.register("maintenance", new MaintenanceCommand(proxy, this, config, mongoDatabase, motdCache, rankResolver));
-            UpdateCommand updateCommand = new UpdateCommand(proxy, this, rankResolver, logger);
-            commands.register("update", updateCommand);
-            commands.register("cancelupdate", new CancelUpdateCommand(updateCommand, rankResolver));
-            RestartCommand restartCommand = new RestartCommand(proxy, this, rankResolver, logger);
+            this.updateCommand = new UpdateCommand(proxy, this, rankResolver, logger);
+            commands.register("update", this.updateCommand);
+            commands.register("cancelupdate", new CancelUpdateCommand(this.updateCommand, rankResolver));
+            RestartCommand restartCommand = new RestartCommand(proxy, this, rankResolver, registryService, logger);
             commands.register("restart", restartCommand);
             commands.register("cancelrestart", new CancelRestartCommand(restartCommand, rankResolver));
             FriendCommand friendCommand = new FriendCommand(proxy, friendService, blockService, "friend");
@@ -413,6 +414,11 @@ public class HypixelProxyPlugin {
 
     @Subscribe
     public void onInitialServer(PlayerChooseInitialServerEvent event) {
+        if (isUpdateJoinLockActive()) {
+            event.getPlayer().disconnect(updateJoinLockReason());
+            return;
+        }
+
         if (motdCache != null && motdCache.isMaintenanceEnabled()) {
             UUID playerId = event.getPlayer().getUniqueId();
             boolean isStaff = rankResolver != null && rankResolver.isStaff(playerId);
@@ -519,6 +525,12 @@ public class HypixelProxyPlugin {
 
     @Subscribe
     public void onServerPreConnect(ServerPreConnectEvent event) {
+        if (isUpdateJoinLockActive()) {
+            event.getPlayer().disconnect(updateJoinLockReason());
+            event.setResult(ServerPreConnectEvent.ServerResult.denied());
+            return;
+        }
+
         if (registryService == null || !event.getResult().isAllowed()) {
             return;
         }
@@ -596,6 +608,7 @@ public class HypixelProxyPlugin {
         chatRestrictionService = null;
         partyService = null;
         staffChatService = null;
+        updateCommand = null;
         rankResolver = null;
         motdCache = null;
         if (redis != null) {
@@ -1597,6 +1610,20 @@ public class HypixelProxyPlugin {
                 || normalized.equals("RESTARTING")
                 || normalized.equals("LOCKED")
                 || normalized.equals("WAITING_RESTART");
+    }
+
+    private boolean isUpdateJoinLockActive() {
+        return updateCommand != null && updateCommand.isJoinLockActive();
+    }
+
+    private Component updateJoinLockReason() {
+        UpdateCommand command = updateCommand;
+        if (command != null) {
+            return command.restartDisconnectReason();
+        }
+        return Component.text("This proxy is restarting. Please reconnect to ", NamedTextColor.RED)
+                .append(Component.text("mc." + NetworkConstants.DOMAIN, NamedTextColor.AQUA))
+                .append(Component.text("!", NamedTextColor.RED));
     }
 
     private static final class DeferredQueueRequest {

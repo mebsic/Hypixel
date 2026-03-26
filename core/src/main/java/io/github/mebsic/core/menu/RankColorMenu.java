@@ -14,7 +14,6 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 
 public class RankColorMenu extends Menu {
     public static final String TITLE = "Rank Color";
@@ -24,11 +23,6 @@ public class RankColorMenu extends Menu {
     private static final String CLOSE_NAME = ChatColor.RED + "Close";
     private static final String TOGGLE_NAME = ChatColor.GREEN + "Toggle Prefix Color";
     private static final int GIFTED_RANKS_REQUIRED = 100;
-    private static final String[] GIFTED_COUNTER_KEYS = new String[] {
-            "ranks_gifted",
-            "ranksGifted",
-            "ranksgifted"
-    };
     private static final int[] COLOR_SLOTS = new int[] {
             10, 11, 12, 13, 14, 15, 16,
             19, 20, 21, 22, 23, 24, 25
@@ -50,8 +44,9 @@ public class RankColorMenu extends Menu {
             return;
         }
         int level = profile.getNetworkLevel();
-        boolean giftedRewardUnlocked = isGiftedRewardUnlocked(player.getUniqueId());
-        String selected = RankColorUtil.getEffectivePlusColorId(level, profile.getPlusColor());
+        int giftedRanks = readGiftedRanks(profile);
+        boolean giftedRewardUnlocked = isGiftedRewardUnlocked(giftedRanks);
+        String selected = getEffectiveSelectedColorId(level, profile.getPlusColor(), giftedRewardUnlocked);
         List<RankColorUtil.PlusColor> colors = RankColorUtil.getAllPlusColors();
         for (int i = 0; i < colors.size() && i < COLOR_SLOTS.length; i++) {
             RankColorUtil.PlusColor color = colors.get(i);
@@ -106,8 +101,9 @@ public class RankColorMenu extends Menu {
             return;
         }
         int level = profile.getNetworkLevel();
-        boolean giftedRewardUnlocked = isGiftedRewardUnlocked(player.getUniqueId());
-        String selectedId = RankColorUtil.getEffectivePlusColorId(level, profile.getPlusColor());
+        int giftedRanks = readGiftedRanks(profile);
+        boolean giftedRewardUnlocked = isGiftedRewardUnlocked(giftedRanks);
+        String selectedId = getEffectiveSelectedColorId(level, profile.getPlusColor(), giftedRewardUnlocked);
         if (color.getId().equalsIgnoreCase(selectedId)) {
             sendAlreadySelectedMessage(player);
             return;
@@ -224,19 +220,20 @@ public class RankColorMenu extends Menu {
         return color != null && color.isGiftedReward();
     }
 
-    private boolean isGiftedRewardUnlocked(UUID uuid) {
-        if (coreApi == null || uuid == null) {
-            return false;
+    private int readGiftedRanks(Profile profile) {
+        return Math.max(0, GiftSupport.readGiftedRanks(profile));
+    }
+
+    private boolean isGiftedRewardUnlocked(int giftedRanks) {
+        return Math.max(0, giftedRanks) >= GIFTED_RANKS_REQUIRED;
+    }
+
+    private String getEffectiveSelectedColorId(int networkLevel, String selectedId, boolean giftedRewardUnlocked) {
+        RankColorUtil.PlusColor selected = RankColorUtil.getPlusColorById(selectedId);
+        if (selected != null && RankColorUtil.isPlusColorUnlocked(selected, networkLevel, giftedRewardUnlocked)) {
+            return selected.getId();
         }
-        for (String key : GIFTED_COUNTER_KEYS) {
-            if (key == null || key.trim().isEmpty()) {
-                continue;
-            }
-            if (coreApi.getCounter(uuid, key) >= GIFTED_RANKS_REQUIRED) {
-                return true;
-            }
-        }
-        return false;
+        return RankColorUtil.getEffectivePlusColorId(networkLevel, null);
     }
 
     private boolean canUsePrefixColorToggle(Rank rank) {

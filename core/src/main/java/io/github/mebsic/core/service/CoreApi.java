@@ -24,6 +24,10 @@ public interface CoreApi {
 
     void setNetworkLevel(UUID uuid, int level);
 
+    int getNetworkGold(UUID uuid);
+
+    void setNetworkGold(UUID uuid, int amount);
+
     void setPlusColor(UUID uuid, String colorId);
 
     void setMvpPlusPlusPrefixColor(UUID uuid, String colorId);

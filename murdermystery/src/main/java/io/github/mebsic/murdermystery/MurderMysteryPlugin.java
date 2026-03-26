@@ -37,11 +37,16 @@ import io.github.mebsic.core.model.Stats;
 import io.github.mebsic.murdermystery.service.TipService;
 import io.github.mebsic.murdermystery.manager.MurderMysteryGameManager;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
@@ -50,6 +55,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 
 public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
     private static final double DEFAULT_MURDERER_CHANCE = 1.0;
@@ -57,6 +63,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
     private static final long HUB_SCOREBOARD_INITIAL_DELAY_TICKS = 1L;
     private static final long HUB_SCOREBOARD_REFRESH_TICKS = 20L;
     private static final long HUB_SCOREBOARD_POST_JOIN_REFRESH_TICKS = 10L;
+    private static final long HUB_SPAWN_STARTUP_REFRESH_DELAY_TICKS = 20L;
     private static final int PARKOUR_PROFILE_INIT_MAX_ATTEMPTS = 20;
     private static final long PARKOUR_PROFILE_INIT_RETRY_TICKS = 10L;
     private static final String QUICKEST_DETECTIVE_WIN_SECONDS_KEY = "murdermystery.quickestDetectiveWinSeconds";
@@ -81,6 +88,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
 
     private HubScoreboardService hubScoreboardService;
     private Location hubSpawn;
+    private BukkitTask hubSpawnStartupRefreshTask;
     private BukkitTask hubScoreboardTask;
     private BukkitTask hubNetworkLevelTask;
     private BukkitTask roleChanceSeedTask;
@@ -106,11 +114,15 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         this.roleChanceStore = corePlugin.getRoleChanceStore();
         this.corePlugin.ensureServerIdentity();
         registerCommand("token", new TokenCommand(corePlugin));
-        if (serverType != null && serverType.isHub()) {
-            setupHub(corePlugin);
-            return;
+        try {
+            if (serverType != null && serverType.isHub()) {
+                setupHub(corePlugin);
+                return;
+            }
+            setupGame(corePlugin);
+        } catch (NoClassDefFoundError missingClassError) {
+            handleMissingClassOnStartup(missingClassError);
         }
-        setupGame(corePlugin);
     }
 
     public GameManager getGameManager() {
@@ -144,6 +156,31 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         if (command != null) {
             command.setExecutor(executor);
         }
+    }
+
+    private void handleMissingClassOnStartup(NoClassDefFoundError error) {
+        String className = resolveMissingClassName(error);
+        if (!className.isEmpty()) {
+            getLogger().severe("Startup failed because class " + className + " is missing.");
+        } else {
+            getLogger().severe("Startup failed due to a missing class dependency.");
+        }
+        getLogger().severe("This usually means plugin jars are out of sync during deployment.");
+        getLogger().severe("Build matching jars before restarting servers, then upload them as one release set:");
+        getLogger().severe("./gradlew shadowAll");
+        getLogger().log(Level.SEVERE, "Disabling MurderMystery due to NoClassDefFoundError.", error);
+        getServer().getPluginManager().disablePlugin(this);
+    }
+
+    private String resolveMissingClassName(NoClassDefFoundError error) {
+        if (error == null) {
+            return "";
+        }
+        String raw = safeText(error.getMessage());
+        if (raw.isEmpty()) {
+            return "";
+        }
+        return raw.replace('/', '.');
     }
 
     @Override
@@ -201,6 +238,10 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         if (hubRegistryService != null) {
             hubRegistryService.stop();
             hubRegistryService = null;
+        }
+        if (hubSpawnStartupRefreshTask != null) {
+            hubSpawnStartupRefreshTask.cancel();
+            hubSpawnStartupRefreshTask = null;
         }
         knifeMenuStateService = null;
         if (hubScoreboardTask != null) {
@@ -294,18 +335,31 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         String serverName = corePlugin.getConfig().getString("server.id", "lobby1A");
         this.hubScoreboardService = new HubScoreboardService(coreApi, serverType, serverName);
         this.bossBarService = new BossBarService(this, corePlugin);
+        syncHubMapConfigFromRuntimeWorld();
+        MapConfigResolver.apply(corePlugin, corePlugin.getConfig(), corePlugin.getMongoManager());
         this.hubSpawn = LocationUtil.deserialize(corePlugin.getConfig().getString("hub.spawn", ""));
+        startHubSpawnStartupRefresh();
         this.knifeMenuStateService = new KnifeMenuStateService(coreApi, corePlugin.getMongoManager());
         this.knifeMenuStateService.initialize(getServer().getOnlinePlayers());
         KnifeSkinsMenu knifeSkinsMenu = new KnifeSkinsMenu(coreApi, loadKnifeCosts(), knifeMenuStateService);
         KnifeMenu knifeMenu = new KnifeMenu(coreApi, knifeSkinsMenu);
         this.cosmeticsListener = new HubCosmeticsListener(new MurderMysteryMenu(coreApi, knifeMenu), coreApi);
         this.hubParkourListener = new HubParkourListener(this, corePlugin, serverType);
-        if (getServer().getPluginManager().getPlugin(CITIZENS_PLUGIN_NAME) == null) {
+        if (!isCitizensReady()) {
             getLogger().warning("Citizens was not found; hub Profile/Click to Play NPCs are disabled.");
             this.hubNpcListener = null;
         } else {
-            this.hubNpcListener = new HubNpcListener(this, corePlugin, serverType);
+            try {
+                this.hubNpcListener = new HubNpcListener(this, corePlugin, serverType);
+            } catch (Throwable throwable) {
+                this.hubNpcListener = null;
+                getLogger().log(
+                        Level.WARNING,
+                        "Citizens was detected, but NPC initialization failed. "
+                                + "Hub Profile/Click to Play NPCs are disabled for this startup.",
+                        throwable
+                );
+            }
         }
         this.hubLeaderboardListener = new HubLeaderboardListener(this, corePlugin, serverType);
         corePlugin.setHubParkourCommandHandler(hubParkourListener);
@@ -338,6 +392,14 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         this.hubRegistryService.start();
         this.bossBarService.start();
         getServer().getOnlinePlayers().forEach(player -> ensureParkourStatsInitialized(player.getUniqueId(), 0));
+    }
+
+    private boolean isCitizensReady() {
+        if (getServer() == null || getServer().getPluginManager() == null) {
+            return false;
+        }
+        Plugin citizensPlugin = getServer().getPluginManager().getPlugin(CITIZENS_PLUGIN_NAME);
+        return citizensPlugin != null && citizensPlugin.isEnabled();
     }
 
     private void subscribeToHubMapConfigUpdates() {
@@ -373,6 +435,121 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         }
     }
 
+    private void syncHubMapConfigFromRuntimeWorld() {
+        if (corePlugin == null || serverType == null || !serverType.isHub()) {
+            return;
+        }
+        if (corePlugin.getMongoManager() == null) {
+            return;
+        }
+        String runtimeWorldDirectory = resolveRuntimeHubWorldDirectory();
+        if (runtimeWorldDirectory.isEmpty()) {
+            return;
+        }
+        String gameKey = resolveHubGameKey();
+        try {
+            MapConfigStore store = new MapConfigStore(corePlugin.getMongoManager());
+            boolean changed = store.setActiveMap(gameKey, runtimeWorldDirectory);
+            if (changed) {
+                publishMapConfigUpdate(gameKey);
+                getLogger().info("Set active hub map from runtime world \"" + runtimeWorldDirectory
+                        + "\" for key \"" + gameKey + "\".");
+            }
+        } catch (Exception ex) {
+            getLogger().warning("Failed to sync hub map config from runtime world: " + ex.getMessage());
+        }
+    }
+
+    private String resolveRuntimeHubWorldDirectory() {
+        String marker = readMapNameFromWorldMarker();
+        if (!marker.isEmpty()) {
+            return marker;
+        }
+        for (World world : getServer().getWorlds()) {
+            if (world == null || world.getName() == null) {
+                continue;
+            }
+            String worldName = safeText(world.getName());
+            if (worldName.isEmpty() || isPlaceholderMapName(worldName)) {
+                continue;
+            }
+            if (MapConfigStore.isHubMapName(worldName)) {
+                return worldName;
+            }
+        }
+        for (World world : getServer().getWorlds()) {
+            if (world == null || world.getName() == null) {
+                continue;
+            }
+            String worldName = safeText(world.getName());
+            if (worldName.isEmpty() || isPlaceholderMapName(worldName)) {
+                continue;
+            }
+            return worldName;
+        }
+        return "";
+    }
+
+    private String readMapNameFromWorldMarker() {
+        for (World world : getServer().getWorlds()) {
+            if (world == null || world.getWorldFolder() == null) {
+                continue;
+            }
+            Path markerPath = world.getWorldFolder().toPath().resolve(".hypixel-map-source");
+            if (!Files.exists(markerPath)) {
+                continue;
+            }
+            try {
+                String raw = safeText(new String(Files.readAllBytes(markerPath), StandardCharsets.UTF_8));
+                if (raw.isEmpty()) {
+                    continue;
+                }
+                int slash = raw.lastIndexOf('/');
+                String mapName = slash >= 0 ? raw.substring(slash + 1) : raw;
+                mapName = safeText(mapName);
+                if (!mapName.isEmpty()) {
+                    return mapName;
+                }
+            } catch (IOException ignored) {
+                // Best-effort marker read only.
+            }
+        }
+        return "";
+    }
+
+    private void publishMapConfigUpdate(String gameKey) {
+        if (corePlugin == null || corePlugin.getPubSubService() == null) {
+            return;
+        }
+        String resolvedGameKey = MapConfigStore.normalizeGameKey(gameKey);
+        if (resolvedGameKey.isEmpty()) {
+            resolvedGameKey = MapConfigStore.DEFAULT_GAME_KEY;
+        }
+        try {
+            corePlugin.getPubSubService().publish(MAP_CONFIG_UPDATE_CHANNEL, MAP_CONFIG_UPDATE_PREFIX + resolvedGameKey);
+        } catch (Exception ignored) {
+            // Mongo save already succeeded; Redis fan-out is best effort.
+        }
+    }
+
+    private void startHubSpawnStartupRefresh() {
+        if (corePlugin == null || serverType == null || !serverType.isHub()) {
+            return;
+        }
+        if (hubSpawnStartupRefreshTask != null) {
+            hubSpawnStartupRefreshTask.cancel();
+            hubSpawnStartupRefreshTask = null;
+        }
+        hubSpawnStartupRefreshTask = getServer().getScheduler().runTaskLater(
+                this,
+                () -> {
+                    hubSpawnStartupRefreshTask = null;
+                    reloadHubSpawnFromMapConfig();
+                },
+                HUB_SPAWN_STARTUP_REFRESH_DELAY_TICKS
+        );
+    }
+
     private String resolveHubGameKey() {
         if (corePlugin == null) {
             return MapConfigStore.DEFAULT_GAME_KEY;
@@ -392,6 +569,25 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         }
         key = MapConfigStore.normalizeGameKey(key);
         return key.isEmpty() ? "" : key;
+    }
+
+    private String safeText(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? "" : trimmed;
+    }
+
+    private boolean isPlaceholderMapName(String mapName) {
+        String normalized = safeText(mapName).toLowerCase(Locale.ROOT);
+        if (normalized.isEmpty()) {
+            return false;
+        }
+        return "world".equals(normalized)
+                || "world_nether".equals(normalized)
+                || "world_the_end".equals(normalized)
+                || "default".equals(normalized);
     }
 
     private java.util.Map<String, Integer> loadKnifeCosts() {

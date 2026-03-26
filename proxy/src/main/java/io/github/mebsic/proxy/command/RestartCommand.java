@@ -3,9 +3,11 @@ package io.github.mebsic.proxy.command;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.proxy.ServerConnection;
 import com.velocitypowered.api.scheduler.ScheduledTask;
 import io.github.mebsic.core.util.CommonMessages;
 import io.github.mebsic.proxy.service.RankResolver;
+import io.github.mebsic.proxy.service.ServerRegistryService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -35,14 +37,13 @@ public class RestartCommand implements SimpleCommand {
                     new String[]{"10", "10s", "10sec", "10secs", "10second", "10seconds"})
     };
     private static final int[] BROADCAST_INTERVALS_SECONDS = new int[]{60, 30, 10, 5, 4, 3, 2, 1};
-    private static final long SHUTDOWN_DELAY_SECONDS = 2L;
     private static final String ROLLOUT_WEBHOOK_URL_ENV = "ROLLOUT_WEBHOOK_URL";
     private static final String ROLLOUT_WEBHOOK_TOKEN_ENV = "ROLLOUT_WEBHOOK_TOKEN";
-    private static final String TARGET_SERVICE = "velocity";
     private static final String WARP_COMMAND = "/hub";
     private final ProxyServer proxy;
     private final Object plugin;
     private final RankResolver rankResolver;
+    private final ServerRegistryService registryService;
     private final Logger logger;
     private final AtomicBoolean restartInProgress = new AtomicBoolean(false);
     private final List<ScheduledTask> scheduledTasks = new CopyOnWriteArrayList<ScheduledTask>();
@@ -50,10 +51,12 @@ public class RestartCommand implements SimpleCommand {
     public RestartCommand(ProxyServer proxy,
                           Object plugin,
                           RankResolver rankResolver,
+                          ServerRegistryService registryService,
                           Logger logger) {
         this.proxy = proxy;
         this.plugin = plugin;
         this.rankResolver = rankResolver;
+        this.registryService = registryService;
         this.logger = logger;
     }
 
@@ -77,6 +80,15 @@ public class RestartCommand implements SimpleCommand {
         }
         DurationOption duration = parsedInput.duration;
         RestartReason reason = parsedInput.reason;
+        String targetServer = player.getCurrentServer()
+                .map(ServerConnection::getServer)
+                .map(registered -> registered.getServerInfo().getName())
+                .orElse("");
+        String targetService = resolveTargetService(targetServer);
+        if (targetService.isEmpty()) {
+            player.sendMessage(Component.text("Couldn't resolve a restart target for your current server.", NamedTextColor.RED));
+            return;
+        }
 
         if (!restartInProgress.compareAndSet(false, true)) {
             player.sendMessage(Component.text("A restart has already started!", NamedTextColor.RED));
@@ -86,8 +98,8 @@ public class RestartCommand implements SimpleCommand {
         cancelScheduledTasks();
         player.sendMessage(Component.text("Done! ", NamedTextColor.GREEN)
                 .append(Component.text("(" + duration.display + ", " + reason.name() + ")", NamedTextColor.DARK_GRAY)));
-        scheduleBroadcasts(duration.totalSeconds, reason);
-        scheduleFinalRestart(duration.totalSeconds, reason);
+        scheduleBroadcasts(duration.totalSeconds, reason, targetServer);
+        scheduleFinalRestart(duration.totalSeconds, targetServer, targetService);
     }
 
     @Override
@@ -111,7 +123,7 @@ public class RestartCommand implements SimpleCommand {
             if (reasonPrefix.isEmpty()
                     || reason.token.startsWith(reasonPrefix)
                     || reason.compactToken.startsWith(reasonCompactPrefix)) {
-                suggestions.add(reason.token);
+                suggestions.add(reason.name());
             }
         }
         return suggestions;
@@ -163,44 +175,44 @@ public class RestartCommand implements SimpleCommand {
 
     private void sendInvalidUsage(Player player) {
         player.sendMessage(Component.text("Invalid usage! Correct usage:", NamedTextColor.RED));
-        player.sendMessage(Component.text("/restart <duration> <reason>", NamedTextColor.RED));
+        player.sendMessage(Component.text("/restart <duration> <REASON>", NamedTextColor.RED));
         player.sendMessage(Component.text("Available durations:", NamedTextColor.RED));
         for (DurationOption option : DURATION_OPTIONS) {
             player.sendMessage(Component.text(option.token, NamedTextColor.RED));
         }
         player.sendMessage(Component.text("Available reasons:", NamedTextColor.RED));
         for (RestartReason reason : RestartReason.values()) {
-            player.sendMessage(Component.text(reason.token, NamedTextColor.RED));
+            player.sendMessage(Component.text(reason.name(), NamedTextColor.RED));
         }
     }
 
-    private void scheduleBroadcasts(int totalSeconds, RestartReason reason) {
+    private void scheduleBroadcasts(int totalSeconds, RestartReason reason, String targetServer) {
         for (int interval : BROADCAST_INTERVALS_SECONDS) {
             if (interval > totalSeconds) {
                 continue;
             }
             long delaySeconds = Math.max(0L, totalSeconds - interval);
             final int secondsRemaining = interval;
-            ScheduledTask task = proxy.getScheduler().buildTask(plugin, () -> broadcastRestartSoon(secondsRemaining, reason))
+            ScheduledTask task = proxy.getScheduler().buildTask(plugin, () -> broadcastRestartSoon(secondsRemaining, reason, targetServer))
                     .delay(delaySeconds, TimeUnit.SECONDS)
                     .schedule();
             scheduledTasks.add(task);
         }
     }
 
-    private void broadcastRestartSoon(int secondsRemaining, RestartReason reason) {
+    private void broadcastRestartSoon(int secondsRemaining, RestartReason reason, String targetServer) {
         Component firstLine = Component.text("[Important] ", NamedTextColor.RED)
                 .append(Component.text("This server will restart soon: ", NamedTextColor.YELLOW))
                 .append(Component.text(reason.broadcastReason, NamedTextColor.AQUA));
         Component clickableWarp = Component.text("CLICK", NamedTextColor.GREEN, TextDecoration.BOLD, TextDecoration.UNDERLINED)
                 .clickEvent(ClickEvent.runCommand(WARP_COMMAND))
-                .hoverEvent(HoverEvent.showText(Component.text("Click to warp to a hub now.", NamedTextColor.YELLOW)));
+                .hoverEvent(HoverEvent.showText(Component.text("Click to warp now!", NamedTextColor.YELLOW)));
         Component secondLine = Component.text("You have ", NamedTextColor.YELLOW)
                 .append(Component.text(formatTimeRemaining(secondsRemaining), NamedTextColor.GREEN))
                 .append(Component.text(" to warp out! ", NamedTextColor.YELLOW))
                 .append(clickableWarp)
                 .append(Component.text(" to warp now!", NamedTextColor.YELLOW));
-        broadcastFramed(firstLine.append(Component.newline()).append(secondLine));
+        broadcastFramed(firstLine.append(Component.newline()).append(secondLine), targetServer);
     }
 
     private String formatTimeRemaining(int secondsRemaining) {
@@ -214,10 +226,13 @@ public class RestartCommand implements SimpleCommand {
         return secondsRemaining + (secondsRemaining == 1 ? " second" : " seconds");
     }
 
-    private void broadcastFramed(Component line) {
+    private void broadcastFramed(Component line, String targetServer) {
         Component empty = Component.text("");
         for (Player online : proxy.getAllPlayers()) {
             if (online == null) {
+                continue;
+            }
+            if (!isPlayerOnServer(online, targetServer)) {
                 continue;
             }
             online.sendMessage(empty);
@@ -226,43 +241,55 @@ public class RestartCommand implements SimpleCommand {
         }
     }
 
-    private void scheduleFinalRestart(int totalSeconds, RestartReason reason) {
-        ScheduledTask task = proxy.getScheduler().buildTask(plugin, () -> restartNow(reason))
+    private boolean isPlayerOnServer(Player player, String targetServer) {
+        String expected = safeTrim(targetServer);
+        if (expected == null || expected.isEmpty()) {
+            return true;
+        }
+        String playerServer = player.getCurrentServer()
+                .map(ServerConnection::getServer)
+                .map(registered -> registered.getServerInfo().getName())
+                .orElse("");
+        return expected.equalsIgnoreCase(playerServer);
+    }
+
+    private void scheduleFinalRestart(int totalSeconds, String targetServer, String targetService) {
+        ScheduledTask task = proxy.getScheduler().buildTask(plugin, () -> restartNow(targetServer, targetService))
                 .delay(totalSeconds, TimeUnit.SECONDS)
                 .schedule();
         scheduledTasks.add(task);
     }
 
-    private void restartNow(RestartReason reason) {
+    private void restartNow(String targetServer, String targetService) {
         restartInProgress.set(false);
-        // Avoid cancelling the currently executing restart task; that can interrupt
-        // the rollout webhook HTTP call before it completes.
+        // Keep this lightweight/non-blocking so restart scheduling never stalls proxy work.
         scheduledTasks.clear();
         Component disconnectReason = Component.text("This server is restarting!", NamedTextColor.RED);
         for (Player online : proxy.getAllPlayers()) {
+            if (online == null) {
+                continue;
+            }
+            if (!isPlayerOnServer(online, targetServer)) {
+                continue;
+            }
             try {
                 online.disconnect(disconnectReason);
             } catch (Exception ex) {
                 logger.warn("Failed to disconnect {} during /restart shutdown!", online.getUsername(), ex);
             }
         }
-        triggerContainerRestart();
-        try {
-            Thread.sleep(SHUTDOWN_DELAY_SECONDS * 1000L);
-        } catch (InterruptedException ignored) {
-            // Expected when the container is already stopping due to external restart.
-        }
-        try {
-            proxy.shutdown();
-        } catch (Exception ex) {
-            logger.warn("Failed to shutdown proxy cleanly after /restart!", ex);
-        }
+        triggerContainerRestart(targetService);
     }
 
-    private void triggerContainerRestart() {
+    private void triggerContainerRestart(String targetService) {
         String webhookUrl = safeTrim(System.getenv(ROLLOUT_WEBHOOK_URL_ENV));
         if (webhookUrl == null || webhookUrl.isEmpty()) {
             logger.info("No rollout webhook URL configured; skipping scoped restart trigger.");
+            return;
+        }
+        String service = safeTrim(targetService);
+        if (service == null || service.isEmpty()) {
+            logger.warn("No restart service target resolved; skipping scoped restart trigger.");
             return;
         }
 
@@ -271,7 +298,7 @@ public class RestartCommand implements SimpleCommand {
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(3))
                     .build();
-            String payload = "{\"mode\":\"rebuild\",\"services\":[\"" + TARGET_SERVICE + "\"]}";
+            String payload = "{\"mode\":\"restart\",\"services\":[\"" + service + "\"]}";
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl))
                     .timeout(Duration.ofSeconds(10))
@@ -281,18 +308,54 @@ public class RestartCommand implements SimpleCommand {
                 builder.header("X-Rollout-Token", token);
             }
 
-            HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            int status = response.statusCode();
-            if (status >= 200 && status < 300) {
-                logger.info("Triggered scoped rollout restart for {} via webhook (status {}).", TARGET_SERVICE, status);
-            } else {
-                logger.warn("Scoped rollout webhook responded with status {}: {}", status, response.body());
-            }
-        } catch (InterruptedException ex) {
-            logger.info("Scoped rollout webhook request interrupted (proxy likely restarting).");
+            client.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString())
+                    .whenComplete((response, error) -> {
+                        if (error != null) {
+                            logger.warn("Failed to trigger scoped rollout webhook for /restart!", error);
+                            return;
+                        }
+                        int status = response.statusCode();
+                        if (status >= 200 && status < 300) {
+                            logger.info("Triggered scoped rollout restart for {} via webhook (status {}).", service, status);
+                        } else {
+                            logger.warn("Scoped rollout webhook responded with status {}: {}", status, response.body());
+                        }
+                    });
         } catch (Exception ex) {
             logger.warn("Failed to trigger scoped rollout webhook for /restart!", ex);
         }
+    }
+
+    private String resolveTargetService(String targetServer) {
+        String serverName = safeTrim(targetServer);
+        if (serverName == null || serverName.isEmpty()) {
+            return "";
+        }
+        if (registryService != null) {
+            ServerRegistryService.ServerDetails details = registryService.findServerDetails(serverName).orElse(null);
+            if (details != null) {
+                if (details.getType().isHub()) {
+                    return "hub";
+                }
+                if (details.getType().isGame()) {
+                    return "game";
+                }
+                if (details.getType().isBuild()) {
+                    return "build";
+                }
+            }
+        }
+        String normalized = serverName.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("hub")) {
+            return "hub";
+        }
+        if (normalized.startsWith("game")) {
+            return "game";
+        }
+        if (normalized.startsWith("build")) {
+            return "build";
+        }
+        return "";
     }
 
     private String safeTrim(String value) {

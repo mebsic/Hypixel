@@ -997,6 +997,30 @@ public class MurderMysteryGameManager extends GameManager {
         }
     }
 
+    private void silenceEntityForPickup(Entity entity) {
+        if (entity == null) {
+            return;
+        }
+        try {
+            Method setSilent = entity.getClass().getMethod("setSilent", boolean.class);
+            setSilent.invoke(entity, true);
+            return;
+        } catch (Throwable ignored) {
+            // Try NMS fallback below for older API wrappers.
+        }
+        try {
+            Method getHandle = entity.getClass().getMethod("getHandle");
+            Object handle = getHandle.invoke(entity);
+            if (handle == null) {
+                return;
+            }
+            Method setSilent = handle.getClass().getMethod("setSilent", boolean.class);
+            setSilent.invoke(handle, true);
+        } catch (Throwable ignored) {
+            // Older APIs may not support silent entities.
+        }
+    }
+
     public void convertToHero(Player player) {
         convertToHero(player, false);
     }
@@ -1124,7 +1148,7 @@ public class MurderMysteryGameManager extends GameManager {
             Item dropped = location.getWorld().dropItemNaturally(location, new ItemStack(Material.GOLD_INGOT, 1));
             if (dropped != null) {
                 activeMapDropItems.add(dropped);
-                playDropFeedback(dropped.getLocation(), 0.8f);
+                silenceEntityForPickup(dropped);
             }
         }, 40L, 60L);
     }
@@ -1641,7 +1665,6 @@ public class MurderMysteryGameManager extends GameManager {
                 1L,
                 1L
         );
-        playDropFeedback(spawn, 0.75f);
     }
 
     private void tickDroppedBowDisplay() {

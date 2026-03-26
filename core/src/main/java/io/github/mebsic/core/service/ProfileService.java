@@ -16,12 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ProfileService {
-    private static final String[] GIFTED_COUNTER_KEYS = new String[] {
-            "ranks_gifted",
-            "ranksGifted",
-            "ranksgifted"
-    };
-    private static final String PRIMARY_GIFTED_COUNTER_KEY = GIFTED_COUNTER_KEYS[0];
+    private static final String PRIMARY_GIFTED_COUNTER_KEY = "ranksGifted";
 
     private final CorePlugin plugin;
     private final ProfileStore store;
@@ -205,6 +200,7 @@ public class ProfileService {
             profile.setFlightEnabled(update.meta.isFlightEnabled());
             profile.setPlayerVisibilityEnabled(update.meta.isPlayerVisibilityEnabled());
             profile.setNetworkLevel(update.meta.getNetworkLevel());
+            profile.setNetworkGold(update.meta.getNetworkGold());
             boolean giftedChanged = setGiftedRanks(profile, update.meta.getGiftedRanks());
             if (giftedChanged) {
                 dispatchGiftedCounterSync(update.uuid, readGiftedRanks(profile));
@@ -243,6 +239,9 @@ public class ProfileService {
         if (profile.getNetworkLevel() != meta.getNetworkLevel()) {
             return true;
         }
+        if (profile.getNetworkGold() != meta.getNetworkGold()) {
+            return true;
+        }
         return readGiftedRanks(profile) != Math.max(0, meta.getGiftedRanks());
     }
 
@@ -250,14 +249,7 @@ public class ProfileService {
         if (profile == null || profile.getStats() == null) {
             return 0;
         }
-        int gifted = 0;
-        for (String key : GIFTED_COUNTER_KEYS) {
-            if (key == null || key.trim().isEmpty()) {
-                continue;
-            }
-            gifted = Math.max(gifted, profile.getStats().getCustomCounter(key));
-        }
-        return gifted;
+        return Math.max(0, profile.getStats().getCustomCounter(PRIMARY_GIFTED_COUNTER_KEY));
     }
 
     private boolean setGiftedRanks(Profile profile, int target) {
@@ -265,19 +257,12 @@ public class ProfileService {
             return false;
         }
         int desired = Math.max(0, target);
-        boolean changed = false;
-        for (String key : GIFTED_COUNTER_KEYS) {
-            if (key == null || key.trim().isEmpty()) {
-                continue;
-            }
-            int current = profile.getStats().getCustomCounter(key);
-            if (current == desired) {
-                continue;
-            }
-            profile.getStats().addCustomCounter(key, desired - current);
-            changed = true;
+        int current = profile.getStats().getCustomCounter(PRIMARY_GIFTED_COUNTER_KEY);
+        if (current == desired) {
+            return false;
         }
-        return changed;
+        profile.getStats().addCustomCounter(PRIMARY_GIFTED_COUNTER_KEY, desired - current);
+        return true;
     }
 
     private void dispatchGiftedCounterSync(UUID uuid, int value) {

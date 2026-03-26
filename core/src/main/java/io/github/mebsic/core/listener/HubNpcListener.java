@@ -32,6 +32,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -60,7 +61,7 @@ public class HubNpcListener implements Listener {
     private static final String PROFILE_CLICK_LABEL = "CLICK FOR STATS";
     private static final String WINS_AS_MURDERER_KEY = "murdermystery.winsAsMurderer";
     private static final String DEFAULT_CLICK_TO_PLAY_SKIN = "MurderMytsery";
-    private static final double HOLOGRAM_LINE_SPACING = 0.26d;
+    private static final double HOLOGRAM_LINE_SPACING = 0.30d;
     private static final double CLICK_TO_PLAY_HOLOGRAM_BOTTOM_Y_OFFSET = 0.05d;
     private static final double PROFILE_HOLOGRAM_BOTTOM_Y_OFFSET = 0.05d;
     private static final long CLICK_TO_PLAY_REFRESH_INTERVAL_TICKS = 40L;
@@ -1075,7 +1076,8 @@ public class HubNpcListener implements Listener {
         if (plugin == null || plugin.getServer() == null || plugin.getServer().getPluginManager() == null) {
             return null;
         }
-        if (plugin.getServer().getPluginManager().getPlugin(CITIZENS_PLUGIN_NAME) == null) {
+        Plugin citizensPlugin = plugin.getServer().getPluginManager().getPlugin(CITIZENS_PLUGIN_NAME);
+        if (citizensPlugin == null || !citizensPlugin.isEnabled()) {
             return null;
         }
         try {

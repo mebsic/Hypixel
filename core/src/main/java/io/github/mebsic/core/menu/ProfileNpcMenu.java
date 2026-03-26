@@ -4,6 +4,7 @@ import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Stats;
 import io.github.mebsic.core.server.ServerType;
+import io.github.mebsic.core.store.ProfileStore;
 import io.github.mebsic.core.util.HubMessageUtil;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Filters;
@@ -41,11 +42,15 @@ public class ProfileNpcMenu extends Menu {
     private static final String LIFETIME_WINS_RANK_KEY = "murdermystery.lifetimeWinsRank";
     private static final String QUICKEST_DETECTIVE_WIN_SECONDS_KEY = "murdermystery.quickestDetectiveWinSeconds";
     private static final String QUICKEST_MURDERER_WIN_SECONDS_KEY = "murdermystery.quickestMurdererWinSeconds";
+    private static final long LIVE_PROFILE_CACHE_TTL_MILLIS = 30_000L;
+    private static final int LIVE_PROFILE_CACHE_MAX_ENTRIES = 2_000;
     private static final long RANK_CACHE_TTL_MILLIS = 60_000L;
     private static final int RANK_CACHE_MAX_ENTRIES = 2_000;
 
     private final CorePlugin corePlugin;
     private final NumberFormat numberFormat;
+    private final Map<UUID, CachedProfile> liveProfileCacheByPlayer;
+    private final Set<UUID> liveProfileRefreshInFlight;
     private final Map<UUID, CachedRanks> rankCacheByPlayer;
     private final Set<UUID> rankRefreshInFlight;
 
@@ -53,6 +58,8 @@ public class ProfileNpcMenu extends Menu {
         super(resolveTitle(serverType), SIZE);
         this.corePlugin = corePlugin;
         this.numberFormat = NumberFormat.getIntegerInstance(Locale.US);
+        this.liveProfileCacheByPlayer = new ConcurrentHashMap<UUID, CachedProfile>();
+        this.liveProfileRefreshInFlight = ConcurrentHashMap.newKeySet();
         this.rankCacheByPlayer = new ConcurrentHashMap<UUID, CachedRanks>();
         this.rankRefreshInFlight = ConcurrentHashMap.newKeySet();
     }
@@ -65,10 +72,11 @@ public class ProfileNpcMenu extends Menu {
         inventory.clear();
         set(inventory, STATS_SLOT, buildStatsItem(player));
         set(inventory, CLOSE_SLOT, item(Material.BARRIER, ChatColor.RED + "Close"));
+        requestLiveProfileRefresh(player);
     }
 
     private ItemStack buildStatsItem(Player player) {
-        Profile profile = corePlugin == null ? null : corePlugin.getProfile(player.getUniqueId());
+        Profile profile = resolveProfileSnapshot(player);
         Stats stats = profile == null ? null : profile.getStats();
 
         int bowKills = counter(stats, BOW_KILLS_KEY, "bowKills");
@@ -144,6 +152,69 @@ public class ProfileNpcMenu extends Menu {
             return;
         }
         set(top, STATS_SLOT, buildStatsItem(player));
+    }
+
+    private Profile resolveProfileSnapshot(Player player) {
+        if (player == null || player.getUniqueId() == null) {
+            return null;
+        }
+        UUID playerId = player.getUniqueId();
+        CachedProfile cached = liveProfileCacheByPlayer.get(playerId);
+        long now = System.currentTimeMillis();
+        if (cached != null) {
+            if (now - cached.loadedAtMillis <= LIVE_PROFILE_CACHE_TTL_MILLIS) {
+                return cached.profile;
+            }
+            liveProfileCacheByPlayer.remove(playerId, cached);
+        }
+        return corePlugin == null ? null : corePlugin.getProfile(playerId);
+    }
+
+    private void requestLiveProfileRefresh(Player player) {
+        if (player == null || !player.isOnline() || player.getUniqueId() == null) {
+            return;
+        }
+        if (corePlugin == null || !corePlugin.isEnabled() || !corePlugin.isMongoEnabled()) {
+            return;
+        }
+        ProfileStore store = corePlugin.getProfileStore();
+        if (store == null) {
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        if (!liveProfileRefreshInFlight.add(playerId)) {
+            return;
+        }
+        String playerName = player.getName();
+        Bukkit.getScheduler().runTaskAsynchronously(corePlugin, () -> {
+            Profile loaded = null;
+            try {
+                loaded = store.load(playerId, playerName);
+            } catch (Exception ignored) {
+                loaded = null;
+            }
+            final Profile refreshed = loaded;
+            try {
+                Bukkit.getScheduler().runTask(corePlugin, () -> {
+                    liveProfileRefreshInFlight.remove(playerId);
+                    if (refreshed == null) {
+                        return;
+                    }
+                    if (liveProfileCacheByPlayer.size() >= LIVE_PROFILE_CACHE_MAX_ENTRIES) {
+                        liveProfileCacheByPlayer.clear();
+                    }
+                    liveProfileCacheByPlayer.put(playerId, new CachedProfile(refreshed, System.currentTimeMillis()));
+                    // Pull fresh rank positions on menu-open after profile stats refresh.
+                    rankCacheByPlayer.remove(playerId);
+                    Player viewer = Bukkit.getPlayer(playerId);
+                    if (viewer != null && viewer.isOnline()) {
+                        refreshIfOpen(viewer);
+                    }
+                });
+            } catch (Exception ex) {
+                liveProfileRefreshInFlight.remove(playerId);
+            }
+        });
     }
 
     private static String resolveTitle(ServerType serverType) {
@@ -317,6 +388,16 @@ public class ProfileNpcMenu extends Menu {
         int minutes = safeSeconds / 60;
         int seconds = safeSeconds % 60;
         return String.format(Locale.US, "%02d:%02d", minutes, seconds);
+    }
+
+    private static final class CachedProfile {
+        private final Profile profile;
+        private final long loadedAtMillis;
+
+        private CachedProfile(Profile profile, long loadedAtMillis) {
+            this.profile = profile;
+            this.loadedAtMillis = Math.max(0L, loadedAtMillis);
+        }
     }
 
     private static final class CachedRanks {

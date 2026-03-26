@@ -672,6 +672,21 @@ public final class MapConfigResolver {
             return null;
         }
         JsonObject obj = value.getAsJsonObject();
+        String direct = readLocationObject(obj);
+        if (direct != null) {
+            return direct;
+        }
+        JsonElement nested = childElement(obj, "location");
+        if (nested != null && nested != value) {
+            return readLocationValue(nested);
+        }
+        return null;
+    }
+
+    private static String readLocationObject(JsonObject obj) {
+        if (obj == null) {
+            return null;
+        }
         String world = stringField(obj, "world");
         Double x = numberField(obj, "x");
         Double y = numberField(obj, "y");

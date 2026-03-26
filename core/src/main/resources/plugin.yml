@@ -18,6 +18,14 @@ commands:
     usage: /rankcolor
   networklevel:
     usage: /networklevel <player> <level>
+  gold:
+    usage: /gold <player> <amount>
+  gift:
+    usage: /gift <player>
+  unlock100ranksgifted:
+    usage: /unlock100ranksgifted
+  reset100ranksgifted:
+    usage: /reset100ranksgifted
   gamemode:
     usage: /gamemode <mode> [onlinePlayer]
     aliases: [gm]
@@ -30,6 +38,9 @@ commands:
     aliases: [tp]
   fly:
     usage: /fly
+  firework:
+    usage: /firework
+    aliases: [fw]
   parkour:
     usage: /parkour [start|reset|checkpoint|cancel]
   help:
