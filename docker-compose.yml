@@ -44,43 +44,6 @@ services:
       timeout: 5s
       retries: 5
 
-  plugin-init:
-    image: busybox:1.36
-    command:
-      - /bin/sh
-      - -ec
-      - |
-        mkdir -p /production
-        missing=0
-        for jar in Hypixel.jar MurderMystery.jar HypixelBuild.jar HypixelProxy.jar; do
-          source="/plugins/$${jar}"
-          target="/production/$${jar}"
-
-          if [ -d "$${target}" ]; then
-            echo "Fixing plugin path type mismatch for $${jar}"
-            rm -rf "$${target}"
-          fi
-
-          if [ -d "$${source}" ]; then
-            echo "Source plugin path is a directory, expected file: $${source}" >&2
-          fi
-
-          if [ -f "$${source}" ]; then
-            echo "Copying $${jar} from docker/plugins into docker/production"
-            cp -f "$${source}" "$${target}"
-          fi
-
-          if [ ! -f "$${target}" ]; then
-            echo "Missing required plugin file $${target} (and no source file $${source})" >&2
-            missing=1
-          fi
-        done
-        exit "$${missing}"
-    volumes:
-      - ./docker/plugins:/plugins:ro
-      - ./docker/production:/production
-    restart: "no"
-
   control-panel:
     container_name: control-panel
     build:
@@ -136,6 +99,37 @@ services:
       - ./docker/plugins:/workspace/docker/plugins:ro
       - ./docker/production:/workspace/docker/production
       - "${PWD}:${PWD}:ro"
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        mkdir -p /workspace/docker/production
+        missing=0
+        for jar in Hypixel.jar MurderMystery.jar HypixelBuild.jar HypixelProxy.jar; do
+          source="/workspace/docker/plugins/$${jar}"
+          target="/workspace/docker/production/$${jar}"
+
+          if [ -d "$${target}" ]; then
+            echo "Fixing plugin path type mismatch for $${jar}"
+            rm -rf "$${target}"
+          fi
+
+          if [ -d "$${source}" ]; then
+            echo "Source plugin path is a directory, expected file: $${source}" >&2
+          fi
+
+          if [ -f "$${source}" ]; then
+            echo "Copying $${jar} from docker/plugins into docker/production"
+            cp -f "$${source}" "$${target}"
+          fi
+
+          if [ ! -f "$${target}" ]; then
+            echo "Missing required plugin file $${target} (and no source file $${source})" >&2
+            missing=1
+          fi
+        done
+        [ "$${missing}" -eq 0 ] || exit "$${missing}"
+        exec python3 /app/server.py
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8080/readyz\", timeout=2)'"]
       interval: 10s
@@ -158,8 +152,6 @@ services:
         condition: service_healthy
       control-panel:
         condition: service_healthy
-      plugin-init:
-        condition: service_completed_successfully
     environment:
       <<: *network-env
       JAVA_OPTS: "${PAPER_JAVA_OPTS:--Xms2G -Xmx8G}"
@@ -205,8 +197,6 @@ services:
         condition: service_healthy
       control-panel:
         condition: service_healthy
-      plugin-init:
-        condition: service_completed_successfully
     environment:
       <<: *network-env
       JAVA_OPTS: "${PAPER_JAVA_OPTS:--Xms2G -Xmx8G}"
@@ -252,8 +242,6 @@ services:
         condition: service_healthy
       control-panel:
         condition: service_healthy
-      plugin-init:
-        condition: service_completed_successfully
     environment:
       <<: *network-env
       JAVA_OPTS: "${PAPER_JAVA_OPTS:--Xms2G -Xmx8G}"
@@ -297,8 +285,6 @@ services:
     ports:
       - "25565:25565"
     depends_on:
-      plugin-init:
-        condition: service_completed_successfully
       murder-mystery-hub:
         condition: service_healthy
       murder-mystery-game:
