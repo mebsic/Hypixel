@@ -6,6 +6,7 @@ import io.github.mebsic.core.service.CoreApi;
 import io.github.mebsic.core.util.NetworkConstants;
 import io.github.mebsic.core.util.ScoreboardTitleAnimator;
 import io.github.mebsic.core.util.ServerNameFormatUtil;
+import io.github.mebsic.game.service.ScoreboardService;
 import io.github.mebsic.murdermystery.stats.MurderMysteryStats;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -18,7 +19,6 @@ import org.bukkit.scoreboard.Team;
 
 import java.text.NumberFormat;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,7 +30,6 @@ public class HubScoreboardService {
     private static final String OBJECTIVE_NAME = "hub";
     private static final String TEAM_PREFIX = "hub_line_";
     private static final int MAX_LINES = 15;
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yy");
 
     private final CoreApi coreApi;
     private final ServerType serverType;
@@ -110,7 +109,7 @@ public class HubScoreboardService {
         int tokens = profile == null ? 0 : MurderMysteryStats.getTokens(profile.getStats());
 
         List<String> lines = new ArrayList<>();
-        lines.add(ChatColor.GRAY + LocalDate.now().format(DATE_FORMATTER)
+        lines.add(ChatColor.GRAY + LocalDate.now(ScoreboardService.SCOREBOARD_DATE_ZONE).format(ScoreboardService.SCOREBOARD_DATE_FORMAT)
                 + "  " + ChatColor.DARK_GRAY + serverName.toUpperCase(Locale.ROOT));
         lines.add("");
         lines.add(ChatColor.WHITE + "Total Kills: " + ChatColor.GREEN + formatNumber(kills));

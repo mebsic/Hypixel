@@ -8,6 +8,8 @@ import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.ScoreboardManager;
 import org.bukkit.scoreboard.Team;
 
+import java.time.format.DateTimeFormatter;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -15,6 +17,8 @@ import java.util.Map;
 import java.util.UUID;
 
 public class ScoreboardService {
+    public static final ZoneOffset SCOREBOARD_DATE_ZONE = ZoneOffset.ofHours(-5); // EST
+    public static final DateTimeFormatter SCOREBOARD_DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yy");
     private static final String OBJECTIVE_NAME = "game";
     private static final String TEAM_PREFIX = "game_line_";
     private static final int MAX_LINES = 15;

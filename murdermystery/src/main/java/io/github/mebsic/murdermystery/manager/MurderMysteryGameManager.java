@@ -17,6 +17,7 @@ import io.github.mebsic.game.model.GamePlayer;
 import io.github.mebsic.game.model.GameState;
 import io.github.mebsic.game.model.RoleChance;
 import io.github.mebsic.game.service.BossBarService;
+import io.github.mebsic.game.service.ScoreboardService;
 import io.github.mebsic.murdermystery.game.MurderMysteryGamePlayer;
 import io.github.mebsic.murdermystery.game.MurderMysteryGameResult;
 import io.github.mebsic.murdermystery.game.MurderMysteryRole;
@@ -50,7 +51,6 @@ import org.bukkit.potion.PotionEffectType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -67,7 +67,6 @@ public class MurderMysteryGameManager extends GameManager {
         THROWN_KNIFE
     }
 
-    private static final DateTimeFormatter SCOREBOARD_DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yy");
     private static final double DEFAULT_MURDERER_CHANCE = 1.0;
     private static final double DEFAULT_DETECTIVE_CHANCE = 1.0;
     private static final double MIN_ROLE_CHANCE = 0.2;
@@ -373,7 +372,8 @@ public class MurderMysteryGameManager extends GameManager {
                 plugin == null ? "mini1A" : plugin.getConfig().getString("server.id", "mini1A"),
                 type
         );
-        return ChatColor.GRAY + LocalDate.now().format(SCOREBOARD_DATE_FORMAT) + "  " + ChatColor.DARK_GRAY + serverName;
+        return ChatColor.GRAY + LocalDate.now(ScoreboardService.SCOREBOARD_DATE_ZONE).format(ScoreboardService.SCOREBOARD_DATE_FORMAT)
+                + "  " + ChatColor.DARK_GRAY + serverName;
     }
 
     @Override
