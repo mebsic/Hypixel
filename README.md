@@ -78,6 +78,7 @@ REDIS_DATABASE=0
 # Deployment/rollout settings
 ROLLOUT_WEBHOOK_TOKEN=your_rollout_webhook_token
 ROLLOUT_RESTART_MODE=rebuild
+ROLLOUT_UPDATE_SERVICES=murder-mystery-hub,murder-mystery-game,build
 
 # Network binding
 MONGO_BIND_IP=0.0.0.0

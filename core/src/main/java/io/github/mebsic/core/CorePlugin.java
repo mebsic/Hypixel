@@ -84,7 +84,6 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.Sound;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.util.Vector;
 import org.bson.Document;
 
 import java.util.Collections;
@@ -478,9 +477,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         profileService.handleJoin(player);
         ensureFriendDocumentAsync(player.getUniqueId(), player.getName());
         enforceAdventureMode(player.getGameMode(), player);
-        applyHubFlightState(player);
-        applyHubJoinVelocity(player);
-        scheduleImmediateJoinVelocityFollowUp(player.getUniqueId());
     }
 
     private void forceHotbarSlotOne(Player player) {
@@ -984,13 +980,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         return HypixelExperienceUtil.scaleExperienceGain(baseExperience, networkLevel);
     }
 
-    private void applyHubFlightState(Player player) {
-        if (player == null) {
-            return;
-        }
-        applyHubFlightState(player, profileService.getProfile(player.getUniqueId()));
-    }
-
     private void applyHubFlightState(Player player, Profile profile) {
         if (player == null || !isHubServer()) {
             return;
@@ -1002,34 +991,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             return;
         }
         player.setFlying(true);
-        Vector velocity = player.getVelocity();
-        if (velocity != null) {
-            player.setVelocity(new Vector(velocity.getX(), Math.max(0.0d, velocity.getY()), velocity.getZ()));
-        }
-    }
-
-    private void applyHubJoinVelocity(Player player) {
-        if (player == null || !isHubServer()) {
-            return;
-        }
-        Vector velocity = player.getVelocity();
-        if (velocity == null) {
-            return;
-        }
-        player.setVelocity(new Vector(velocity.getX(), Math.max(0.0d, velocity.getY()), velocity.getZ()));
-    }
-
-    private void scheduleImmediateJoinVelocityFollowUp(UUID uuid) {
-        if (uuid == null || !isHubServer()) {
-            return;
-        }
-        Bukkit.getScheduler().runTask(this, () -> {
-            Player player = Bukkit.getPlayer(uuid);
-            if (player == null || !player.isOnline()) {
-                return;
-            }
-            applyHubJoinVelocity(player);
-        });
     }
 
     private boolean isHubFlightEnabled(Profile profile) {

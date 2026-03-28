@@ -395,6 +395,7 @@ public class GameManager {
             player.kickPlayer(ChatColor.RED + "Game is full.");
             return;
         }
+        scoreboardTitleAnimators.remove(player.getUniqueId());
         GamePlayer gamePlayer = createGamePlayer(player.getUniqueId());
         players.put(player.getUniqueId(), gamePlayer);
         titleService.reset(player);

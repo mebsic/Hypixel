@@ -24,6 +24,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Vector;
 
 import java.util.Map;
 import java.util.Objects;
@@ -37,6 +38,8 @@ public class HubListener implements Listener {
     private static final long JOIN_MESSAGE_RETRY_INTERVAL_TICKS = 2L;
     private static final int JOIN_MESSAGE_MAX_RETRIES = 40;
     private static final long JOIN_PROFILE_REFRESH_DELAY_TICKS = 1L;
+    private static final long JOIN_FLIGHT_REAPPLY_DELAY_TICKS = 1L;
+    private static final double JOIN_FLIGHT_MIN_UPWARD_VELOCITY = 0.1D;
     private static final int HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS = 2;
     private static final int HUB_SPAWN_OFFSET_ATTEMPTS = 24;
 
@@ -72,6 +75,8 @@ public class HubListener implements Listener {
         String mvpPlusPlusPrefixColor = profile == null ? null : profile.getMvpPlusPlusPrefixColor();
         teleportToHubSpawn(player, true);
         plugin.handleHubJoin(player);
+        applyJoinFlightAndVelocity(player, rank);
+        scheduleJoinFlightAndVelocityApply(uuid, JOIN_FLIGHT_REAPPLY_DELAY_TICKS);
         applySpeed(player, rank);
         applySpeedAfterProfileLoad(player);
         boolean announced = broadcastRankJoinMessage(player, rank, networkLevel, plusColor, mvpPlusPlusPrefixColor);
@@ -140,6 +145,7 @@ public class HubListener implements Listener {
             if (refreshed == null) {
                 refreshed = Rank.DEFAULT;
             }
+            applyJoinFlightAndVelocity(online, refreshed);
             applySpeed(online, refreshed);
             if (!pendingJoinAnnouncements.remove(uuid)) {
                 return;
@@ -158,6 +164,46 @@ public class HubListener implements Listener {
                 scheduleJoinAnnouncementRetries(uuid);
             }
         }, JOIN_PROFILE_REFRESH_DELAY_TICKS);
+    }
+
+    private void applyJoinFlightAndVelocity(Player player, Rank rank) {
+        if (player == null) {
+            return;
+        }
+        Rank effectiveRank = rank == null ? Rank.DEFAULT : rank;
+        boolean enabled = effectiveRank.isAtLeast(Rank.VIP);
+        player.setAllowFlight(enabled);
+        if (!enabled) {
+            player.setFlying(false);
+            return;
+        }
+        if (!player.isFlying()) {
+            player.setFlying(true);
+        }
+        Vector velocity = player.getVelocity();
+        if (velocity == null) {
+            return;
+        }
+        double y = Math.max(JOIN_FLIGHT_MIN_UPWARD_VELOCITY, velocity.getY());
+        player.setVelocity(new Vector(velocity.getX(), y, velocity.getZ()));
+    }
+
+    private void scheduleJoinFlightAndVelocityApply(UUID uuid, long delayTicks) {
+        if (uuid == null || !(plugin instanceof Plugin)) {
+            return;
+        }
+        long safeDelay = Math.max(1L, delayTicks);
+        Bukkit.getScheduler().runTaskLater((Plugin) plugin, () -> {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player == null || !player.isOnline()) {
+                return;
+            }
+            Rank rank = coreApi.getRank(uuid);
+            if (rank == null) {
+                rank = Rank.DEFAULT;
+            }
+            applyJoinFlightAndVelocity(player, rank);
+        }, safeDelay);
     }
 
     private String stripNewLines(String value) {

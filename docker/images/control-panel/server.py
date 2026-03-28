@@ -559,19 +559,17 @@ def compose_subprocess_env():
     return compose_env
 
 
-def run_compose_scale(compose_project, hub_service, game_service, hub_replicas, game_replicas):
+def run_compose_scale_service(compose_project, service_name, replicas):
     cmd = compose_command_prefix(compose_project)
     cmd.extend(
         [
             "up",
             "-d",
             "--no-deps",
+            "--no-recreate",
             "--scale",
-            f"{hub_service}={hub_replicas}",
-            "--scale",
-            f"{game_service}={game_replicas}",
-            hub_service,
-            game_service,
+            f"{service_name}={replicas}",
+            service_name,
         ]
     )
     compose_env = compose_subprocess_env()
@@ -585,7 +583,7 @@ def run_compose_scale(compose_project, hub_service, game_service, hub_replicas, 
     )
     combined = ((result.stdout or "") + "\n" + (result.stderr or "")).strip()
     if result.returncode != 0:
-        raise RuntimeError(f"compose scale failed: {combined}")
+        raise RuntimeError(f"compose scale failed for service {service_name}: {combined}")
     return combined
 
 
@@ -1441,19 +1439,43 @@ def run_autoscale_tick(trigger):
             if up_needed and up_cooldown_ok:
                 target_hub = max(current_hub, desired_hub)
                 target_game = max(current_game, desired_game)
-                scale_output = run_compose_scale(compose_project, hub_service, game_service, target_hub, target_game)
-                state["lastScaleUpAt"] = now_ms()
-                record_event(
-                    db,
-                    game_type,
-                    "scale_up",
-                    {
-                        "hubService": hub_service,
-                        "gameService": game_service,
-                        "from": {"hub": current_hub, "game": current_game},
-                        "to": {"hub": target_hub, "game": target_game},
-                    },
-                )
+                scale_actions = []
+
+                if target_hub > current_hub:
+                    hub_output = run_compose_scale_service(compose_project, hub_service, target_hub)
+                    scale_actions.append(
+                        {
+                            "service": hub_service,
+                            "kind": "hub",
+                            "from": current_hub,
+                            "to": target_hub,
+                            "output": hub_output,
+                        }
+                    )
+
+                if target_game > current_game:
+                    game_output = run_compose_scale_service(compose_project, game_service, target_game)
+                    scale_actions.append(
+                        {
+                            "service": game_service,
+                            "kind": "game",
+                            "from": current_game,
+                            "to": target_game,
+                            "output": game_output,
+                        }
+                    )
+
+                if scale_actions:
+                    scale_output = scale_actions
+                    state["lastScaleUpAt"] = now_ms()
+                    record_event(
+                        db,
+                        game_type,
+                        "scale_up",
+                        {
+                            "actions": scale_actions,
+                        },
+                    )
                 project_containers = list_project_containers(compose_project, include_all=True)
                 hub_containers = [item for item in project_containers if item["service"] == hub_service]
                 game_containers = [item for item in project_containers if item["service"] == game_service]

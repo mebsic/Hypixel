@@ -310,6 +310,7 @@ services:
       ROLLOUT_WEBHOOK_URL: "${ROLLOUT_WEBHOOK_URL:-http://control-panel:8080/restart}"
       ROLLOUT_WEBHOOK_TOKEN: "${ROLLOUT_WEBHOOK_TOKEN:-}"
       ROLLOUT_RESTART_MODE: "${ROLLOUT_RESTART_MODE:-rebuild}"
+      ROLLOUT_UPDATE_SERVICES: "${ROLLOUT_UPDATE_SERVICES:-murder-mystery-hub,murder-mystery-game,build}"
     volumes:
       - ./docker/proxy/velocity.toml:/server/velocity.toml
       - ./server-icon.png:/server/server-icon.png:ro

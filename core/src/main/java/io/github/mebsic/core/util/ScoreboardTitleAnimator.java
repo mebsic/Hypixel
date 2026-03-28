@@ -5,7 +5,7 @@ import org.bukkit.ChatColor;
 public final class ScoreboardTitleAnimator {
     private static final long TICK_MILLIS = 50L;
     private static final long SWEEP_STEP_TICKS = 2L;
-    private static final long FLASH_STEP_TICKS = 5L; // 0.25 seconds per flash frame (0.5s total pulse)
+    private static final long FLASH_STEP_TICKS = 8L; // 0.4 seconds per flash frame
     private static final long POST_SWEEP_WHITE_HOLD_TICKS = 20L; // 1.0 seconds
     private static final long CYCLE_DELAY_TICKS = 100L; // 5 seconds
     private static final long FLASH_FRAME_COUNT = 2L; // yellow -> white (single pulse)
@@ -62,6 +62,10 @@ public final class ScoreboardTitleAnimator {
         }
 
         return yellowTitle;
+    }
+
+    public synchronized void restart() {
+        animationStartedAtMillis = -1L;
     }
 
     private long sweepLengthTicks() {

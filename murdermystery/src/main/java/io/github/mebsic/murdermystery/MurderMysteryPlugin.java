@@ -213,6 +213,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
             }, 20L);
         }
         if (hubScoreboardService != null) {
+            hubScoreboardService.restartTitleAnimation(player);
             hubScoreboardService.update(player);
             // Profile data loads asynchronously, so do a quick follow-up refresh after join.
             getServer().getScheduler().runTaskLater(this, () -> {

@@ -71,6 +71,20 @@ public class HubScoreboardService {
         }
     }
 
+    public void restartTitleAnimation(Player player) {
+        if (player == null) {
+            return;
+        }
+        Board board = boards.get(player.getUniqueId());
+        if (board == null) {
+            return;
+        }
+        board.titleAnimator.restart();
+        String title = board.titleAnimator.resolve(serverType.isHub());
+        applyTitle(board, title);
+        assignBoardIfNeeded(player, board);
+    }
+
     public void updateAnimatedTitle() {
         for (UUID uuid : new ArrayList<>(boards.keySet())) {
             Player player = Bukkit.getPlayer(uuid);

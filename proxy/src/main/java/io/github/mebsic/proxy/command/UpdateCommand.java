@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.LinkedHashSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,10 +32,17 @@ public class UpdateCommand implements SimpleCommand {
             new DurationOption("1m", "1 minute", 1)
     };
     private static final String RECONNECT_HOST = "mc." + NetworkConstants.DOMAIN;
-    private static final long SHUTDOWN_DELAY_SECONDS = 2L;
     private static final String ROLLOUT_WEBHOOK_URL_ENV = "ROLLOUT_WEBHOOK_URL";
     private static final String ROLLOUT_WEBHOOK_TOKEN_ENV = "ROLLOUT_WEBHOOK_TOKEN";
     private static final String ROLLOUT_RESTART_MODE_ENV = "ROLLOUT_RESTART_MODE";
+    private static final String ROLLOUT_UPDATE_SERVICES_ENV = "ROLLOUT_UPDATE_SERVICES";
+    private static final String[] DEFAULT_ROLLOUT_UPDATE_SERVICES = new String[] {
+            "murder-mystery-hub",
+            "murder-mystery-game",
+            "build"
+    };
+    private static final long ROLLOUT_WEBHOOK_CONNECT_TIMEOUT_SECONDS = 5L;
+    private static final long ROLLOUT_WEBHOOK_REQUEST_TIMEOUT_SECONDS = 180L;
 
     private final ProxyServer proxy;
     private final Object plugin;
@@ -217,46 +225,42 @@ public class UpdateCommand implements SimpleCommand {
         // Avoid cancelling the currently executing shutdown task; that can interrupt
         // the rollout webhook HTTP call before it completes.
         scheduledTasks.clear();
-        Component reason = restartDisconnectReason();
-        for (Player online : proxy.getAllPlayers()) {
-            try {
-                online.disconnect(reason);
-            } catch (Exception ex) {
-                logger.warn("Failed to disconnect {} during /update shutdown!", online.getUsername(), ex);
-            }
-        }
-        triggerRolloutRestart();
-        try {
-            Thread.sleep(SHUTDOWN_DELAY_SECONDS * 1000L);
-        } catch (InterruptedException ignored) {
-            // Expected when the container is already stopping due to external restart.
-        }
-        try {
-            proxy.shutdown();
-        } catch (Exception ex) {
+
+        if (!triggerRolloutRestart()) {
             updateInProgress.set(false);
             joinLockActive.set(false);
-            logger.warn("Failed to shutdown proxy cleanly after /update!", ex);
+            Component failure = withGoldObfuscatedPrefix(
+                    Component.text("Update rollout failed. Proxy shutdown has been cancelled.", NamedTextColor.RED)
+            );
+            broadcastFramed(failure);
+            return;
         }
+        updateInProgress.set(false);
+        joinLockActive.set(false);
+        Component success = withGoldObfuscatedPrefix(
+                Component.text("Update rollout started. Proxy will stay online.", NamedTextColor.GREEN)
+        );
+        broadcastFramed(success);
     }
 
-    private void triggerRolloutRestart() {
+    private boolean triggerRolloutRestart() {
         String webhookUrl = safeTrim(System.getenv(ROLLOUT_WEBHOOK_URL_ENV));
         if (webhookUrl == null || webhookUrl.isEmpty()) {
             logger.info("No rollout webhook URL configured; skipping rollout trigger.");
-            return;
+            return false;
         }
 
         String token = safeTrim(System.getenv(ROLLOUT_WEBHOOK_TOKEN_ENV));
         String mode = resolveRolloutMode();
+        List<String> services = resolveRolloutServices();
         try {
             HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(3))
+                    .connectTimeout(Duration.ofSeconds(ROLLOUT_WEBHOOK_CONNECT_TIMEOUT_SECONDS))
                     .build();
-            String payload = "{\"mode\":\"" + mode + "\"}";
+            String payload = buildRolloutPayload(mode, services);
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl))
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(Duration.ofSeconds(ROLLOUT_WEBHOOK_REQUEST_TIMEOUT_SECONDS))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(payload));
             if (token != null && !token.isEmpty()) {
@@ -267,14 +271,93 @@ public class UpdateCommand implements SimpleCommand {
             int status = response.statusCode();
             if (status >= 200 && status < 300) {
                 logger.info("Triggered rollout restart via webhook (status {}).", status);
+                return true;
             } else {
                 logger.warn("Rollout webhook responded with status {}: {}", status, response.body());
+                return false;
             }
         } catch (InterruptedException ex) {
             logger.info("Rollout webhook request interrupted (proxy likely restarting).");
+            return false;
         } catch (Exception ex) {
             logger.warn("Failed to trigger rollout webhook!", ex);
+            return false;
         }
+    }
+
+    private List<String> resolveRolloutServices() {
+        String configured = safeTrim(System.getenv(ROLLOUT_UPDATE_SERVICES_ENV));
+        LinkedHashSet<String> ordered = new LinkedHashSet<String>();
+        if (configured != null && !configured.isEmpty()) {
+            String[] tokens = configured.split(",");
+            for (String token : tokens) {
+                String service = safeTrim(token);
+                if (service != null && !service.isEmpty()) {
+                    ordered.add(service);
+                }
+            }
+        }
+        if (ordered.isEmpty()) {
+            for (String service : DEFAULT_ROLLOUT_UPDATE_SERVICES) {
+                if (service != null && !service.trim().isEmpty()) {
+                    ordered.add(service.trim());
+                }
+            }
+        }
+        return new ArrayList<String>(ordered);
+    }
+
+    private String buildRolloutPayload(String mode, List<String> services) {
+        StringBuilder payload = new StringBuilder(128);
+        payload.append("{\"mode\":\"").append(escapeJson(mode)).append("\",\"services\":[");
+        for (int i = 0; i < services.size(); i++) {
+            if (i > 0) {
+                payload.append(',');
+            }
+            payload.append('"').append(escapeJson(services.get(i))).append('"');
+        }
+        payload.append("]}");
+        return payload.toString();
+    }
+
+    private String escapeJson(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        StringBuilder escaped = new StringBuilder(value.length() + 8);
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '\\':
+                    escaped.append("\\\\");
+                    break;
+                case '"':
+                    escaped.append("\\\"");
+                    break;
+                case '\b':
+                    escaped.append("\\b");
+                    break;
+                case '\f':
+                    escaped.append("\\f");
+                    break;
+                case '\n':
+                    escaped.append("\\n");
+                    break;
+                case '\r':
+                    escaped.append("\\r");
+                    break;
+                case '\t':
+                    escaped.append("\\t");
+                    break;
+                default:
+                    if (c < 0x20) {
+                        escaped.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        escaped.append(c);
+                    }
+            }
+        }
+        return escaped.toString();
     }
 
     private String safeTrim(String value) {
