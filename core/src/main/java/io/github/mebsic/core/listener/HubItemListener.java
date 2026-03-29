@@ -6,7 +6,6 @@ import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.menu.GameMenu;
 import io.github.mebsic.core.menu.LobbySelectorMenu;
-import io.github.mebsic.core.menu.MenuHolder;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.service.QueueClient;
 import io.github.mebsic.core.service.ServerRegistrySnapshot;
@@ -22,9 +21,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryView;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -58,7 +57,9 @@ public class HubItemListener implements Listener {
     private static final int LOBBY_SELECTOR_SLOT = 8;
     private static final int PORTAL_TRIGGER_RADIUS_BLOCKS = 2;
     private static final long PORTAL_MENU_REOPEN_COOLDOWN_MS = 500L;
-    private static final long PORTAL_MENU_FREEZE_MS = 450L;
+    private static final Material NETHER_PORTAL_MATERIAL = Material.matchMaterial("NETHER_PORTAL");
+    private static final Material PORTAL_MATERIAL = Material.matchMaterial("PORTAL");
+    private static final Material LEGACY_PORTAL_MATERIAL = Material.matchMaterial("LEGACY_PORTAL");
 
     private final CorePlugin plugin;
     private final GameMenu gameMenu;
@@ -70,7 +71,6 @@ public class HubItemListener implements Listener {
     private final Set<UUID> friendRefreshInProgress;
     private final Set<UUID> playersInPortalZone;
     private final Map<UUID, Long> portalMenuReopenAllowedAt;
-    private final Map<UUID, Long> portalFreezeUntil;
 
     public HubItemListener(CorePlugin plugin, QueueClient queueClient, ServerRegistrySnapshot registrySnapshot) {
         this.plugin = plugin;
@@ -83,7 +83,6 @@ public class HubItemListener implements Listener {
         this.friendRefreshInProgress = ConcurrentHashMap.newKeySet();
         this.playersInPortalZone = ConcurrentHashMap.newKeySet();
         this.portalMenuReopenAllowedAt = new ConcurrentHashMap<>();
-        this.portalFreezeUntil = new ConcurrentHashMap<>();
         subscribeToFriendVisibilityUpdates();
     }
 
@@ -98,7 +97,6 @@ public class HubItemListener implements Listener {
         UUID uuid = player.getUniqueId();
         playersInPortalZone.remove(uuid);
         portalMenuReopenAllowedAt.remove(uuid);
-        portalFreezeUntil.remove(uuid);
         giveItems(player);
         applyExistingVisibility(player);
     }
@@ -116,7 +114,6 @@ public class HubItemListener implements Listener {
         friendRefreshInProgress.remove(uuid);
         playersInPortalZone.remove(uuid);
         portalMenuReopenAllowedAt.remove(uuid);
-        portalFreezeUntil.remove(uuid);
         lobbySelectorMenu.clear(event.getPlayer());
     }
 
@@ -126,41 +123,46 @@ public class HubItemListener implements Listener {
         if (isNpcPlayer(player)) {
             return;
         }
-        if (event.getFrom() == null || event.getTo() == null) {
+        Location from = event.getFrom();
+        Location to = event.getTo();
+        if (from == null || to == null) {
             return;
         }
         UUID uuid = player.getUniqueId();
-        boolean sameBlock = event.getFrom().getBlockX() == event.getTo().getBlockX()
-                && event.getFrom().getBlockY() == event.getTo().getBlockY()
-                && event.getFrom().getBlockZ() == event.getTo().getBlockZ();
-        if (sameBlock && !playersInPortalZone.contains(uuid) && !isInsideNetherPortal(event.getTo())) {
+        boolean sameBlock = from.getBlockX() == to.getBlockX()
+                && from.getBlockY() == to.getBlockY()
+                && from.getBlockZ() == to.getBlockZ();
+        if (sameBlock) {
             return;
         }
 
-        boolean nearPortal = isNearNetherPortal(event.getTo());
+        boolean nearPortal = isNearNetherPortal(to);
         if (!nearPortal) {
             playersInPortalZone.remove(uuid);
-            portalFreezeUntil.remove(uuid);
             return;
         }
-        playersInPortalZone.add(uuid);
-
-        long now = System.currentTimeMillis();
-        if (isViewingGameMenu(player) && now < portalFreezeUntil.getOrDefault(uuid, 0L)) {
-            event.setTo(event.getFrom());
-            return;
-        }
-        if (isViewingGameMenu(player)) {
-            return;
-        }
-        if (now < portalMenuReopenAllowedAt.getOrDefault(uuid, 0L)) {
+        if (!playersInPortalZone.add(uuid)) {
             return;
         }
 
-        gameMenu.open(player);
-        portalMenuReopenAllowedAt.put(uuid, now + PORTAL_MENU_REOPEN_COOLDOWN_MS);
-        portalFreezeUntil.put(uuid, now + PORTAL_MENU_FREEZE_MS);
-        player.setVelocity(player.getVelocity().zero());
+        triggerPortalHubTransfer(player);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPortal(PlayerPortalEvent event) {
+        Player player = event.getPlayer();
+        if (isNpcPlayer(player)) {
+            return;
+        }
+        if (event.getCause() != PlayerTeleportEvent.TeleportCause.NETHER_PORTAL) {
+            return;
+        }
+        Location from = event.getFrom();
+        if (!isInsideNetherPortal(from) && !isNearNetherPortal(from)) {
+            return;
+        }
+        event.setCancelled(true);
+        triggerPortalHubTransfer(player);
     }
 
     @EventHandler
@@ -263,7 +265,6 @@ public class HubItemListener implements Listener {
         friendRefreshInProgress.clear();
         playersInPortalZone.clear();
         portalMenuReopenAllowedAt.clear();
-        portalFreezeUntil.clear();
         gameMenu.shutdown();
         lobbySelectorMenu.shutdown();
     }
@@ -294,8 +295,12 @@ public class HubItemListener implements Listener {
     }
 
     private boolean isNetherPortal(Material material) {
-        return material == Material.matchMaterial("NETHER_PORTAL")
-                || material == Material.matchMaterial("PORTAL");
+        if (material == null) {
+            return false;
+        }
+        return material == NETHER_PORTAL_MATERIAL
+                || material == PORTAL_MATERIAL
+                || material == LEGACY_PORTAL_MATERIAL;
     }
 
     private boolean isInsideNetherPortal(Location location) {
@@ -312,19 +317,28 @@ public class HubItemListener implements Listener {
         return isNetherPortal(world.getBlockAt(x, y + 1, z).getType());
     }
 
-    private boolean isViewingGameMenu(Player player) {
+    private void triggerPortalHubTransfer(Player player) {
         if (player == null) {
-            return false;
+            return;
         }
-        InventoryView view = player.getOpenInventory();
-        if (view == null) {
-            return false;
+        UUID uuid = player.getUniqueId();
+        long now = System.currentTimeMillis();
+        if (now < portalMenuReopenAllowedAt.getOrDefault(uuid, 0L)) {
+            return;
         }
-        Inventory top = view.getTopInventory();
-        if (top == null || !(top.getHolder() instanceof MenuHolder)) {
-            return false;
+        portalMenuReopenAllowedAt.put(uuid, now + PORTAL_MENU_REOPEN_COOLDOWN_MS);
+        playersInPortalZone.add(uuid);
+        dispatchHubCommand(player);
+    }
+
+    private void dispatchHubCommand(Player player) {
+        if (player == null) {
+            return;
         }
-        return ((MenuHolder) top.getHolder()).getMenu() == gameMenu;
+        try {
+            Bukkit.dispatchCommand(player, "hub");
+        } catch (Exception ignored) {
+        }
     }
 
     private boolean resolveInitialVisibility(Player player) {

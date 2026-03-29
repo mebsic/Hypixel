@@ -35,11 +35,6 @@ public class UpdateCommand implements SimpleCommand {
     private static final String ROLLOUT_WEBHOOK_TOKEN_ENV = "ROLLOUT_WEBHOOK_TOKEN";
     private static final String ROLLOUT_RESTART_MODE_ENV = "ROLLOUT_RESTART_MODE";
     private static final String ROLLOUT_UPDATE_SERVICES_ENV = "ROLLOUT_UPDATE_SERVICES";
-    private static final String[] DEFAULT_ROLLOUT_UPDATE_SERVICES = new String[] {
-            "murder-mystery-hub",
-            "murder-mystery-game",
-            "build"
-    };
     private static final long ROLLOUT_WEBHOOK_CONNECT_TIMEOUT_SECONDS = 5L;
     private static final long ROLLOUT_WEBHOOK_REQUEST_TIMEOUT_SECONDS = 180L;
 
@@ -252,6 +247,11 @@ public class UpdateCommand implements SimpleCommand {
         String token = safeTrim(System.getenv(ROLLOUT_WEBHOOK_TOKEN_ENV));
         String mode = resolveRolloutMode();
         List<String> services = resolveRolloutServices();
+        logger.info(
+                "Triggering rollout webhook with mode={} and services={}.",
+                mode,
+                services.isEmpty() ? "<all>" : services
+        );
         try {
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(ROLLOUT_WEBHOOK_CONNECT_TIMEOUT_SECONDS))
@@ -286,36 +286,38 @@ public class UpdateCommand implements SimpleCommand {
 
     private List<String> resolveRolloutServices() {
         String configured = safeTrim(System.getenv(ROLLOUT_UPDATE_SERVICES_ENV));
-        LinkedHashSet<String> ordered = new LinkedHashSet<String>();
-        if (configured != null && !configured.isEmpty()) {
-            String[] tokens = configured.split(",");
-            for (String token : tokens) {
-                String service = safeTrim(token);
-                if (service != null && !service.isEmpty()) {
-                    ordered.add(service);
-                }
-            }
+        if (configured == null || configured.isEmpty()) {
+            return List.of();
         }
-        if (ordered.isEmpty()) {
-            for (String service : DEFAULT_ROLLOUT_UPDATE_SERVICES) {
-                if (service != null && !service.trim().isEmpty()) {
-                    ordered.add(service.trim());
-                }
+        LinkedHashSet<String> ordered = new LinkedHashSet<String>();
+        String[] tokens = configured.split(",");
+        for (String token : tokens) {
+            String service = safeTrim(token);
+            if (service != null && !service.isEmpty()) {
+                ordered.add(service);
             }
         }
         return new ArrayList<String>(ordered);
     }
 
     private String buildRolloutPayload(String mode, List<String> services) {
+        boolean rebuild = "rebuild".equals(mode);
+        boolean recreate = "recreate".equals(mode);
         StringBuilder payload = new StringBuilder(128);
-        payload.append("{\"mode\":\"").append(escapeJson(mode)).append("\",\"services\":[");
-        for (int i = 0; i < services.size(); i++) {
-            if (i > 0) {
-                payload.append(',');
+        payload.append("{\"mode\":\"").append(escapeJson(mode)).append("\",");
+        payload.append("\"rebuild\":").append(rebuild).append(',');
+        payload.append("\"recreate\":").append(recreate);
+        if (!services.isEmpty()) {
+            payload.append(",\"services\":[");
+            for (int i = 0; i < services.size(); i++) {
+                if (i > 0) {
+                    payload.append(',');
+                }
+                payload.append('"').append(escapeJson(services.get(i))).append('"');
             }
-            payload.append('"').append(escapeJson(services.get(i))).append('"');
+            payload.append(']');
         }
-        payload.append("]}");
+        payload.append('}');
         return payload.toString();
     }
 

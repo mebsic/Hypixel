@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import datetime
+import errno
 import http.client
 import http.server
 import json
@@ -54,12 +55,12 @@ RESTART_TIMEOUT_SECONDS = env_int("ROLLOUT_RESTART_TIMEOUT_SECONDS", 10, minimum
 RESTART_HEALTH_WAIT_SECONDS = env_int("ROLLOUT_RESTART_HEALTH_WAIT_SECONDS", 180, minimum=5)
 INCLUDE_SERVICES = {
     (item or "").strip().lower()
-    for item in clean_csv(os.getenv("ROLLOUT_INCLUDE_SERVICES"), "velocity,build")
+    for item in clean_csv(os.getenv("ROLLOUT_INCLUDE_SERVICES"), "")
     if (item or "").strip()
 }
 INCLUDE_PREFIXES = tuple(
     (item or "").strip().lower()
-    for item in clean_csv(os.getenv("ROLLOUT_INCLUDE_PREFIXES"), "murder-mystery-hub,murder-mystery-game")
+    for item in clean_csv(os.getenv("ROLLOUT_INCLUDE_PREFIXES"), "")
     if (item or "").strip()
 )
 EXCLUDED_SERVICES = {"mongo", "redis", "control-panel"}
@@ -229,6 +230,10 @@ def is_restart_target_service(service):
     normalized = (service or "").strip().lower()
     if not normalized or normalized in EXCLUDED_SERVICES:
         return False
+    if not INCLUDE_SERVICES and not INCLUDE_PREFIXES:
+        return True
+    if "*" in INCLUDE_SERVICES:
+        return True
     if normalized in INCLUDE_SERVICES:
         return True
     for prefix in INCLUDE_PREFIXES:
@@ -1606,13 +1611,29 @@ class RolloutHandler(http.server.BaseHTTPRequestHandler):
         message = fmt % args
         print(f"{self.address_string()} - {message}")
 
+    @staticmethod
+    def _is_client_disconnect(exc):
+        if isinstance(exc, (BrokenPipeError, ConnectionResetError)):
+            return True
+        if isinstance(exc, OSError):
+            return exc.errno in {errno.EPIPE, errno.ECONNRESET}
+        return False
+
     def json_response(self, status_code, payload):
         body = json.dumps(payload).encode("utf-8")
-        self.send_response(status_code)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(status_code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return True
+        except Exception as exc:
+            if self._is_client_disconnect(exc):
+                path = urllib.parse.urlparse(self.path).path
+                print(f"{self.address_string()} - client disconnected before response was sent ({path})")
+                return False
+            raise
 
     def parse_json_body(self):
         length_raw = self.headers.get("Content-Length", "0")

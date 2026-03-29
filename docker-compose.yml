@@ -58,8 +58,8 @@ services:
       <<: *network-env
       ROLLOUT_TOKEN: "${ROLLOUT_WEBHOOK_TOKEN:-}"
       COMPOSE_PROJECT: "${COMPOSE_PROJECT_NAME:-}"
-      ROLLOUT_INCLUDE_SERVICES: "${ROLLOUT_INCLUDE_SERVICES:-velocity,build}"
-      ROLLOUT_INCLUDE_PREFIXES: "${ROLLOUT_INCLUDE_PREFIXES:-murder-mystery-hub,murder-mystery-game}"
+      ROLLOUT_INCLUDE_SERVICES: "${ROLLOUT_INCLUDE_SERVICES:-}"
+      ROLLOUT_INCLUDE_PREFIXES: "${ROLLOUT_INCLUDE_PREFIXES:-}"
       ROLLOUT_RESTART_MODE: "${ROLLOUT_RESTART_MODE:-rebuild}"
       ROLLOUT_MIN_HUB_REPLICAS: "${ROLLOUT_MIN_HUB_REPLICAS:-2}"
       ROLLOUT_MIN_GAME_REPLICAS: "${ROLLOUT_MIN_GAME_REPLICAS:-2}"
@@ -298,7 +298,7 @@ services:
       ROLLOUT_WEBHOOK_URL: "${ROLLOUT_WEBHOOK_URL:-http://control-panel:8080/restart}"
       ROLLOUT_WEBHOOK_TOKEN: "${ROLLOUT_WEBHOOK_TOKEN:-}"
       ROLLOUT_RESTART_MODE: "${ROLLOUT_RESTART_MODE:-rebuild}"
-      ROLLOUT_UPDATE_SERVICES: "${ROLLOUT_UPDATE_SERVICES:-murder-mystery-hub,murder-mystery-game,build}"
+      ROLLOUT_UPDATE_SERVICES: "${ROLLOUT_UPDATE_SERVICES:-}"
     volumes:
       - ./docker/production/proxy/velocity.toml:/server/velocity.toml
       - ./server-icon.png:/server/server-icon.png:ro

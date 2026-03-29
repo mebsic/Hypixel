@@ -20,10 +20,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,6 +42,8 @@ public class RestartCommand implements SimpleCommand {
     private static final int[] BROADCAST_INTERVALS_SECONDS = new int[]{60, 30, 10, 5, 4, 3, 2, 1};
     private static final String ROLLOUT_WEBHOOK_URL_ENV = "ROLLOUT_WEBHOOK_URL";
     private static final String ROLLOUT_WEBHOOK_TOKEN_ENV = "ROLLOUT_WEBHOOK_TOKEN";
+    private static final long ROLLOUT_WEBHOOK_CONNECT_TIMEOUT_SECONDS = 5L;
+    private static final long ROLLOUT_WEBHOOK_REQUEST_TIMEOUT_SECONDS = 180L;
     private static final String WARP_COMMAND = "/hub";
     private final ProxyServer proxy;
     private final Object plugin;
@@ -308,13 +312,13 @@ public class RestartCommand implements SimpleCommand {
         String token = safeTrim(System.getenv(ROLLOUT_WEBHOOK_TOKEN_ENV));
         try {
             HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(3))
+                    .connectTimeout(Duration.ofSeconds(ROLLOUT_WEBHOOK_CONNECT_TIMEOUT_SECONDS))
                     .build();
             String payload = "{\"mode\":\"restart\",\"services\":[\"" + escapeJson(service) + "\"],\"serverId\":\""
                     + escapeJson(serverId) + "\"}";
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl))
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(Duration.ofSeconds(ROLLOUT_WEBHOOK_REQUEST_TIMEOUT_SECONDS))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(payload));
             if (token != null && !token.isEmpty()) {
@@ -324,7 +328,21 @@ public class RestartCommand implements SimpleCommand {
             client.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString())
                     .whenComplete((response, error) -> {
                         if (error != null) {
-                            logger.warn("Failed to trigger scoped rollout webhook for /restart!", error);
+                            Throwable root = unwrapCompletionError(error);
+                            if (root instanceof HttpTimeoutException) {
+                                logger.warn(
+                                        "Scoped rollout webhook for /restart timed out after {} seconds (service={}, server={}); restart may still be in progress.",
+                                        ROLLOUT_WEBHOOK_REQUEST_TIMEOUT_SECONDS,
+                                        service,
+                                        serverId,
+                                        root);
+                                return;
+                            }
+                            logger.warn(
+                                    "Failed to trigger scoped rollout webhook for /restart (service={}, server={})!",
+                                    service,
+                                    serverId,
+                                    root);
                             return;
                         }
                         int status = response.statusCode();
@@ -340,6 +358,14 @@ public class RestartCommand implements SimpleCommand {
         } catch (Exception ex) {
             logger.warn("Failed to trigger scoped rollout webhook for /restart!", ex);
         }
+    }
+
+    private Throwable unwrapCompletionError(Throwable error) {
+        Throwable current = error;
+        while (current instanceof CompletionException && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     private String escapeJson(String value) {
