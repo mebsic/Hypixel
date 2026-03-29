@@ -303,7 +303,12 @@ public class BuildMapConfigService {
             returnLocation = sourceWorld.getSpawnLocation().clone();
         }
         Path sourcePath = sourceFolder.toPath();
-        Path targetPath = Paths.get(resolveMapRootPath(), gameKey, sourceWorldName);
+        List<MapExportTarget> exportTargets = resolveMapExportTargets(gameKey, sourceWorldName);
+        if (exportTargets.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "No map export destination is configured.");
+            worldExportLocks.remove(lockKey);
+            return;
+        }
 
         boolean movedForExport = false;
         try {
@@ -327,17 +332,34 @@ public class BuildMapConfigService {
             return;
         }
 
-        player.sendMessage(ChatColor.YELLOW + "Exporting map to /maps/" + gameKey + "/" + sourceWorldName + "...");
+        String exportSummary = describeExportTargets(exportTargets);
+        if (exportSummary.isEmpty()) {
+            player.sendMessage(ChatColor.YELLOW + "Exporting map...");
+        } else {
+            player.sendMessage(ChatColor.YELLOW + "Exporting map to " + exportSummary + "...");
+        }
 
         Bukkit.getScheduler().runTaskAsynchronously(corePlugin, () -> {
-            String exportError = "";
+            StringBuilder exportFailures = new StringBuilder();
             String metadataError = "";
-            try {
-                copyDirectoryReplacing(sourcePath, targetPath);
-            } catch (Exception ex) {
-                exportError = safeString(ex.getMessage());
+            List<String> visibleExportedPaths = new ArrayList<String>();
+            boolean primaryExportSucceeded = false;
+            for (int i = 0; i < exportTargets.size(); i++) {
+                MapExportTarget exportTarget = exportTargets.get(i);
+                try {
+                    copyDirectoryReplacing(sourcePath, exportTarget.targetPath);
+                    if (exportTarget.displayInPlayerChat) {
+                        visibleExportedPaths.add(exportTarget.displayPath);
+                    }
+                    if (i == 0) {
+                        primaryExportSucceeded = true;
+                    }
+                } catch (Exception ex) {
+                    appendExportFailure(exportFailures, exportTarget, ex);
+                }
             }
-            if (exportError.isEmpty()) {
+            String exportError = exportFailures.toString();
+            if (primaryExportSucceeded) {
                 try {
                     registerExportedMapInConfig(gameKey, sourceWorldName);
                 } catch (Exception ex) {
@@ -347,6 +369,7 @@ public class BuildMapConfigService {
 
             final String finalExportError = exportError;
             final String finalMetadataError = metadataError;
+            final List<String> finalExportedPaths = new ArrayList<String>(visibleExportedPaths);
             Bukkit.getScheduler().runTask(corePlugin, () -> {
                 try {
                     World reloadedWorld = Bukkit.createWorld(new WorldCreator(sourceWorldName));
@@ -361,9 +384,21 @@ public class BuildMapConfigService {
                     if (online != null && online.isOnline()) {
                         online.teleport(remapLocationToWorld(returnLocation, reloadedWorld));
                         if (finalExportError.isEmpty() && finalMetadataError.isEmpty()) {
-                            online.sendMessage(ChatColor.GREEN + "Done!");
+                            if (finalExportedPaths.isEmpty()) {
+                                online.sendMessage(ChatColor.GREEN + "Done!");
+                            } else {
+                                online.sendMessage(ChatColor.GREEN + "Done! Exported map to " + formatDisplayList(finalExportedPaths) + ".");
+                            }
                         } else if (finalExportError.isEmpty()) {
-                            online.sendMessage(ChatColor.RED + "Exported finished, but failed to update map config!\n" + finalMetadataError);
+                            if (finalExportedPaths.isEmpty()) {
+                                online.sendMessage(ChatColor.RED + "Export finished, but failed to update map config!\n" + finalMetadataError);
+                            } else {
+                                online.sendMessage(ChatColor.RED + "Map exported to " + formatDisplayList(finalExportedPaths)
+                                        + ", but failed to update map config!\n" + finalMetadataError);
+                            }
+                        } else if (!finalExportedPaths.isEmpty()) {
+                            online.sendMessage(ChatColor.RED + "Export completed with errors.\nExported to: "
+                                    + formatDisplayList(finalExportedPaths) + "\nFailures:\n" + finalExportError);
                         } else {
                             online.sendMessage(ChatColor.RED + "Export failed!\n" + finalExportError);
                         }
@@ -3830,6 +3865,120 @@ public class BuildMapConfigService {
         return mapRoot.isEmpty() ? "/maps" : mapRoot;
     }
 
+    private String resolveDevelopmentMapRootPath() {
+        return safeString(System.getenv("MAP_ROOT_DEVELOPMENT"));
+    }
+
+    private List<MapExportTarget> resolveMapExportTargets(String gameKey, String worldDirectory) {
+        List<MapExportTarget> targets = new ArrayList<MapExportTarget>();
+        addMapExportTarget(targets, resolveMapRootPath(), gameKey, worldDirectory, false);
+        addMapExportTarget(targets, resolveDevelopmentMapRootPath(), gameKey, worldDirectory, true);
+        return targets;
+    }
+
+    private void addMapExportTarget(List<MapExportTarget> targets,
+                                    String mapRoot,
+                                    String gameKey,
+                                    String worldDirectory,
+                                    boolean displayInPlayerChat) {
+        if (targets == null) {
+            return;
+        }
+        String resolvedRoot = safeString(mapRoot);
+        String resolvedGameKey = safeString(gameKey);
+        String resolvedWorldDirectory = safeString(worldDirectory);
+        if (resolvedRoot.isEmpty() || resolvedGameKey.isEmpty() || resolvedWorldDirectory.isEmpty()) {
+            return;
+        }
+        Path resolvedPath = Paths.get(resolvedRoot, resolvedGameKey, resolvedWorldDirectory);
+        for (MapExportTarget existing : targets) {
+            if (existing == null || existing.targetPath == null) {
+                continue;
+            }
+            if (existing.targetPath.equals(resolvedPath)) {
+                if (displayInPlayerChat) {
+                    existing.displayInPlayerChat = true;
+                }
+                return;
+            }
+        }
+        targets.add(new MapExportTarget(resolvedPath, resolvedPath.toString(), displayInPlayerChat));
+    }
+
+    private String describeExportTargets(List<MapExportTarget> targets) {
+        List<String> paths = new ArrayList<String>();
+        if (targets != null) {
+            for (MapExportTarget target : targets) {
+                if (target == null || target.displayPath == null || target.displayPath.isEmpty()) {
+                    continue;
+                }
+                if (!target.displayInPlayerChat) {
+                    continue;
+                }
+                paths.add(target.displayPath);
+            }
+        }
+        if (paths.isEmpty()) {
+            return "";
+        }
+        return formatDisplayList(paths);
+    }
+
+    private String formatDisplayList(List<String> values) {
+        List<String> cleaned = new ArrayList<String>();
+        if (values != null) {
+            for (String value : values) {
+                String resolved = safeString(value);
+                if (!resolved.isEmpty()) {
+                    cleaned.add(resolved);
+                }
+            }
+        }
+        if (cleaned.isEmpty()) {
+            return "(none)";
+        }
+        if (cleaned.size() == 1) {
+            return cleaned.get(0);
+        }
+        if (cleaned.size() == 2) {
+            return cleaned.get(0) + " and " + cleaned.get(1);
+        }
+        StringBuilder message = new StringBuilder();
+        for (int i = 0; i < cleaned.size(); i++) {
+            String value = cleaned.get(i);
+            if (message.length() > 0) {
+                if (i == cleaned.size() - 1) {
+                    message.append(", and ");
+                } else {
+                    message.append(", ");
+                }
+            }
+            message.append(value);
+        }
+        return message.toString();
+    }
+
+    private void appendExportFailure(StringBuilder failures, MapExportTarget target, Exception ex) {
+        if (failures == null) {
+            return;
+        }
+        String targetPath = target == null ? "" : safeString(target.displayPath);
+        if (targetPath.isEmpty()) {
+            targetPath = "(unknown target)";
+        }
+        String reason = ex == null ? "" : safeString(ex.getMessage());
+        if (reason.isEmpty() && ex != null) {
+            reason = ex.getClass().getSimpleName();
+        }
+        if (failures.length() > 0) {
+            failures.append("\n");
+        }
+        failures.append(targetPath);
+        if (!reason.isEmpty()) {
+            failures.append(": ").append(reason);
+        }
+    }
+
     private void copyDirectoryReplacing(Path source, Path target) throws IOException {
         if (source == null || !Files.isDirectory(source)) {
             throw new IOException("Source world folder was not found: " + source);
@@ -3992,6 +4141,18 @@ public class BuildMapConfigService {
         private ServerType gameType;
         private Location start;
         private final List<Location> checkpoints = new ArrayList<Location>();
+    }
+
+    private static final class MapExportTarget {
+        private final Path targetPath;
+        private final String displayPath;
+        private boolean displayInPlayerChat;
+
+        private MapExportTarget(Path targetPath, String displayPath, boolean displayInPlayerChat) {
+            this.targetPath = targetPath;
+            this.displayPath = displayPath == null ? "" : displayPath;
+            this.displayInPlayerChat = displayInPlayerChat;
+        }
     }
 
     private static final class RuntimeNpc {

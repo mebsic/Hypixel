@@ -52,12 +52,16 @@ bin/
 .env
 .env.*
 
-### Docker maps ###
-docker/maps/*
-!docker/maps/README.md
+### Docker development maps ###
+docker/development/maps/*
+!docker/development/maps/README.md
 
-### Docker plugins ###
-docker/plugins/*
+### Docker development plugins ###
+docker/development/plugins/*
+
+### Docker production maps ###
+docker/production/maps/*
+!docker/production/maps/README.md
 
 ### Docker production plugins ###
-docker/production/*
+docker/production/plugins/*

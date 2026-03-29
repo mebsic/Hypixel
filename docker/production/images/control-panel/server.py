@@ -82,8 +82,8 @@ ROLLOUT_MIN_GAME_REPLICAS = env_int("ROLLOUT_MIN_GAME_REPLICAS", 2, minimum=2)
 ROLLOUT_COMPOSE_WORKDIR = os.getenv("ROLLOUT_COMPOSE_WORKDIR", "/workspace").strip()
 ROLLOUT_COMPOSE_FILE = os.getenv("ROLLOUT_COMPOSE_FILE", "/workspace/docker-compose.yml").strip()
 ROLLOUT_COMPOSE_ENV_FILE = os.getenv("ROLLOUT_COMPOSE_ENV_FILE", "/workspace/.env").strip()
-ROLLOUT_PLUGIN_DIR = os.getenv("ROLLOUT_PLUGIN_DIR", "/workspace/docker/production").strip()
-ROLLOUT_PLUGIN_SOURCE_DIR = os.getenv("ROLLOUT_PLUGIN_SOURCE_DIR", "/workspace/docker/plugins").strip()
+ROLLOUT_PLUGIN_DIR = os.getenv("ROLLOUT_PLUGIN_DIR", "/workspace/docker/production/plugins").strip()
+ROLLOUT_PLUGIN_SOURCE_DIR = os.getenv("ROLLOUT_PLUGIN_SOURCE_DIR", "/workspace/docker/development/plugins").strip()
 REQUIRED_PLUGIN_FILENAMES = (
     "Hypixel.jar",
     "MurderMystery.jar",

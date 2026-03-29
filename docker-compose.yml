@@ -20,7 +20,7 @@ services:
       - "${MONGO_BIND_IP:-127.0.0.1}:${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo-data:/data/db
-      - ./docker/mongo/create-mongo-user.sh:/docker-entrypoint-initdb.d/create-mongo-user.sh:ro
+      - ./docker/production/mongo/create-mongo-user.sh:/docker-entrypoint-initdb.d/create-mongo-user.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --username \"$$MONGO_INITDB_ROOT_USERNAME\" --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval 'db.runCommand({ ping: 1 }).ok'"]
       interval: 10s
@@ -47,7 +47,7 @@ services:
   control-panel:
     container_name: control-panel
     build:
-      context: ./docker/images/control-panel
+      context: ./docker/production/images/control-panel
     mem_limit: 2g
     depends_on:
       mongo:
@@ -68,8 +68,8 @@ services:
       ROLLOUT_COMPOSE_WORKDIR: "${PWD}"
       ROLLOUT_COMPOSE_FILE: "${PWD}/docker-compose.yml"
       ROLLOUT_COMPOSE_ENV_FILE: "${PWD}/.env"
-      ROLLOUT_PLUGIN_DIR: "/workspace/docker/production"
-      ROLLOUT_PLUGIN_SOURCE_DIR: "/workspace/docker/plugins"
+      ROLLOUT_PLUGIN_DIR: "/workspace/docker/production/plugins"
+      ROLLOUT_PLUGIN_SOURCE_DIR: "/workspace/docker/development/plugins"
       AUTOSCALE_ENABLED: "${AUTOSCALE_ENABLED:-true}"
       AUTOSCALE_INTERVAL_SECONDS: "${AUTOSCALE_INTERVAL_SECONDS:-60}"
       AUTOSCALE_STARTUP_GRACE_SECONDS: "${AUTOSCALE_STARTUP_GRACE_SECONDS:-60}"
@@ -96,18 +96,18 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/workspace:ro
-      - ./docker/plugins:/workspace/docker/plugins:ro
-      - ./docker/production:/workspace/docker/production
+      - ./docker/development/plugins:/workspace/docker/development/plugins:ro
+      - ./docker/production/plugins:/workspace/docker/production/plugins
       - "${PWD}:${PWD}:ro"
     entrypoint:
       - /bin/sh
       - -ec
       - |
-        mkdir -p /workspace/docker/production
+        mkdir -p /workspace/docker/production/plugins
         missing=0
         for jar in Hypixel.jar MurderMystery.jar HypixelBuild.jar HypixelProxy.jar; do
-          source="/workspace/docker/plugins/$${jar}"
-          target="/workspace/docker/production/$${jar}"
+          source="/workspace/docker/development/plugins/$${jar}"
+          target="/workspace/docker/production/plugins/$${jar}"
 
           if [ -d "$${target}" ]; then
             echo "Fixing plugin path type mismatch for $${jar}"
@@ -119,7 +119,7 @@ services:
           fi
 
           if [ -f "$${source}" ]; then
-            echo "Copying $${jar} from docker/plugins into docker/production"
+            echo "Copying $${jar} from docker/development/plugins into docker/production/plugins"
             cp -f "$${source}" "$${target}"
           fi
 
@@ -141,7 +141,7 @@ services:
   murder-mystery-hub:
     image: hypixel-hub
     build:
-      context: ./docker/images/paper
+      context: ./docker/production/images/paper
       args:
         PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
         USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
@@ -171,9 +171,9 @@ services:
       SERVER_MAX_PLAYERS: "100"
       FORCE_MAP_COPY: "true"
     volumes:
-      - ./docker/config.json:/bootstrap/config.json:ro
-      - ./docker/maps:/maps
-      - ./docker/production:/bootstrap/plugins:ro
+      - ./docker/production/config.json:/bootstrap/config.json:ro
+      - ./docker/production/maps:/maps
+      - ./docker/production/plugins:/bootstrap/plugins:ro
       - server-port-alloc:/var/lib/hypixel-port
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'port=$(grep -m1 \"^server-port=\" /data/server.properties | cut -d= -f2); [ -n \"$${port}\" ] || port=25565; echo > /dev/tcp/127.0.0.1/$${port}'"]
@@ -185,7 +185,7 @@ services:
   murder-mystery-game:
     image: hypixel-game
     build:
-      context: ./docker/images/paper
+      context: ./docker/production/images/paper
       args:
         PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
         USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
@@ -216,9 +216,9 @@ services:
       SERVER_MAX_PLAYERS: "16"
       FORCE_MAP_COPY: "true"
     volumes:
-      - ./docker/config.json:/bootstrap/config.json:ro
-      - ./docker/maps:/maps
-      - ./docker/production:/bootstrap/plugins:ro
+      - ./docker/production/config.json:/bootstrap/config.json:ro
+      - ./docker/production/maps:/maps
+      - ./docker/production/plugins:/bootstrap/plugins:ro
       - server-port-alloc:/var/lib/hypixel-port
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'port=$(grep -m1 \"^server-port=\" /data/server.properties | cut -d= -f2); [ -n \"$${port}\" ] || port=25565; echo > /dev/tcp/127.0.0.1/$${port}'"]
@@ -231,7 +231,7 @@ services:
     container_name: build
     image: hypixel-build
     build:
-      context: ./docker/images/paper
+      context: ./docker/production/images/paper
       args:
         PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
         USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
@@ -245,7 +245,8 @@ services:
     environment:
       <<: *network-env
       JAVA_OPTS: "${PAPER_JAVA_OPTS:--Xms2G -Xmx8G}"
-      MAP_ROOT: /maps
+      MAP_ROOT: /production/maps
+      MAP_ROOT_DEVELOPMENT: /development/maps
       WORLD_NAME: world
       FORCE_MAP_COPY: "true"
       SERVER_PORT: "auto"
@@ -263,9 +264,10 @@ services:
       WORLD_ARCHIVE_FORCE_EXTRACT: "${BUILD_WORLD_ARCHIVE_FORCE_EXTRACT:-false}"
     volumes:
       - build-data:/data
-      - ./docker/config.json:/bootstrap/config.json:ro
-      - ./docker/maps:/maps
-      - ./docker/production:/bootstrap/plugins:ro
+      - ./docker/production/config.json:/bootstrap/config.json:ro
+      - ./docker/production/maps:/production/maps
+      - ./docker/development/maps:/development/maps
+      - ./docker/production/plugins:/bootstrap/plugins:ro
       - server-port-alloc:/var/lib/hypixel-port
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'port=$(grep -m1 \"^server-port=\" /data/server.properties | cut -d= -f2); [ -n \"$${port}\" ] || port=25565; echo > /dev/tcp/127.0.0.1/$${port}'"]
@@ -278,7 +280,7 @@ services:
     container_name: proxy
     image: hypixel-proxy
     build:
-      context: ./docker/images/velocity
+      context: ./docker/production/images/velocity
       args:
         VELOCITY_VERSION: "latest"
         USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
@@ -298,12 +300,12 @@ services:
       ROLLOUT_RESTART_MODE: "${ROLLOUT_RESTART_MODE:-rebuild}"
       ROLLOUT_UPDATE_SERVICES: "${ROLLOUT_UPDATE_SERVICES:-murder-mystery-hub,murder-mystery-game,build}"
     volumes:
-      - ./docker/proxy/velocity.toml:/server/velocity.toml
+      - ./docker/production/proxy/velocity.toml:/server/velocity.toml
       - ./server-icon.png:/server/server-icon.png:ro
       - ./server-icon.png:/server/plugins/hypixelproxy/server-icon.png:ro
-      - ./docker/proxy:/bootstrap/proxy:ro
-      - ./docker/config.json:/bootstrap/config.json:ro
-      - ./docker/production:/bootstrap/plugins:ro
+      - ./docker/production/proxy:/bootstrap/proxy:ro
+      - ./docker/production/config.json:/bootstrap/config.json:ro
+      - ./docker/production/plugins:/bootstrap/plugins:ro
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/25565'"]
       interval: 10s

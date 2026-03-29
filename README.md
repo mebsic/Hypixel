@@ -12,7 +12,7 @@ This is an unofficial project. It is not affiliated with or endorsed by Hypixel 
 - `murdermystery`: Murder Mystery hub and game plugin logic.
 - `build`: Build server plugin with map editing and export helpers.
 - `proxy`: Velocity proxy plugin (routing, parties, friends, chat channels, maintenance, update hooks).
-- `docker`: Local deployment stack, runtime bootstrap, config, and map storage layout.
+- `docker`: Local deployment stack. `docker/production` stores runtime assets and `docker/development` stores build-time plugin/map outputs.
 
 ## Building
 
@@ -22,7 +22,7 @@ Run:
 ./gradlew shadowAll
 ```
 
-This builds shaded plugin artifacts and copies runtime `.jar` files into `docker/plugins/`:
+This builds shaded plugin artifacts and copies runtime `.jar` files into `docker/development/plugins/`:
 - `Hypixel.jar`
 - `MurderMystery.jar`
 - `HypixelBuild.jar`
@@ -45,7 +45,7 @@ This builds shaded plugin artifacts and copies runtime `.jar` files into `docker
    ./gradlew shadowAll
    ```
 2. Set secrets in `.env` (Docker Compose injects these into containers as environment variables).
-3. Optionally edit non-secret runtime settings in `docker/config.json` (for example menus/MOTD/proxy defaults).  
+3. Optionally edit non-secret runtime settings in `docker/production/config.json` (for example menus/MOTD/proxy defaults).  
    You do not need to edit `mongo.uri` or `redis.password` because entrypoints override them from `.env` when starting.
 4. Start the stack:
    ```bash
@@ -53,7 +53,7 @@ This builds shaded plugin artifacts and copies runtime `.jar` files into `docker
    ```
 5. Connect to `localhost:25565`.
 
-`control-panel` runs a BusyBox shell pre-start step that copies jars from `docker/plugins/` into `docker/production/` and verifies required runtime jars before the API starts.
+`control-panel` runs a BusyBox shell pre-start step that copies jars from `docker/development/plugins/` into `docker/production/plugins/` and verifies required runtime jars before the API starts.
 
 ## `.env` Template
 
