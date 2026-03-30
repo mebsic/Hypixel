@@ -540,6 +540,14 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         profileService.handleJoin(player);
         ensureFriendDocumentAsync(player.getUniqueId(), player.getName());
         enforceAdventureMode(player.getGameMode(), player);
+        UUID playerUuid = player.getUniqueId();
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            Player online = Bukkit.getPlayer(playerUuid);
+            if (online == null || !online.isOnline()) {
+                return;
+            }
+            enforceAdventureMode(online.getGameMode(), online);
+        }, 1L);
     }
 
     private void forceHotbarSlotOne(Player player) {
@@ -592,16 +600,20 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (player == null) {
             return;
         }
-        if (serverType != ServerType.MURDER_MYSTERY && serverType != ServerType.MURDER_MYSTERY_HUB) {
+        if (serverType != null && serverType.isBuild()) {
             return;
         }
-        if (serverType == ServerType.MURDER_MYSTERY_HUB && isBuildModeActive(player.getUniqueId())) {
+        if (isHubServer() && isBuildModeActive(player.getUniqueId())) {
             if (requested != GameMode.CREATIVE) {
                 player.setGameMode(GameMode.CREATIVE);
             }
             return;
         }
-        if (requested != GameMode.ADVENTURE) {
+        if (requested == GameMode.CREATIVE) {
+            player.setGameMode(GameMode.ADVENTURE);
+            return;
+        }
+        if (isHubServer() && requested != GameMode.ADVENTURE) {
             player.setGameMode(GameMode.ADVENTURE);
         }
     }
@@ -890,7 +902,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     }
 
     public boolean isBuildModeActive(UUID uuid) {
-        if (uuid == null || profileService == null) {
+        if (!isHubServer() || uuid == null || profileService == null) {
             return false;
         }
         Profile profile = profileService.getProfile(uuid);

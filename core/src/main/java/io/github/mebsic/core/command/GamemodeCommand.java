@@ -12,6 +12,8 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.Locale;
+
 public class GamemodeCommand implements CommandExecutor {
     private final CorePlugin plugin;
 
@@ -35,7 +37,7 @@ public class GamemodeCommand implements CommandExecutor {
         }
         GameMode mode = parseMode(args[0]);
         if (mode == null) {
-            sender.sendMessage(ChatColor.RED + "Unknown gamemode. Use c, s, a, sp or creative, survival, adventure, spectator.");
+            sender.sendMessage(ChatColor.RED + "Unknown gamemode! Use c, s, a, sp or creative, survival, adventure, spectator.");
             return true;
         }
         Player target;
@@ -54,9 +56,9 @@ public class GamemodeCommand implements CommandExecutor {
         }
         target.setGameMode(mode);
         if (target.equals(sender)) {
-            sender.sendMessage(ChatColor.GREEN + "Set your gamemode to " + formatMode(mode) + ".");
+            sender.sendMessage(ChatColor.GREEN + "You are now in " + mode.name().toLowerCase(Locale.ROOT) + "!");
         } else {
-            sender.sendMessage(ChatColor.GREEN + "Set " + target.getName() + "'s gamemode to " + formatMode(mode) + ".");
+            sender.sendMessage(ChatColor.GREEN + "Set " + target.getName() + "'s gamemode to " + mode.name().toLowerCase(Locale.ROOT) + "!");
         }
         return true;
     }
@@ -87,9 +89,5 @@ public class GamemodeCommand implements CommandExecutor {
             default:
                 return null;
         }
-    }
-
-    private String formatMode(GameMode mode) {
-        return mode.name().toLowerCase();
     }
 }
