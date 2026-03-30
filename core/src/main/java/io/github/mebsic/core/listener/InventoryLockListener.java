@@ -14,9 +14,11 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import java.util.Locale;
 
 public class InventoryLockListener implements Listener {
+    private final CorePlugin plugin;
     private final boolean inventoryMoveLocked;
 
     public InventoryLockListener(CorePlugin plugin) {
+        this.plugin = plugin;
         FileConfiguration config = plugin.getConfig();
         ServerType serverType = plugin.getServerType() == null ? ServerType.UNKNOWN : plugin.getServerType();
         String serverName = config.getString("server.id", "");
@@ -34,12 +36,20 @@ public class InventoryLockListener implements Listener {
         if (!inventoryMoveLocked || !(event.getWhoClicked() instanceof Player)) {
             return;
         }
+        Player player = (Player) event.getWhoClicked();
+        if (canMoveInventory(player)) {
+            return;
+        }
         event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!inventoryMoveLocked || !(event.getWhoClicked() instanceof Player)) {
+            return;
+        }
+        Player player = (Player) event.getWhoClicked();
+        if (canMoveInventory(player)) {
             return;
         }
         event.setCancelled(true);
@@ -50,7 +60,17 @@ public class InventoryLockListener implements Listener {
         if (!inventoryMoveLocked) {
             return;
         }
+        if (canMoveInventory(event.getPlayer())) {
+            return;
+        }
         event.setCancelled(true);
+    }
+
+    private boolean canMoveInventory(Player player) {
+        if (player == null || plugin == null) {
+            return false;
+        }
+        return plugin.isBuildModeActive(player.getUniqueId());
     }
 
     private boolean resolveToggle(FileConfiguration config,

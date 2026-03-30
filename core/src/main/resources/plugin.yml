@@ -42,6 +42,9 @@ commands:
     aliases: [tp]
   fly:
     usage: /fly
+  buildmode:
+    usage: /buildmode
+    aliases: [togglebuildmode]
   firework:
     usage: /firework
     aliases: [fw]

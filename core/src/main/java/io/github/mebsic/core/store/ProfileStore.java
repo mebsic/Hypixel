@@ -107,6 +107,12 @@ public class ProfileStore {
         if (doc == null) {
             return new LoadResult(new Profile(uuid, name), true);
         }
+        if (!doc.containsKey("buildModeExpiresAt")) {
+            collection.updateOne(
+                    eq("uuid", uuid.toString()),
+                    new Document("$set", new Document("buildModeExpiresAt", 0L))
+            );
+        }
         String storedName = doc.getString("name");
         if (storedName == null || storedName.trim().isEmpty()) {
             storedName = name;
@@ -152,6 +158,10 @@ public class ProfileStore {
         Boolean flightEnabled = doc.getBoolean("flightEnabled");
         if (flightEnabled != null) {
             profile.setFlightEnabled(flightEnabled);
+        }
+        Object buildModeExpiresAtRaw = doc.get("buildModeExpiresAt");
+        if (buildModeExpiresAtRaw instanceof Number) {
+            profile.setBuildModeExpiresAt(((Number) buildModeExpiresAtRaw).longValue());
         }
         Boolean playerVisibilityEnabled = doc.getBoolean("playerVisibilityEnabled");
         if (playerVisibilityEnabled != null) {
@@ -365,6 +375,7 @@ public class ProfileStore {
                 .append("plusColor", profile.getPlusColor())
                 .append("mvpPlusPlusPrefixColor", mvpPlusPlusPrefixColor)
                 .append("flightEnabled", profile.isFlightEnabled())
+                .append("buildModeExpiresAt", profile.getBuildModeExpiresAt())
                 .append("playerVisibilityEnabled", profile.isPlayerVisibilityEnabled())
                 .append("spectatorSpeedLevel", profile.getSpectatorSpeedLevel())
                 .append("spectatorAutoTeleportEnabled", profile.isSpectatorAutoTeleportEnabled())
@@ -545,6 +556,7 @@ public class ProfileStore {
                         "plusColor",
                         "mvpPlusPlusPrefixColor",
                         "flightEnabled",
+                        "buildModeExpiresAt",
                         "playerVisibilityEnabled",
                         "networkLevel",
                         "networkGold",
@@ -585,6 +597,11 @@ public class ProfileStore {
             mvpPlusPlusPrefixColor = null;
         }
         Boolean flightEnabled = doc.getBoolean("flightEnabled");
+        long buildModeExpiresAt = 0L;
+        Object buildModeExpiresAtRaw = doc.get("buildModeExpiresAt");
+        if (buildModeExpiresAtRaw instanceof Number) {
+            buildModeExpiresAt = Math.max(0L, ((Number) buildModeExpiresAtRaw).longValue());
+        }
         Boolean playerVisibilityEnabled = doc.getBoolean("playerVisibilityEnabled");
         int networkLevel = 0;
         Long hypixelExperience = doc.getLong("hypixelExperience");
@@ -605,6 +622,7 @@ public class ProfileStore {
                 plusColor,
                 mvpPlusPlusPrefixColor,
                 flightEnabled != null && flightEnabled,
+                buildModeExpiresAt,
                 playerVisibilityEnabled == null || playerVisibilityEnabled,
                 networkLevel,
                 networkGold,
@@ -629,6 +647,7 @@ public class ProfileStore {
                 .append("spectatorNightVisionEnabled", true)
                 .append("spectatorHideOtherSpectatorsEnabled", false)
                 .append("spectatorFirstPersonEnabled", false)
+                .append("buildModeExpiresAt", 0L)
                 .append(RANKS_GIFTED_TOP_LEVEL_KEY, 0);
     }
 
@@ -746,6 +765,7 @@ public class ProfileStore {
         private final String plusColor;
         private final String mvpPlusPlusPrefixColor;
         private final boolean flightEnabled;
+        private final long buildModeExpiresAt;
         private final boolean playerVisibilityEnabled;
         private final int networkLevel;
         private final int networkGold;
@@ -756,6 +776,7 @@ public class ProfileStore {
                            String plusColor,
                            String mvpPlusPlusPrefixColor,
                            boolean flightEnabled,
+                           long buildModeExpiresAt,
                            boolean playerVisibilityEnabled,
                            int networkLevel,
                            int networkGold,
@@ -765,6 +786,7 @@ public class ProfileStore {
             this.plusColor = plusColor;
             this.mvpPlusPlusPrefixColor = mvpPlusPlusPrefixColor;
             this.flightEnabled = flightEnabled;
+            this.buildModeExpiresAt = Math.max(0L, buildModeExpiresAt);
             this.playerVisibilityEnabled = playerVisibilityEnabled;
             this.networkLevel = Math.max(0, networkLevel);
             this.networkGold = Math.max(0, networkGold);
@@ -789,6 +811,10 @@ public class ProfileStore {
 
         public boolean isFlightEnabled() {
             return flightEnabled;
+        }
+
+        public long getBuildModeExpiresAt() {
+            return buildModeExpiresAt;
         }
 
         public boolean isPlayerVisibilityEnabled() {

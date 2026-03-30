@@ -196,7 +196,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         if (bossBarService != null) {
             bossBarService.show(player);
         }
-        if (cosmeticsListener != null) {
+        if (cosmeticsListener != null && shouldRefreshHubMenuItem(player)) {
             cosmeticsListener.giveMenuItem(player);
         }
         if (knifeMenuStateService != null) {
@@ -630,10 +630,17 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
             long exp = coreApi.getHypixelExperience(player.getUniqueId());
             player.setLevel(Math.max(0, level));
             player.setExp(io.github.mebsic.core.util.HypixelExperienceUtil.getProgressToNext(exp));
-            if (cosmeticsListener != null) {
+            if (cosmeticsListener != null && shouldRefreshHubMenuItem(player)) {
                 cosmeticsListener.giveMenuItem(player);
             }
         });
+    }
+
+    private boolean shouldRefreshHubMenuItem(org.bukkit.entity.Player player) {
+        if (player == null) {
+            return false;
+        }
+        return corePlugin == null || !corePlugin.isBuildModeActive(player.getUniqueId());
     }
 
     private void queueDefaultRoleChanceSeed(UUID uuid) {

@@ -16,6 +16,7 @@ public class Profile {
     private String plusColor;
     private String mvpPlusPlusPrefixColor;
     private boolean flightEnabled;
+    private long buildModeExpiresAt;
     private boolean playerVisibilityEnabled;
     private int spectatorSpeedLevel;
     private boolean spectatorAutoTeleportEnabled;
@@ -37,6 +38,7 @@ public class Profile {
         this.plusColor = null;
         this.mvpPlusPlusPrefixColor = null;
         this.flightEnabled = false;
+        this.buildModeExpiresAt = 0L;
         this.playerVisibilityEnabled = true;
         this.spectatorSpeedLevel = 0;
         this.spectatorAutoTeleportEnabled = false;
@@ -119,6 +121,14 @@ public class Profile {
 
     public void setFlightEnabled(boolean flightEnabled) {
         this.flightEnabled = flightEnabled;
+    }
+
+    public long getBuildModeExpiresAt() {
+        return buildModeExpiresAt;
+    }
+
+    public void setBuildModeExpiresAt(long buildModeExpiresAt) {
+        this.buildModeExpiresAt = Math.max(0L, buildModeExpiresAt);
     }
 
     public boolean isPlayerVisibilityEnabled() {

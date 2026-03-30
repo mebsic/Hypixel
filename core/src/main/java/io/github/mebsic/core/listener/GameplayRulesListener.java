@@ -12,6 +12,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
@@ -119,7 +120,21 @@ public class GameplayRulesListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        if (blockBreakEnabled || event == null || event.getPlayer() == null) {
+        if (event == null || event.getPlayer() == null) {
+            return;
+        }
+        if (blockBreakEnabled || plugin.isBuildModeActive(event.getPlayer().getUniqueId())) {
+            return;
+        }
+        event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        if (event == null || event.getPlayer() == null) {
+            return;
+        }
+        if (blockBreakEnabled || plugin.isBuildModeActive(event.getPlayer().getUniqueId())) {
             return;
         }
         event.setCancelled(true);

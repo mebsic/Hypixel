@@ -198,6 +198,7 @@ public class ProfileService {
             profile.setPlusColor(update.meta.getPlusColor());
             profile.setMvpPlusPlusPrefixColor(update.meta.getMvpPlusPlusPrefixColor());
             profile.setFlightEnabled(update.meta.isFlightEnabled());
+            profile.setBuildModeExpiresAt(update.meta.getBuildModeExpiresAt());
             profile.setPlayerVisibilityEnabled(update.meta.isPlayerVisibilityEnabled());
             profile.setNetworkLevel(update.meta.getNetworkLevel());
             profile.setNetworkGold(update.meta.getNetworkGold());
@@ -231,6 +232,9 @@ public class ProfileService {
             return true;
         }
         if (profile.isFlightEnabled() != meta.isFlightEnabled()) {
+            return true;
+        }
+        if (profile.getBuildModeExpiresAt() != meta.getBuildModeExpiresAt()) {
             return true;
         }
         if (profile.isPlayerVisibilityEnabled() != meta.isPlayerVisibilityEnabled()) {

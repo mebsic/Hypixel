@@ -1,6 +1,7 @@
 package io.github.mebsic.core;
 
 import io.github.mebsic.core.command.BanCommand;
+import io.github.mebsic.core.command.BuildModeCommand;
 import io.github.mebsic.core.command.ClearCommand;
 import io.github.mebsic.core.command.FlyCommand;
 import io.github.mebsic.core.command.FireworkCommand;
@@ -71,6 +72,7 @@ import io.github.mebsic.game.listener.TablistListener;
 import io.github.mebsic.game.listener.ReturnToLobbyListener;
 import io.github.mebsic.game.model.GameState;
 import io.github.mebsic.game.service.TablistService;
+import org.bukkit.ChatColor;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.GameMode;
@@ -113,6 +115,8 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     private static final int HOTBAR_SLOT_ONE_INDEX = 0;
     private static final int RANK_COLOR_GIFTED_RANKS_REQUIRED = 100;
     private static final String RANKS_GIFTED_COUNTER_KEY = "ranksGifted";
+    private static final long BUILD_MODE_DURATION_MILLIS = 10L * 60L * 1000L;
+    private static final int[] BUILD_MODE_WARNING_SECONDS = new int[]{300, 60, 30, 10, 5, 4, 3, 2, 1};
 
     private MongoManager mongo;
     private RedisManager redis;
@@ -134,10 +138,13 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     private HubParkourCommandHandler hubParkourCommandHandler;
     private TablistService buildTablistService;
     private BukkitTask buildTablistTask;
+    private BukkitTask buildModeTickTask;
     private BukkitTask profileRefreshTask;
     private BukkitTask networkDomainRefreshTask;
     private volatile GameState currentGameState = GameState.WAITING;
     private final Map<UUID, BlockedCacheEntry> blockedCache = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<Integer>> buildModeWarningsSent = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> buildModeRestoreNoticeExpiresAt = new ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
@@ -226,6 +233,9 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (getCommand("fly") != null) {
             getCommand("fly").setExecutor(new FlyCommand(this));
         }
+        if (getCommand("buildmode") != null) {
+            getCommand("buildmode").setExecutor(new BuildModeCommand(this));
+        }
         if (getCommand("firework") != null) {
             getCommand("firework").setExecutor(new FireworkCommand(this));
         }
@@ -273,6 +283,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
                 20L,
                 20L
         );
+        this.buildModeTickTask = Bukkit.getScheduler().runTaskTimer(this, this::tickBuildModeStates, 20L, 20L);
     }
 
     private void setupServices() {
@@ -481,6 +492,10 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             buildTablistTask.cancel();
             buildTablistTask = null;
         }
+        if (buildModeTickTask != null) {
+            buildModeTickTask.cancel();
+            buildModeTickTask = null;
+        }
         buildTablistService = null;
         if (profileRefreshTask != null) {
             profileRefreshTask.cancel();
@@ -513,6 +528,8 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         }
         giftRequestService = null;
         blockedCache.clear();
+        buildModeWarningsSent.clear();
+        buildModeRestoreNoticeExpiresAt.clear();
         getServer().getMessenger().unregisterOutgoingPluginChannel(this);
     }
 
@@ -541,6 +558,8 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         profileService.handleQuit(player);
         UUID playerUuid = player.getUniqueId();
         blockedCache.remove(playerUuid);
+        buildModeWarningsSent.remove(playerUuid);
+        buildModeRestoreNoticeExpiresAt.remove(playerUuid);
         cancelPendingGiftRequests(playerUuid);
     }
 
@@ -574,6 +593,12 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             return;
         }
         if (serverType != ServerType.MURDER_MYSTERY && serverType != ServerType.MURDER_MYSTERY_HUB) {
+            return;
+        }
+        if (serverType == ServerType.MURDER_MYSTERY_HUB && isBuildModeActive(player.getUniqueId())) {
+            if (requested != GameMode.CREATIVE) {
+                player.setGameMode(GameMode.CREATIVE);
+            }
             return;
         }
         if (requested != GameMode.ADVENTURE) {
@@ -864,6 +889,30 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         return false;
     }
 
+    public boolean isBuildModeActive(UUID uuid) {
+        if (uuid == null || profileService == null) {
+            return false;
+        }
+        Profile profile = profileService.getProfile(uuid);
+        return hasActiveBuildMode(profile, System.currentTimeMillis());
+    }
+
+    public void toggleBuildMode(Player player) {
+        if (player == null || profileService == null) {
+            return;
+        }
+        Profile profile = profileService.getProfile(player.getUniqueId());
+        if (profile == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (hasActiveBuildMode(profile, now)) {
+            deactivateBuildMode(player, profile, true);
+            return;
+        }
+        activateBuildMode(player, profile, now + BUILD_MODE_DURATION_MILLIS, true);
+    }
+
     public void handleProfileLoaded(Profile profile) {
         if (profile == null) {
             return;
@@ -873,6 +922,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             if (player == null) {
                 return;
             }
+            applyBuildModeState(player, profile, true);
             applyHubFlightState(player, profile);
             applyHubSpeedState(player, profile.getRank());
             if (hubItemListener != null) {
@@ -1024,6 +1074,158 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     private long calculateHypixelExperience(GameResult result, int networkLevel) {
         long baseExperience = GameRewardUtil.calculateTotalExperience(result);
         return HypixelExperienceUtil.scaleExperienceGain(baseExperience, networkLevel);
+    }
+
+    private void activateBuildMode(Player player, Profile profile, long expiresAt, boolean notifyPlayer) {
+        if (player == null || profile == null || !isHubServer()) {
+            return;
+        }
+        profile.setBuildModeExpiresAt(expiresAt);
+        profileService.saveProfile(profile);
+        buildModeWarningsSent.remove(player.getUniqueId());
+        buildModeRestoreNoticeExpiresAt.put(player.getUniqueId(), expiresAt);
+        if (player.getGameMode() != GameMode.CREATIVE) {
+            player.setGameMode(GameMode.CREATIVE);
+        }
+        if (notifyPlayer) {
+            player.sendMessage(ChatColor.GREEN + "Toggled on build mode! " + ChatColor.DARK_GRAY + "(10 minutes)");
+        }
+    }
+
+    private void deactivateBuildMode(Player player, Profile profile, boolean notifyPlayer) {
+        if (profile == null) {
+            return;
+        }
+        profile.setBuildModeExpiresAt(0L);
+        profileService.saveProfile(profile);
+        UUID uuid = profile.getUuid();
+        if (uuid != null) {
+            buildModeWarningsSent.remove(uuid);
+            buildModeRestoreNoticeExpiresAt.remove(uuid);
+        }
+        if (player != null && isHubServer()) {
+            if (player.getGameMode() != GameMode.ADVENTURE) {
+                player.setGameMode(GameMode.ADVENTURE);
+            }
+            if (notifyPlayer) {
+                player.sendMessage(ChatColor.RED + "Toggled off build mode!");
+            }
+        }
+    }
+
+    private boolean hasActiveBuildMode(Profile profile, long now) {
+        return profile != null && profile.getBuildModeExpiresAt() > now;
+    }
+
+    private void applyBuildModeState(Player player, Profile profile, boolean notifyOnExpired) {
+        if (player == null || profile == null || !isHubServer()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (hasActiveBuildMode(profile, now)) {
+            if (player.getGameMode() != GameMode.CREATIVE) {
+                player.setGameMode(GameMode.CREATIVE);
+            }
+            sendBuildModeRestoreNoticeIfNeeded(player, profile, now);
+            return;
+        }
+        if (profile.getBuildModeExpiresAt() > 0L) {
+            deactivateBuildMode(player, profile, notifyOnExpired);
+            return;
+        }
+        buildModeWarningsSent.remove(player.getUniqueId());
+        buildModeRestoreNoticeExpiresAt.remove(player.getUniqueId());
+        if (player.getGameMode() != GameMode.ADVENTURE) {
+            player.setGameMode(GameMode.ADVENTURE);
+        }
+    }
+
+    private void tickBuildModeStates() {
+        if (!isHubServer() || profileService == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player == null || !player.isOnline()) {
+                continue;
+            }
+            Profile profile = profileService.getProfile(player.getUniqueId());
+            if (profile == null) {
+                continue;
+            }
+            long expiresAt = profile.getBuildModeExpiresAt();
+            if (expiresAt <= 0L) {
+                buildModeWarningsSent.remove(player.getUniqueId());
+                buildModeRestoreNoticeExpiresAt.remove(player.getUniqueId());
+                continue;
+            }
+            long remainingMillis = expiresAt - now;
+            if (remainingMillis <= 0L) {
+                deactivateBuildMode(player, profile, true);
+                continue;
+            }
+            if (player.getGameMode() != GameMode.CREATIVE) {
+                player.setGameMode(GameMode.CREATIVE);
+            }
+            sendBuildModeWarningIfNeeded(player, remainingMillis);
+        }
+    }
+
+    private void sendBuildModeWarningIfNeeded(Player player, long remainingMillis) {
+        if (player == null) {
+            return;
+        }
+        int remainingSeconds = (int) Math.ceil(remainingMillis / 1000.0d);
+        if (!isBuildModeWarningSecond(remainingSeconds)) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        Set<Integer> warned = buildModeWarningsSent.computeIfAbsent(uuid, ignored -> ConcurrentHashMap.newKeySet());
+        if (!warned.add(remainingSeconds)) {
+            return;
+        }
+        player.sendMessage(formatBuildModeWarningMessage(remainingSeconds));
+    }
+
+    private boolean isBuildModeWarningSecond(int remainingSeconds) {
+        for (int warning : BUILD_MODE_WARNING_SECONDS) {
+            if (warning == remainingSeconds) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String formatBuildModeWarningMessage(int remainingSeconds) {
+        boolean useMinutes = remainingSeconds >= 60;
+        int value = useMinutes
+                ? Math.max(1, (int) Math.ceil(remainingSeconds / 60.0d))
+                : remainingSeconds;
+        String suffix = useMinutes
+                ? (value == 1 ? " minute!" : " minutes!")
+                : (value == 1 ? " second!" : " seconds!");
+        return ChatColor.RED + "Your build mode will expire in "
+                + ChatColor.GOLD + value
+                + ChatColor.RED + suffix;
+    }
+
+    private void sendBuildModeRestoreNoticeIfNeeded(Player player, Profile profile, long now) {
+        if (player == null || profile == null) {
+            return;
+        }
+        long expiresAt = profile.getBuildModeExpiresAt();
+        if (expiresAt <= now) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        Long lastNotified = buildModeRestoreNoticeExpiresAt.get(uuid);
+        if (lastNotified != null && lastNotified == expiresAt) {
+            return;
+        }
+        buildModeRestoreNoticeExpiresAt.put(uuid, expiresAt);
+        long remainingMillis = expiresAt - now;
+        int remainingSeconds = (int) Math.max(1L, (long) Math.ceil(remainingMillis / 1000.0d));
+        player.sendMessage(formatBuildModeWarningMessage(remainingSeconds));
     }
 
     private void applyHubFlightState(Player player, Profile profile) {
