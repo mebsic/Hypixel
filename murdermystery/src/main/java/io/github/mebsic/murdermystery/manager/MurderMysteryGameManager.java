@@ -100,6 +100,7 @@ public class MurderMysteryGameManager extends GameManager {
     private static final int MURDERER_BOW_HOTBAR_SLOT = 2; // Slot 3 in the player's hotbar.
     private static final int MURDERER_ARROW_HOTBAR_SLOT = 3; // Slot 4 in the player's hotbar.
     private static final int GOLD_HOTBAR_SLOT = 8; // Last hotbar slot.
+    private static final int MAP_GOLD_PICKUP_DELAY_TICKS = 10;
     private static final int GOLD_FOR_BOW = 10;
     private static final double DROPPED_BOW_PICKUP_RADIUS_SQUARED = 2.25D;
     private static final float DROPPED_BOW_ROTATION_DEGREES_PER_TICK = 8.0f;
@@ -908,6 +909,10 @@ public class MurderMysteryGameManager extends GameManager {
         activeMapDropItems.remove(item);
     }
 
+    public boolean isTrackedMapDropItem(Item item) {
+        return item != null && activeMapDropItems.contains(item);
+    }
+
     public void trackOpenableInteraction(Block block) {
         if (block == null || !isTrackedOpenableType(block.getType())) {
             return;
@@ -946,6 +951,7 @@ public class MurderMysteryGameManager extends GameManager {
         if (arrow == null) {
             return;
         }
+        arrow.setBounce(false);
         makeArrowUnpickable(arrow);
         activeRoundArrows.add(arrow);
         getPlugin().getServer().getScheduler().runTaskLater(getPlugin(), () -> despawnRoundArrow(arrow), SHOT_ARROW_DESPAWN_TICKS);
@@ -1125,6 +1131,7 @@ public class MurderMysteryGameManager extends GameManager {
             }
             Item dropped = location.getWorld().dropItemNaturally(location, dropTemplate);
             if (dropped != null) {
+                dropped.setPickupDelay(MAP_GOLD_PICKUP_DELAY_TICKS);
                 activeMapDropItems.add(dropped);
             }
         }, 40L, 60L);

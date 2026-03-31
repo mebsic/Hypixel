@@ -65,6 +65,7 @@ import io.github.mebsic.core.service.PubSubService;
 import io.github.mebsic.core.manager.RedisManager;
 import io.github.mebsic.core.util.GameRewardUtil;
 import io.github.mebsic.core.util.HypixelExperienceUtil;
+import io.github.mebsic.core.util.NetworkLevelUpMessageUtil;
 import io.github.mebsic.core.util.DomainSettingsStore;
 import io.github.mebsic.core.util.NetworkConstants;
 import io.github.mebsic.core.util.RankColorUtil;
@@ -145,6 +146,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     private final Map<UUID, BlockedCacheEntry> blockedCache = new ConcurrentHashMap<>();
     private final Map<UUID, Set<Integer>> buildModeWarningsSent = new ConcurrentHashMap<>();
     private final Map<UUID, Long> buildModeRestoreNoticeExpiresAt = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> queuedPostGameNetworkLevelUps = new ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
@@ -530,6 +532,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         blockedCache.clear();
         buildModeWarningsSent.clear();
         buildModeRestoreNoticeExpiresAt.clear();
+        queuedPostGameNetworkLevelUps.clear();
         getServer().getMessenger().unregisterOutgoingPluginChannel(this);
     }
 
@@ -568,6 +571,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         blockedCache.remove(playerUuid);
         buildModeWarningsSent.remove(playerUuid);
         buildModeRestoreNoticeExpiresAt.remove(playerUuid);
+        queuedPostGameNetworkLevelUps.remove(playerUuid);
         cancelPendingGiftRequests(playerUuid);
     }
 
@@ -809,7 +813,14 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (result.getKills() > 0) {
             profile.getStats().addKills(result.getKills());
         }
-        addHypixelExperienceInternal(profile, calculateHypixelExperience(result, previousLevel), true, previousLevel);
+        int newLevel = addHypixelExperienceInternal(profile, calculateHypixelExperience(result, previousLevel), true, previousLevel);
+        if (newLevel > previousLevel) {
+            if (serverType != null && serverType.isGame()) {
+                queuePostGameNetworkLevelUpAnnouncement(profile.getUuid(), newLevel);
+            } else {
+                sendNetworkLevelUpAnnouncement(profile.getUuid(), newLevel);
+            }
+        }
         profileService.saveProfile(profile);
         if (leaderboards != null) {
             leaderboards.update(result.getUuid(), profile.getStats());
@@ -971,6 +982,55 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         refreshBuildTablist();
     }
 
+    public String buildNetworkLevelUpAnnouncementMessage(int level) {
+        return NetworkLevelUpMessageUtil.buildMessage(level);
+    }
+
+    public void sendNetworkLevelUpAnnouncement(Player player, int level) {
+        if (player == null || !player.isOnline()) {
+            return;
+        }
+        for (String line : NetworkLevelUpMessageUtil.buildLines(level)) {
+            player.sendMessage(line == null ? "" : line);
+        }
+    }
+
+    public List<String> consumeQueuedPostGameNetworkLevelUpAnnouncement(UUID uuid) {
+        if (uuid == null) {
+            return Collections.emptyList();
+        }
+        Integer level = queuedPostGameNetworkLevelUps.remove(uuid);
+        if (level == null) {
+            return Collections.emptyList();
+        }
+        return NetworkLevelUpMessageUtil.buildLines(level);
+    }
+
+    private void queuePostGameNetworkLevelUpAnnouncement(UUID uuid, int level) {
+        if (uuid == null) {
+            return;
+        }
+        queuedPostGameNetworkLevelUps.put(uuid, Math.max(0, level));
+    }
+
+    private void sendNetworkLevelUpAnnouncement(UUID uuid, int level) {
+        if (uuid == null) {
+            return;
+        }
+        Runnable task = () -> {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player == null || !player.isOnline()) {
+                return;
+            }
+            sendNetworkLevelUpAnnouncement(player, level);
+        };
+        if (Bukkit.isPrimaryThread()) {
+            task.run();
+            return;
+        }
+        Bukkit.getScheduler().runTask(this, task);
+    }
+
     @Override
     public int getNetworkGold(UUID uuid) {
         Profile profile = profileService.getProfile(uuid);
@@ -1053,13 +1113,16 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             return;
         }
         int previousLevel = profile.getNetworkLevel();
-        addHypixelExperienceInternal(profile, amount, true, previousLevel);
+        int newLevel = addHypixelExperienceInternal(profile, amount, true, previousLevel);
+        if (newLevel > previousLevel) {
+            sendNetworkLevelUpAnnouncement(profile.getUuid(), newLevel);
+        }
         profileService.saveProfile(profile);
     }
 
-    private void addHypixelExperienceInternal(Profile profile, long amount, boolean allowSound, int previousLevel) {
+    private int addHypixelExperienceInternal(Profile profile, long amount, boolean allowSound, int previousLevel) {
         if (amount <= 0 || profile == null) {
-            return;
+            return profile == null ? Math.max(0, previousLevel) : Math.max(0, profile.getNetworkLevel());
         }
         long total = profile.getHypixelExperience() + amount;
         profile.setHypixelExperience(total);
@@ -1068,6 +1131,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (allowSound && newLevel > previousLevel) {
             playLevelUpSound(profile.getUuid());
         }
+        return newLevel;
     }
 
     private void playLevelUpSound(UUID uuid) {

@@ -56,10 +56,10 @@ public class NetworkLevelCommand implements CommandExecutor {
         }
         boolean selfTarget = sender instanceof Player
                 && uuid.equals(((Player) sender).getUniqueId());
-        String targetMessage = formatNetworkLevelSetMessage(level);
+        String targetMessage = plugin.buildNetworkLevelUpAnnouncementMessage(level);
         if (target != null) {
             plugin.setNetworkLevel(uuid, level);
-            target.sendMessage(targetMessage);
+            plugin.sendNetworkLevelUpAnnouncement(target, level);
         } else {
             if (!plugin.isMongoEnabled() || plugin.getProfileStore() == null) {
                 sender.sendMessage(ChatColor.RED + "MongoDB is not enabled.");
@@ -67,7 +67,7 @@ public class NetworkLevelCommand implements CommandExecutor {
             }
             plugin.getProfileStore().updateNetworkLevel(uuid, name, level);
             if (selfTarget && sender instanceof Player) {
-                ((Player) sender).sendMessage(targetMessage);
+                plugin.sendNetworkLevelUpAnnouncement((Player) sender, level);
             }
         }
         ProfileCommandSyncService sync = plugin.getProfileCommandSyncService();
@@ -78,9 +78,5 @@ public class NetworkLevelCommand implements CommandExecutor {
             sender.sendMessage(ChatColor.GREEN + "Set network level for " + name + " to " + level + ".");
         }
         return true;
-    }
-
-    private String formatNetworkLevelSetMessage(int level) {
-        return ChatColor.GREEN + "You are now Hypixel level " + level + "!";
     }
 }

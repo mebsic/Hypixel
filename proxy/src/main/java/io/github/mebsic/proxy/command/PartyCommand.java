@@ -1441,10 +1441,10 @@ public class PartyCommand implements SimpleCommand {
         lines.add(PartyComponents.commandEntry(cmd("promote <player>"), "Promotes another party member to either Party Mod or Party Leader"));
         lines.add(PartyComponents.commandEntry(cmd("settings <setting> <value>"), "Toggles party settings"));
         lines.add(PartyComponents.commandEntry(cmd("transfer <player>"), "Transfers the party to another player."));
-        if (isStaff(player.getUniqueId())) {
-            lines.add(PartyComponents.commandEntry(cmd("hijack <player>"), "Take over another player's party leadership"));
-        }
         lines.add(PartyComponents.commandEntry(cmd("warp"), "Warps the members of a party to your current server"));
+        if (isStaff(player.getUniqueId())) {
+            lines.add(PartyComponents.commandEntry(cmd("hijack <player>"), "Take over another player's party"));
+        }
         sendFramed(player, lines);
     }
 }

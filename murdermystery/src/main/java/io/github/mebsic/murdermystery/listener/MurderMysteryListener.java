@@ -135,11 +135,17 @@ public class MurderMysteryListener implements Listener {
             return;
         }
         ItemStack item = event.getItem().getItemStack();
-        if (item.getType() == Material.GOLD_INGOT) {
-            event.setCancelled(true);
+        if (item.getType() == Material.GOLD_INGOT && gameManager.isTrackedMapDropItem(event.getItem())) {
             gameManager.untrackMapDropItem(event.getItem());
-            event.getItem().remove();
-            gameManager.addGold(player, 1);
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (!gameManager.isInGame(player) || gameManager.getState() != GameState.IN_GAME) {
+                    return;
+                }
+                if (!consumeSingleMaterial(player, Material.GOLD_INGOT)) {
+                    return;
+                }
+                gameManager.addGold(player, 1);
+            });
             return;
         }
         if (item.getType() == Material.BOW) {
@@ -204,12 +210,12 @@ public class MurderMysteryListener implements Listener {
             Player shooter = (Player) arrow.getShooter();
             MurderMysteryGamePlayer shooterData = gameManager.getMurderMysteryPlayer(shooter);
             if (shooterData == null || !shooterData.isAlive()) {
-                event.setCancelled(true);
+                cancelArrowHit(event, arrow);
                 return;
             }
             String distanceSuffix = projectileDistanceSuffix(arrow, shooter, victim);
             if (shooterData.getRole() == MurderMysteryRole.DETECTIVE || shooterData.getRole() == MurderMysteryRole.HERO) {
-                event.setCancelled(true);
+                cancelArrowHit(event, arrow);
                 if (shooter.getUniqueId().equals(victim.getUniqueId())) {
                     gameManager.handleDeath(victim, shooter, "You successfully shot yourself!");
                     return;
@@ -221,7 +227,7 @@ public class MurderMysteryListener implements Listener {
                 return;
             }
             if (shooterData.getRole() == MurderMysteryRole.MURDERER) {
-                event.setCancelled(true);
+                cancelArrowHit(event, arrow);
                 if (shooter.getUniqueId().equals(victim.getUniqueId())) {
                     gameManager.handleDeath(victim, null, "You successfully shot yourself!", MurderMysteryGameManager.KillType.BOW);
                     return;
@@ -233,7 +239,7 @@ public class MurderMysteryListener implements Listener {
                 }
                 return;
             }
-            event.setCancelled(true);
+            cancelArrowHit(event, arrow);
             return;
         }
         if (damager instanceof Snowball) {
@@ -261,6 +267,13 @@ public class MurderMysteryListener implements Listener {
     public void onAnyDamage(EntityDamageEvent event) {
         if (gameManager.isDroppedBowDisplay(event.getEntity())) {
             event.setCancelled(true);
+            if (event instanceof EntityDamageByEntityEvent) {
+                EntityDamageByEntityEvent byEntityEvent = (EntityDamageByEntityEvent) event;
+                Entity damager = byEntityEvent.getDamager();
+                if (damager instanceof Arrow || damager instanceof Snowball) {
+                    removeProjectileEntity(damager);
+                }
+            }
             return;
         }
         if (!(event.getEntity() instanceof Player)) {
@@ -372,6 +385,41 @@ public class MurderMysteryListener implements Listener {
             return value.asDouble();
         }
         return Double.NaN;
+    }
+
+    private boolean consumeSingleMaterial(Player player, Material material) {
+        if (player == null || material == null) {
+            return false;
+        }
+        ItemStack[] contents = player.getInventory().getContents();
+        for (int slot = 0; slot < contents.length; slot++) {
+            ItemStack stack = contents[slot];
+            if (stack == null || stack.getType() != material) {
+                continue;
+            }
+            if (stack.getAmount() <= 1) {
+                player.getInventory().setItem(slot, null);
+            } else {
+                stack.setAmount(stack.getAmount() - 1);
+                player.getInventory().setItem(slot, stack);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private void cancelArrowHit(EntityDamageByEntityEvent event, Arrow arrow) {
+        if (event != null) {
+            event.setCancelled(true);
+        }
+        removeProjectileEntity(arrow);
+    }
+
+    private void removeProjectileEntity(Entity projectile) {
+        if (projectile == null || !projectile.isValid() || projectile.isDead()) {
+            return;
+        }
+        projectile.remove();
     }
 
     private boolean isMurdererKnife(ItemStack item) {

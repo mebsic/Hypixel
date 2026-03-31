@@ -218,7 +218,11 @@ public class ProfileCommandSyncService {
         if (target == null || message == null || message.trim().isEmpty()) {
             return;
         }
-        target.sendMessage(message);
+        String normalized = message.replace("\r", "");
+        String[] lines = normalized.split("\n", -1);
+        for (String line : lines) {
+            target.sendMessage(line == null ? "" : line);
+        }
     }
 
     private Rank parseRank(String raw) {

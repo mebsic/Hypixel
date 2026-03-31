@@ -1048,6 +1048,7 @@ public class GameManager {
         if (!frameLine.isEmpty()) {
             player.sendMessage(frameLine);
         }
+        sendQueuedPostGameLevelUpMessage(player);
         if (showQueuedTransferSummaryLine) {
             player.sendMessage("");
             player.sendMessage(QUEUED_TRANSFER_MESSAGE);
@@ -1097,6 +1098,19 @@ public class GameManager {
             return "";
         }
         return line;
+    }
+
+    private void sendQueuedPostGameLevelUpMessage(Player player) {
+        if (player == null || plugin == null) {
+            return;
+        }
+        List<String> lines = plugin.consumeQueuedPostGameNetworkLevelUpAnnouncement(player.getUniqueId());
+        if (lines == null || lines.isEmpty()) {
+            return;
+        }
+        for (String line : lines) {
+            player.sendMessage(line == null ? "" : line);
+        }
     }
 
     private boolean hasAvailableTransferTargetForCurrentGameType() {
