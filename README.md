@@ -64,14 +64,14 @@ Create a `.env` file in the repository root using these placeholders:
 MONGO_VERSION=8.x
 REDIS_VERSION=8.x
 
-# MongoDB credentials
+# MongoDB
 MONGO_ROOT_USERNAME=your_mongo_root_user
 MONGO_ROOT_PASSWORD=your_mongo_root_password
 MONGO_APP_DATABASE=your_app_database
 MONGO_APP_USERNAME=your_app_mongo_user
 MONGO_APP_PASSWORD=your_app_mongo_password
 
-# Redis settings
+# Redis
 REDIS_PASSWORD=your_redis_password
 REDIS_DATABASE=0
 
