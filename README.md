@@ -78,9 +78,6 @@ REDIS_DATABASE=0
 # Deployment/rollout settings
 ROLLOUT_WEBHOOK_TOKEN=your_rollout_webhook_token
 ROLLOUT_RESTART_MODE=rebuild
-# Optional: comma-separated service override for /update.
-# Leave empty to rebuild/recreate every service except control-panel, mongo, and redis.
-ROLLOUT_UPDATE_SERVICES=
 
 # Network binding
 MONGO_BIND_IP=127.0.0.1
