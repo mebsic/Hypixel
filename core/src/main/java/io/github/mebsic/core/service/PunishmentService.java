@@ -1,9 +1,11 @@
 package io.github.mebsic.core.service;
 
 import com.google.gson.Gson;
+import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.model.MuteReasonType;
 import io.github.mebsic.core.model.Punishment;
 import io.github.mebsic.core.model.PunishmentType;
+import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.store.PunishmentStore;
 import io.github.mebsic.core.util.NetworkConstants;
 import org.bukkit.Bukkit;
@@ -25,12 +27,6 @@ public class PunishmentService {
     private static final String PUNISHMENT_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private static final int PUNISHMENT_ID_LENGTH = 10;
     private static final Pattern URL_PATTERN = Pattern.compile("(https?://\\S+|www\\.\\S+)", Pattern.CASE_INSENSITIVE);
-    private static final String BAN_BROADCAST_MESSAGE = ChatColor.RED.toString()
-            + ChatColor.BOLD
-            + "A player has been removed from your game for hacking or abuse. "
-            + ChatColor.RESET
-            + ChatColor.AQUA
-            + "Thanks for reporting it!";
     private static final int MUTE_SEPARATOR_SPACES = 80;
     private static final String MUTE_SEPARATOR_LINE = buildMuteSeparatorLine();
 
@@ -340,12 +336,24 @@ public class PunishmentService {
         if (target == null) {
             return;
         }
+        String message = buildBanBroadcastMessage();
         for (Player online : target.getServer().getOnlinePlayers()) {
             if (online == null || !online.isOnline()) {
                 continue;
             }
-            online.sendMessage(BAN_BROADCAST_MESSAGE);
+            online.sendMessage(message);
         }
+    }
+
+    private String buildBanBroadcastMessage() {
+        ServerType serverType = plugin instanceof CorePlugin ? ((CorePlugin) plugin).getServerType() : null;
+        String location = serverType != null && serverType.isHub() ? "lobby" : "game";
+        return ChatColor.RED.toString()
+                + ChatColor.BOLD
+                + "A player has been removed from your " + location + " for hacking or abuse. "
+                + ChatColor.RESET
+                + ChatColor.AQUA
+                + "Thanks for reporting it!";
     }
 
     private String resolveMessage(String value, String fallback) {
