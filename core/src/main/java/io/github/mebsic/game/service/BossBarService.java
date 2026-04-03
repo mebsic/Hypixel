@@ -40,7 +40,7 @@ public class BossBarService {
     private static final long HUB_MESSAGE_ROTATION_INTERVAL_TICKS =
             HUB_MESSAGE_PRE_ANIMATION_DELAY_TICKS + HUB_MESSAGE_ANIMATION_WINDOW_TICKS + HUB_MESSAGE_POST_ANIMATION_DELAY_TICKS; // 5 seconds
     private static final long STORE_REFRESH_INTERVAL_TICKS = 600L; // 30 seconds
-    private static final double FLASH_STEP_TICKS = 5.5D;
+    private static final double FLASH_STEP_TICKS = 6.0D;
     private static final long FLASH_COUNT = 5L;
     private static final long LEGACY_METADATA_KEEPALIVE_INTERVAL_TICKS = 5L; // 0.25 seconds
     private static final double LEGACY_ANCHOR_FORWARD_DISTANCE = 24.0D;
