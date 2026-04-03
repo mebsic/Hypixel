@@ -67,13 +67,13 @@ public class RankCommand implements CommandExecutor {
             sync.dispatchRankUpdate(uuid, rank, targetMessage);
         }
         if (!selfTarget) {
-            sender.sendMessage(ChatColor.GREEN + "Set rank for " + name + " to " + toDisplayRank(rank) + ".");
+            sender.sendMessage(ChatColor.GREEN + "Set rank for " + name + " to " + toDisplayRank(rank));
         }
         return true;
     }
 
     private String formatRankSetMessage(Rank rank) {
-        return ChatColor.GREEN + "You are now " + toDisplayRank(rank) + ".";
+        return ChatColor.GREEN + "You are now " + toDisplayRank(rank);
     }
 
     private Rank parseRank(String value) {

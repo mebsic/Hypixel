@@ -90,12 +90,12 @@ public class GoldCommand implements CommandExecutor {
         }
 
         if (!selfTarget) {
-            sender.sendMessage(ChatColor.GREEN + "Set gold for " + name + " to " + amount + ".");
+            sender.sendMessage(ChatColor.GREEN + "Set gold for " + name + " to " + amount);
         }
         return true;
     }
 
     private String formatGoldSetMessage(int amount) {
-        return ChatColor.GREEN + "You now have " + amount + " gold.";
+        return ChatColor.GREEN + "You now have " + amount + " gold";
     }
 }

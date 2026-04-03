@@ -75,7 +75,7 @@ public class NetworkLevelCommand implements CommandExecutor {
             sync.dispatchNetworkLevelUpdate(uuid, level, targetMessage);
         }
         if (!selfTarget) {
-            sender.sendMessage(ChatColor.GREEN + "Set network level for " + name + " to " + level + ".");
+            sender.sendMessage(ChatColor.GREEN + "Set network level for " + name + " to " + level);
         }
         return true;
     }

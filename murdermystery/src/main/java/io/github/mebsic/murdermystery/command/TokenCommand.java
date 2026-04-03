@@ -113,7 +113,7 @@ public class TokenCommand implements CommandExecutor {
             );
         }
 
-        sender.sendMessage(ChatColor.GREEN + "Set Murder Mystery tokens for " + name + " to " + amount + ".");
+        sender.sendMessage(ChatColor.GREEN + "Set Murder Mystery tokens for " + name + " to " + amount);
         return true;
     }
 }

@@ -42,7 +42,7 @@ public class TeleportCommand implements CommandExecutor {
                 return true;
             }
             player.teleport(target.getLocation());
-            player.sendMessage(ChatColor.GREEN + "Teleported to " + target.getName() + ".");
+            player.sendMessage(ChatColor.GREEN + "Teleported to " + target.getName());
             return true;
         }
 
@@ -54,7 +54,7 @@ public class TeleportCommand implements CommandExecutor {
                 return true;
             }
             from.teleport(to.getLocation());
-            player.sendMessage(ChatColor.GREEN + "Teleported " + from.getName() + " to " + to.getName() + ".");
+            player.sendMessage(ChatColor.GREEN + "Teleported " + from.getName() + " to " + to.getName());
             return true;
         }
 
@@ -75,7 +75,7 @@ public class TeleportCommand implements CommandExecutor {
             online.teleport(target);
             moved++;
         }
-        sender.sendMessage(ChatColor.GREEN + "Teleported " + moved + " " + (moved == 1 ? "player" : "players") + " to you.");
+        sender.sendMessage(ChatColor.GREEN + "Teleported " + moved + " " + (moved == 1 ? "player" : "players") + " to you");
         return true;
     }
 }
