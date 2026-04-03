@@ -113,10 +113,25 @@ public class PunishmentService {
     }
 
     public boolean unpunish(PunishmentType type, UUID targetUuid) {
+        return unpunish(type, targetUuid, null, null);
+    }
+
+    public boolean unpunish(PunishmentType type,
+                            UUID targetUuid,
+                            UUID deactivatedByUuid,
+                            String deactivatedByName) {
         if (store == null || targetUuid == null || type == null) {
             return false;
         }
-        return store.deactivateActive(targetUuid, type) > 0;
+        String normalizedDeactivatedByName = normalizeOptionalName(deactivatedByName);
+        Long deactivatedAt = Long.valueOf(System.currentTimeMillis());
+        return store.deactivateActive(
+                targetUuid,
+                type,
+                deactivatedByUuid,
+                normalizedDeactivatedByName,
+                deactivatedAt
+        ) > 0;
     }
 
     public PunishmentHistoryPage getPunishmentHistory(UUID targetUuid,
@@ -500,6 +515,14 @@ public class PunishmentService {
             normalized = normalized.substring(0, normalized.length() - 1).trim();
         }
         return normalized;
+    }
+
+    private String normalizeOptionalName(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private String formatMuteId(String storedId) {

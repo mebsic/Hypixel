@@ -9,12 +9,9 @@ import io.github.mebsic.core.util.RankColorUtil;
 import io.github.mebsic.core.util.HypixelExperienceUtil;
 import io.github.mebsic.core.manager.MongoManager;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.Projections;
-import com.mongodb.client.model.UpdateOptions;
-import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 
 import java.util.ArrayList;
@@ -38,9 +35,6 @@ public class ProfileStore {
     private static final String MURDER_MYSTERY_GAMES_KEY = "murderMysteryGames";
     private static final String MURDER_MYSTERY_WINS_AS_MURDERER_KEY = "murdermystery.winsAsMurderer";
     private static final String MURDER_MYSTERY_KILLS_AS_MURDERER_KEY = "murdermystery.killsAsMurderer";
-    private static final String MIGRATIONS_COLLECTION = "core_migrations";
-    private static final String SPECTATOR_DEFAULTS_MIGRATION_ID = "spectator_settings_defaults_v1";
-    private static final String MURDER_MYSTERY_STATS_MIGRATION_ID = "murder_mystery_stats_keys_v2_cleanup_legacy";
     private static final String GIFTED_COUNTER_KEY = "ranks_gifted";
     private static final String GIFTED_COUNTER_CAMEL_KEY = "ranksGifted";
     private static final String GIFTED_COUNTER_FLAT_KEY = "ranksgifted";
@@ -190,9 +184,9 @@ public class ProfileStore {
         Document stats = doc.get("stats", Document.class);
         if (stats != null) {
             Stats s = profile.getStats();
-            s.addKills(readStatValue(stats, MURDER_MYSTERY_KILLS_KEY));
-            s.addWins(readStatValue(stats, MURDER_MYSTERY_WINS_KEY));
-            s.addGames(readStatValue(stats, MURDER_MYSTERY_GAMES_KEY));
+            s.addKills(readStatValue(stats, MURDER_MYSTERY_KILLS_KEY, LEGACY_KILLS_KEY));
+            s.addWins(readStatValue(stats, MURDER_MYSTERY_WINS_KEY, LEGACY_WINS_KEY));
+            s.addGames(readStatValue(stats, MURDER_MYSTERY_GAMES_KEY, LEGACY_GAMES_KEY));
             Document custom = stats.get("custom", Document.class);
             if (custom != null) {
                 for (Map.Entry<String, Object> entry : custom.entrySet()) {
@@ -385,101 +379,6 @@ public class ProfileStore {
                 .append("stats", stats)
                 .append("cosmetics", cosmetics);
         collection.replaceOne(eq("uuid", profile.getUuid().toString()), doc, new ReplaceOptions().upsert(true));
-    }
-
-    public void applySpectatorDefaultsToAllProfilesOnce() {
-        MongoCollection<Document> migrations = mongo.getCollection(MIGRATIONS_COLLECTION);
-        if (migrations == null) {
-            return;
-        }
-        if (migrations.find(eq("_id", SPECTATOR_DEFAULTS_MIGRATION_ID)).first() != null) {
-            return;
-        }
-        Document defaults = spectatorDefaultsDocument();
-        UpdateResult result = mongo.getProfiles().updateMany(new Document(), new Document("$set", defaults));
-        Document marker = new Document("_id", SPECTATOR_DEFAULTS_MIGRATION_ID)
-                .append("modifiedCount", result == null ? 0L : result.getModifiedCount())
-                .append("completedAt", System.currentTimeMillis());
-        migrations.updateOne(
-                eq("_id", SPECTATOR_DEFAULTS_MIGRATION_ID),
-                new Document("$setOnInsert", marker),
-                new UpdateOptions().upsert(true)
-        );
-    }
-
-    public void applyMurderMysteryStatsKeysMigrationOnce() {
-        MongoCollection<Document> migrations = mongo.getCollection(MIGRATIONS_COLLECTION);
-        if (migrations == null) {
-            return;
-        }
-        if (migrations.find(eq("_id", MURDER_MYSTERY_STATS_MIGRATION_ID)).first() != null) {
-            return;
-        }
-
-        MongoCollection<Document> profiles = mongo.getProfiles();
-        long modified = 0L;
-        try (MongoCursor<Document> cursor = profiles.find()
-                .projection(Projections.include("uuid", "stats"))
-                .iterator()) {
-            while (cursor.hasNext()) {
-                Document doc = cursor.next();
-                if (doc == null) {
-                    continue;
-                }
-                String uuid = doc.getString("uuid");
-                if (uuid == null || uuid.trim().isEmpty()) {
-                    continue;
-                }
-                Document stats = doc.get("stats", Document.class);
-                if (stats == null) {
-                    continue;
-                }
-
-                Document set = new Document();
-                Document unset = new Document();
-                if (!stats.containsKey(MURDER_MYSTERY_WINS_KEY) && stats.containsKey(LEGACY_WINS_KEY)) {
-                    set.append("stats." + MURDER_MYSTERY_WINS_KEY, readStatValue(stats, LEGACY_WINS_KEY));
-                }
-                if (!stats.containsKey(MURDER_MYSTERY_KILLS_KEY) && stats.containsKey(LEGACY_KILLS_KEY)) {
-                    set.append("stats." + MURDER_MYSTERY_KILLS_KEY, readStatValue(stats, LEGACY_KILLS_KEY));
-                }
-                if (!stats.containsKey(MURDER_MYSTERY_GAMES_KEY) && stats.containsKey(LEGACY_GAMES_KEY)) {
-                    set.append("stats." + MURDER_MYSTERY_GAMES_KEY, readStatValue(stats, LEGACY_GAMES_KEY));
-                }
-                if (stats.containsKey(LEGACY_WINS_KEY)) {
-                    unset.append("stats." + LEGACY_WINS_KEY, "");
-                }
-                if (stats.containsKey(LEGACY_KILLS_KEY)) {
-                    unset.append("stats." + LEGACY_KILLS_KEY, "");
-                }
-                if (stats.containsKey(LEGACY_GAMES_KEY)) {
-                    unset.append("stats." + LEGACY_GAMES_KEY, "");
-                }
-
-                if (!set.isEmpty() || !unset.isEmpty()) {
-                    Document update = new Document();
-                    if (!set.isEmpty()) {
-                        update.append("$set", set);
-                    }
-                    if (!unset.isEmpty()) {
-                        update.append("$unset", unset);
-                    }
-                    UpdateResult result = profiles.updateOne(eq("uuid", uuid), update);
-                    if (result != null) {
-                        modified += result.getModifiedCount();
-                    }
-                }
-            }
-        }
-
-        Document marker = new Document("_id", MURDER_MYSTERY_STATS_MIGRATION_ID)
-                .append("modifiedCount", modified)
-                .append("completedAt", System.currentTimeMillis());
-        migrations.updateOne(
-                eq("_id", MURDER_MYSTERY_STATS_MIGRATION_ID),
-                new Document("$setOnInsert", marker),
-                new UpdateOptions().upsert(true)
-        );
     }
 
     private Document buildKnifeMeta(String id) {
@@ -878,6 +777,21 @@ public class ProfileStore {
         Integer value = readNumericStat(stats, key);
         if (value != null) {
             return value;
+        }
+        return 0;
+    }
+
+    private int readStatValue(Document stats, String primaryKey, String fallbackKey) {
+        if (stats == null) {
+            return 0;
+        }
+        Integer primary = readNumericStat(stats, primaryKey);
+        if (primary != null) {
+            return primary;
+        }
+        Integer fallback = readNumericStat(stats, fallbackKey);
+        if (fallback != null) {
+            return fallback;
         }
         return 0;
     }

@@ -2,7 +2,7 @@ package io.github.mebsic.core.util;
 
 import org.bukkit.ChatColor;
 
-public final class ScoreboardTitleAnimator {
+public final class ScoreboardTitleAnimation {
     private static final long TICK_MILLIS = 50L;
     private static final long SWEEP_STEP_TICKS = 2L;
     private static final long FLASH_STEP_TICKS = 6L; // 0.3 seconds per flash frame
@@ -15,7 +15,7 @@ public final class ScoreboardTitleAnimator {
     private final String whiteTitle;
     private long animationStartedAtMillis;
 
-    public ScoreboardTitleAnimator(String gameType) {
+    public ScoreboardTitleAnimation(String gameType) {
         String safe = gameType == null ? "" : gameType.trim();
         if (safe.isEmpty()) {
             safe = "GAME";

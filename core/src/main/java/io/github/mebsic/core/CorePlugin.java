@@ -298,8 +298,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             ensureMapConfigDefaults();
             knifeSkins = loadKnifeSkins();
             this.profileStore = new ProfileStore(mongo, knifeSkins);
-            this.profileStore.applySpectatorDefaultsToAllProfilesOnce();
-            this.profileStore.applyMurderMysteryStatsKeysMigrationOnce();
             this.punishmentStore = new PunishmentStore(mongo);
             this.roleChanceStore = new RoleChanceStore(mongo);
         } else {
@@ -347,7 +345,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         mongo.ensureCollection("knife_skins");
         mongo.ensureCollection("server_registry");
         mongo.ensureCollection("boss_bar_messages");
-        mongo.ensureCollection("core_migrations");
         mongo.ensureCollection("rank_gift_history");
         mongo.ensureCollection(MapConfigStore.COLLECTION_NAME);
         mongo.ensureCollection(DomainSettingsStore.COLLECTION_NAME);

@@ -42,23 +42,21 @@ public class UnbanCommand implements CommandExecutor {
         }
         Player target = Bukkit.getPlayerExact(args[0]);
         UUID targetUuid = target != null ? target.getUniqueId() : MojangApi.lookupUuid(args[0]);
-        String targetName = target != null ? target.getName() : args[0];
         if (targetUuid == null) {
             Punishment active = punishments.getActivePunishmentByName(args[0], PunishmentType.BAN);
             if (active != null) {
                 targetUuid = active.getTargetUuid();
-                if (active.getTargetName() != null && !active.getTargetName().trim().isEmpty()) {
-                    targetName = active.getTargetName();
-                }
             }
         }
         if (targetUuid == null) {
             sender.sendMessage(ChatColor.RED + "Player not found!");
             return true;
         }
-        boolean removed = punishments.unpunish(PunishmentType.BAN, targetUuid);
+        UUID actorUuid = sender instanceof Player ? ((Player) sender).getUniqueId() : null;
+        String actorName = sender.getName();
+        boolean removed = punishments.unpunish(PunishmentType.BAN, targetUuid, actorUuid, actorName);
         if (!removed) {
-            sender.sendMessage(ChatColor.RED + targetName + " is not currently banned.");
+            sender.sendMessage(ChatColor.RED + "That player is not banned!");
             return true;
         }
         sender.sendMessage(ChatColor.GREEN + "Done!");

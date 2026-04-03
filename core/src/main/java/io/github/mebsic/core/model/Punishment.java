@@ -13,6 +13,9 @@ public class Punishment {
     private final long createdAt;
     private final Long expiresAt;
     private final boolean active;
+    private final UUID deactivatedByUuid;
+    private final String deactivatedByName;
+    private final Long deactivatedAt;
 
     public Punishment(String id,
                       PunishmentType type,
@@ -24,6 +27,22 @@ public class Punishment {
                       long createdAt,
                       Long expiresAt,
                       boolean active) {
+        this(id, type, targetUuid, targetName, actorUuid, actorName, reason, createdAt, expiresAt, active, null, null, null);
+    }
+
+    public Punishment(String id,
+                      PunishmentType type,
+                      UUID targetUuid,
+                      String targetName,
+                      UUID actorUuid,
+                      String actorName,
+                      String reason,
+                      long createdAt,
+                      Long expiresAt,
+                      boolean active,
+                      UUID deactivatedByUuid,
+                      String deactivatedByName,
+                      Long deactivatedAt) {
         this.id = id;
         this.type = type;
         this.targetUuid = targetUuid;
@@ -34,6 +53,9 @@ public class Punishment {
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
         this.active = active;
+        this.deactivatedByUuid = deactivatedByUuid;
+        this.deactivatedByName = deactivatedByName;
+        this.deactivatedAt = deactivatedAt;
     }
 
     public String getId() {
@@ -74,5 +96,17 @@ public class Punishment {
 
     public boolean isActive() {
         return active;
+    }
+
+    public UUID getDeactivatedByUuid() {
+        return deactivatedByUuid;
+    }
+
+    public String getDeactivatedByName() {
+        return deactivatedByName;
+    }
+
+    public Long getDeactivatedAt() {
+        return deactivatedAt;
     }
 }

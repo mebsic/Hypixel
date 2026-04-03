@@ -32,7 +32,10 @@ public class PunishmentStore {
                 .append("reason", punishment.getReason())
                 .append("createdAt", punishment.getCreatedAt())
                 .append("expiresAt", punishment.getExpiresAt())
-                .append("active", punishment.isActive());
+                .append("active", punishment.isActive())
+                .append("deactivatedByUuid", punishment.getDeactivatedByUuid() == null ? null : punishment.getDeactivatedByUuid().toString())
+                .append("deactivatedByName", punishment.getDeactivatedByName())
+                .append("deactivatedAt", punishment.getDeactivatedAt());
         collection.insertOne(doc);
     }
 
@@ -74,13 +77,21 @@ public class PunishmentStore {
         return fromDocument(doc);
     }
 
-    public long deactivateActive(UUID targetUuid, PunishmentType type) {
+    public long deactivateActive(UUID targetUuid,
+                                 PunishmentType type,
+                                 UUID deactivatedByUuid,
+                                 String deactivatedByName,
+                                 Long deactivatedAt) {
         MongoCollection<Document> collection = mongo.getPunishments();
+        Document updates = new Document("active", false)
+                .append("deactivatedByUuid", deactivatedByUuid == null ? null : deactivatedByUuid.toString())
+                .append("deactivatedByName", deactivatedByName)
+                .append("deactivatedAt", deactivatedAt);
         UpdateResult result = collection.updateMany(Filters.and(
                 Filters.eq("targetUuid", targetUuid.toString()),
                 Filters.eq("type", type.name()),
                 Filters.eq("active", true)
-        ), new Document("$set", new Document("active", false)));
+        ), new Document("$set", updates));
         return result == null ? 0L : result.getModifiedCount();
     }
 
@@ -154,6 +165,24 @@ public class PunishmentStore {
         long createdAt = doc.getLong("createdAt");
         Long expiresAt = doc.getLong("expiresAt");
         boolean active = doc.getBoolean("active", true);
-        return new Punishment(id, type, targetUuid, targetName, actorUuid, actorName, reason, createdAt, expiresAt, active);
+        String deactivatedByUuidRaw = doc.getString("deactivatedByUuid");
+        UUID deactivatedByUuid = deactivatedByUuidRaw == null ? null : UUID.fromString(deactivatedByUuidRaw);
+        String deactivatedByName = doc.getString("deactivatedByName");
+        Long deactivatedAt = doc.getLong("deactivatedAt");
+        return new Punishment(
+                id,
+                type,
+                targetUuid,
+                targetName,
+                actorUuid,
+                actorName,
+                reason,
+                createdAt,
+                expiresAt,
+                active,
+                deactivatedByUuid,
+                deactivatedByName,
+                deactivatedAt
+        );
     }
 }

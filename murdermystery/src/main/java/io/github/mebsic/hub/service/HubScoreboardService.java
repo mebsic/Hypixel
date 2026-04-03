@@ -4,7 +4,7 @@ import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.service.CoreApi;
 import io.github.mebsic.core.util.NetworkConstants;
-import io.github.mebsic.core.util.ScoreboardTitleAnimator;
+import io.github.mebsic.core.util.ScoreboardTitleAnimation;
 import io.github.mebsic.core.util.ServerNameFormatUtil;
 import io.github.mebsic.game.service.ScoreboardService;
 import io.github.mebsic.murdermystery.stats.MurderMysteryStats;
@@ -161,7 +161,7 @@ public class HubScoreboardService {
     }
 
     private Board createBoard(ScoreboardManager manager) {
-        ScoreboardTitleAnimator titleAnimator = new ScoreboardTitleAnimator(serverType.getGameTypeDisplayName());
+        ScoreboardTitleAnimation titleAnimator = new ScoreboardTitleAnimation(serverType.getGameTypeDisplayName());
         String title = titleAnimator.resolve(serverType.isHub());
         Scoreboard scoreboard = manager.getNewScoreboard();
         Objective objective = scoreboard.registerNewObjective(OBJECTIVE_NAME, "dummy");
@@ -251,11 +251,11 @@ public class HubScoreboardService {
         private final Scoreboard scoreboard;
         private final Objective objective;
         private final List<String> entries;
-        private final ScoreboardTitleAnimator titleAnimator;
+        private final ScoreboardTitleAnimation titleAnimator;
         private String title;
         private List<String> lines;
 
-        private Board(Scoreboard scoreboard, Objective objective, String title, List<String> entries, ScoreboardTitleAnimator titleAnimator) {
+        private Board(Scoreboard scoreboard, Objective objective, String title, List<String> entries, ScoreboardTitleAnimation titleAnimator) {
             this.scoreboard = scoreboard;
             this.objective = objective;
             this.title = title;

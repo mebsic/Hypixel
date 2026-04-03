@@ -6,6 +6,7 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.scheduler.ScheduledTask;
 import io.github.mebsic.core.util.CommonMessages;
 import io.github.mebsic.core.util.NetworkConstants;
+import io.github.mebsic.proxy.HypixelProxyPlugin;
 import io.github.mebsic.proxy.service.RankResolver;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -171,8 +172,8 @@ public class UpdateCommand implements SimpleCommand {
     }
 
     private void broadcastRestartSoon() {
-        Component firstLine = withGoldObfuscatedPrefix(Component.text("This proxy is restarting soon!", NamedTextColor.RED));
-        Component secondLine = withGoldObfuscatedPrefix(Component.text("Please reconnect to ", NamedTextColor.RED)
+        Component firstLine = withGoldObfuscatedPrefix(Component.text(HypixelProxyPlugin.PROXY_RESTARTING_SOON_MESSAGE, NamedTextColor.RED));
+        Component secondLine = withGoldObfuscatedPrefix(Component.text(HypixelProxyPlugin.PROXY_RECONNECT_TO_MESSAGE, NamedTextColor.RED)
                 .append(Component.text(NetworkConstants.mcHost(), NamedTextColor.AQUA))
                 .append(Component.text("!", NamedTextColor.RED)));
         broadcastFramed(firstLine.append(Component.newline()).append(secondLine));
@@ -183,7 +184,7 @@ public class UpdateCommand implements SimpleCommand {
         Component firstLine = withGoldObfuscatedPrefix(Component.text("This proxy is restarting in ", NamedTextColor.RED)
                 .append(Component.text(String.valueOf(secondsRemaining), NamedTextColor.GOLD))
                 .append(Component.text(unit + ".", NamedTextColor.RED)));
-        Component secondLine = withGoldObfuscatedPrefix(Component.text("Please reconnect to ", NamedTextColor.RED)
+        Component secondLine = withGoldObfuscatedPrefix(Component.text(HypixelProxyPlugin.PROXY_RECONNECT_TO_MESSAGE, NamedTextColor.RED)
                 .append(Component.text(NetworkConstants.mcHost(), NamedTextColor.AQUA))
                 .append(Component.text("!", NamedTextColor.RED)));
         broadcastFramed(firstLine.append(Component.newline()).append(secondLine));
@@ -223,18 +224,10 @@ public class UpdateCommand implements SimpleCommand {
         if (!triggerRolloutRestart()) {
             updateInProgress.set(false);
             joinLockActive.set(false);
-            Component failure = withGoldObfuscatedPrefix(
-                    Component.text("Update rollout failed. Proxy shutdown has been cancelled.", NamedTextColor.RED)
-            );
-            broadcastFramed(failure);
             return;
         }
         updateInProgress.set(false);
         joinLockActive.set(false);
-        Component success = withGoldObfuscatedPrefix(
-                Component.text("Update rollout started. Proxy will stay online.", NamedTextColor.GREEN)
-        );
-        broadcastFramed(success);
     }
 
     private boolean triggerRolloutRestart() {
@@ -390,9 +383,7 @@ public class UpdateCommand implements SimpleCommand {
     }
 
     public Component restartDisconnectReason() {
-        return Component.text("This proxy is restarting. Please reconnect to ", NamedTextColor.RED)
-                .append(Component.text(NetworkConstants.mcHost(), NamedTextColor.AQUA))
-                .append(Component.text("!", NamedTextColor.RED));
+        return HypixelProxyPlugin.proxyRestartReconnectReason();
     }
 
     private void cancelScheduledTasks() {

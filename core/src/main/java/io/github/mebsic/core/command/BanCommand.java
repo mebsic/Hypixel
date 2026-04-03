@@ -57,6 +57,10 @@ public class BanCommand implements CommandExecutor {
             sender.sendMessage(ChatColor.RED + "You cannot ban yourself!");
             return true;
         }
+        if (punishments.isBanned(targetUuid)) {
+            sender.sendMessage(ChatColor.RED + "That player is already banned!");
+            return true;
+        }
         DurationOption duration = null;
         int reasonIndex = 1;
         if (args.length > 1) {

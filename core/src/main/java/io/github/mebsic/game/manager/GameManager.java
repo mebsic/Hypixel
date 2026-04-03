@@ -12,7 +12,7 @@ import io.github.mebsic.core.store.MapConfigStore;
 import io.github.mebsic.core.util.CommonMessages;
 import io.github.mebsic.core.util.GameRewardUtil;
 import io.github.mebsic.core.util.HubMessageUtil;
-import io.github.mebsic.core.util.ScoreboardTitleAnimator;
+import io.github.mebsic.core.util.ScoreboardTitleAnimation;
 import io.github.mebsic.core.util.ServerNameFormatUtil;
 import io.github.mebsic.game.map.GameMap;
 import io.github.mebsic.game.model.GamePlayer;
@@ -77,7 +77,7 @@ public class GameManager {
     private final Map<UUID, GamePlayer> players;
     private final Map<UUID, LinkedHashMap<String, Integer>> roundRewardSummary;
     private final AtomicBoolean mapConfigReloadQueued;
-    private final Map<UUID, ScoreboardTitleAnimator> scoreboardTitleAnimators;
+    private final Map<UUID, ScoreboardTitleAnimation> scoreboardTitleAnimators;
 
     private GameState state;
     private Location lobby;
@@ -1524,9 +1524,9 @@ public class GameManager {
         if (player == null) {
             return getScoreboardTitle();
         }
-        ScoreboardTitleAnimator animator = scoreboardTitleAnimators.computeIfAbsent(
+        ScoreboardTitleAnimation animator = scoreboardTitleAnimators.computeIfAbsent(
                 player.getUniqueId(),
-                id -> new ScoreboardTitleAnimator(resolveScoreboardGameTypeTitle())
+                id -> new ScoreboardTitleAnimation(resolveScoreboardGameTypeTitle())
         );
         return animator.resolve(shouldAnimateScoreboardTitle());
     }

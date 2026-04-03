@@ -19,6 +19,8 @@ public class BossBarMessageStore {
 
     private static final float MIN_VALUE = 0.01f;
     private static final float MAX_VALUE = 1.0f;
+    private static final double MIN_SECONDS = 0.0D;
+    private static final double MAX_SECONDS = 4.0D;
 
     private final MongoCollection<Document> collection;
 
@@ -44,6 +46,12 @@ public class BossBarMessageStore {
                 .append("serverType", "ANY")
                 .append("text", "")
                 .append("value", 1.0)
+                .append("animationType", "NONE")
+                .append("startColor", "YELLOW")
+                .append("animationColor", "GOLD")
+                .append("endColor", "WHITE")
+                .append("startSeconds", 0.0)
+                .append("endSeconds", 4.0)
                 .append("enabled", true)
                 .append("createdAt", now)
                 .append("updatedAt", now));
@@ -52,6 +60,12 @@ public class BossBarMessageStore {
                 .append("serverType", "ANY")
                 .append("text", "")
                 .append("value", 1.0)
+                .append("animationType", "NONE")
+                .append("startColor", "YELLOW")
+                .append("animationColor", "GOLD")
+                .append("endColor", "WHITE")
+                .append("startSeconds", 0.0)
+                .append("endSeconds", 4.0)
                 .append("enabled", true)
                 .append("createdAt", now)
                 .append("updatedAt", now));
@@ -60,6 +74,12 @@ public class BossBarMessageStore {
                 .append("serverType", "ANY")
                 .append("text", "")
                 .append("value", 1.0)
+                .append("animationType", "NONE")
+                .append("startColor", "YELLOW")
+                .append("animationColor", "GOLD")
+                .append("endColor", "WHITE")
+                .append("startSeconds", 0.0)
+                .append("endSeconds", 4.0)
                 .append("enabled", true)
                 .append("createdAt", now)
                 .append("updatedAt", now));
@@ -103,7 +123,30 @@ public class BossBarMessageStore {
             }
             Number valueNumber = doc.get("value", Number.class);
             float value = sanitizeValue(valueNumber == null ? 1.0f : valueNumber.floatValue());
-            messages.add(new BossBarMessage(id, text, value, normalizedScope, targetServerType));
+            String animationType = doc.getString("animationType");
+            String startColor = doc.getString("startColor");
+            String animationColor = doc.getString("animationColor");
+            String endColor = doc.getString("endColor");
+            Number startSecondsNumber = doc.get("startSeconds", Number.class);
+            Number endSecondsNumber = doc.get("endSeconds", Number.class);
+            double startSeconds = sanitizeSeconds(parseSeconds(startSecondsNumber, MIN_SECONDS));
+            double endSeconds = sanitizeSeconds(parseSeconds(endSecondsNumber, MAX_SECONDS));
+            if (endSeconds < startSeconds) {
+                endSeconds = startSeconds;
+            }
+            messages.add(new BossBarMessage(
+                    id,
+                    text,
+                    value,
+                    normalizedScope,
+                    targetServerType,
+                    animationType,
+                    startColor,
+                    animationColor,
+                    endColor,
+                    startSeconds,
+                    endSeconds
+            ));
         }
         return messages;
     }
@@ -141,5 +184,23 @@ public class BossBarMessageStore {
             return 1.0f;
         }
         return Math.max(MIN_VALUE, Math.min(MAX_VALUE, raw));
+    }
+
+    private double parseSeconds(Number number, double fallback) {
+        if (number == null) {
+            return fallback;
+        }
+        double raw = number.doubleValue();
+        if (Double.isNaN(raw) || Double.isInfinite(raw)) {
+            return fallback;
+        }
+        return raw;
+    }
+
+    private double sanitizeSeconds(double raw) {
+        if (Double.isNaN(raw) || Double.isInfinite(raw)) {
+            return MIN_SECONDS;
+        }
+        return Math.max(MIN_SECONDS, Math.min(MAX_SECONDS, raw));
     }
 }

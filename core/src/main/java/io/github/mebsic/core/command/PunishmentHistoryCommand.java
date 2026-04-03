@@ -142,14 +142,14 @@ public class PunishmentHistoryCommand implements CommandExecutor {
         }
 
         boolean temporary = isTemporary(punishment);
-        String durationSuffix = temporary ? formatDurationSuffix(punishment) : "";
+        String statusSuffix = formatStatusSuffix(punishment, temporary);
         String label = temporary ? temporaryLabel : permanentLabel;
         long createdAt = punishment == null ? 0L : punishment.getCreatedAt();
 
         return ChatColor.GOLD + Integer.toString(index) + ". "
                 + ChatColor.YELLOW + label + " - " + formatEstDate(createdAt)
                 + ChatColor.WHITE + ChatColor.ITALIC + " " + reason
-                + ChatColor.YELLOW + " by " + actorName + durationSuffix;
+                + ChatColor.YELLOW + " by " + actorName + statusSuffix;
     }
 
     private String formatEstDate(long epochMillis) {
@@ -179,6 +179,33 @@ public class PunishmentHistoryCommand implements CommandExecutor {
             return " for " + formatDuration(durationMillis) + " Expired";
         }
         return " for " + formatDuration(durationMillis) + " expires in " + formatDuration(remainingMillis);
+    }
+
+    private String formatStatusSuffix(Punishment punishment, boolean temporary) {
+        String deactivationSuffix = formatDeactivationSuffix(punishment);
+        if (!deactivationSuffix.isEmpty()) {
+            return deactivationSuffix;
+        }
+        return temporary ? formatDurationSuffix(punishment) : "";
+    }
+
+    private String formatDeactivationSuffix(Punishment punishment) {
+        if (punishment == null || punishment.isActive()) {
+            return "";
+        }
+        String deactivatedByName = punishment.getDeactivatedByName();
+        Long deactivatedAt = punishment.getDeactivatedAt();
+        if (deactivatedByName == null || deactivatedByName.trim().isEmpty() || deactivatedAt == null || deactivatedAt <= 0L) {
+            return "";
+        }
+        String normalizedName = deactivatedByName.trim();
+        if (type == PunishmentType.BAN) {
+            return " Unbanned by " + normalizedName;
+        }
+        if (type == PunishmentType.MUTE) {
+            return " Unmuted by " + normalizedName;
+        }
+        return "";
     }
 
     private String formatDuration(long durationMillis) {

@@ -90,6 +90,9 @@ import redis.clients.jedis.Jedis;
 
 @Plugin(id = "hypixelproxy", name = "HypixelProxy", version = "1.0.0")
 public class HypixelProxyPlugin {
+    public static final String PROXY_RESTARTING_MESSAGE = "This proxy is restarting.";
+    public static final String PROXY_RESTARTING_SOON_MESSAGE = "This proxy is restarting soon.";
+    public static final String PROXY_RECONNECT_TO_MESSAGE = "Please reconnect to ";
     private static final int MAINTENANCE_VERSION_PROTOCOL = -1;
     private static final String MAINTENANCE_VERSION_TEXT = LegacyComponentSerializer.legacySection()
             .serialize(Component.text("Maintenance", NamedTextColor.DARK_RED));
@@ -1659,7 +1662,11 @@ public class HypixelProxyPlugin {
         if (command != null) {
             return command.restartDisconnectReason();
         }
-        return Component.text("This proxy is restarting. Please reconnect to ", NamedTextColor.RED)
+        return proxyRestartReconnectReason();
+    }
+
+    public static Component proxyRestartReconnectReason() {
+        return Component.text(PROXY_RESTARTING_MESSAGE + " " + PROXY_RECONNECT_TO_MESSAGE, NamedTextColor.RED)
                 .append(Component.text(NetworkConstants.mcHost(), NamedTextColor.AQUA))
                 .append(Component.text("!", NamedTextColor.RED));
     }

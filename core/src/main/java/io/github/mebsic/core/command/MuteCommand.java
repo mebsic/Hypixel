@@ -57,6 +57,10 @@ public class MuteCommand implements CommandExecutor {
             sender.sendMessage(ChatColor.RED + "You cannot mute yourself!");
             return true;
         }
+        if (punishments.isMuted(targetUuid)) {
+            sender.sendMessage(ChatColor.RED + "That player is already muted!");
+            return true;
+        }
         DurationOption duration = null;
         int reasonIndex = 1;
         if (args.length > 1) {

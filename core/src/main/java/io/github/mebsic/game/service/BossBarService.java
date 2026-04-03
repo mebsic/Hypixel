@@ -31,9 +31,17 @@ import java.util.logging.Level;
 
 public class BossBarService {
     private static final long TICK_INTERVAL = 1L; // Minimum Bukkit interval (1 tick = 50ms).
+    private static final long TICK_MILLIS = 50L;
     private static final long DOMAIN_COLOR_CYCLE_INTERVAL_TICKS = 8L; // 0.4 seconds
-    private static final long HUB_MESSAGE_ROTATION_INTERVAL_TICKS = 100L; // 5 seconds
+    private static final long GAME_MESSAGE_ROTATION_INTERVAL_TICKS = 100L; // 5 seconds
+    private static final long HUB_MESSAGE_PRE_ANIMATION_DELAY_TICKS = 10L; // 0.5 seconds
+    private static final long HUB_MESSAGE_ANIMATION_WINDOW_TICKS = 80L; // 4 seconds
+    private static final long HUB_MESSAGE_POST_ANIMATION_DELAY_TICKS = 20L; // 1 second
+    private static final long HUB_MESSAGE_ROTATION_INTERVAL_TICKS =
+            HUB_MESSAGE_PRE_ANIMATION_DELAY_TICKS + HUB_MESSAGE_ANIMATION_WINDOW_TICKS + HUB_MESSAGE_POST_ANIMATION_DELAY_TICKS; // 5.5 seconds
     private static final long STORE_REFRESH_INTERVAL_TICKS = 600L; // 30 seconds
+    private static final long FLASH_STEP_TICKS = 8L; // 0.4 seconds (fits 5 flashes in 4 seconds)
+    private static final long FLASH_COUNT = 5L;
     private static final long LEGACY_METADATA_KEEPALIVE_INTERVAL_TICKS = 5L; // 0.25 seconds
     private static final double LEGACY_ANCHOR_FORWARD_DISTANCE = 24.0D;
     private static final double LEGACY_ANCHOR_VERTICAL_OFFSET = 8.0D;
@@ -63,6 +71,7 @@ public class BossBarService {
     private List<BossBarMessage> hubMessages;
     private BossBarMessage currentGameMessage;
     private BossBarMessage currentHubMessage;
+    private MessageTransition currentHubTransition;
     private int domainColorIndex;
     private long domainColorCycleElapsedTicks;
     private long tickCounter;
@@ -89,6 +98,7 @@ public class BossBarService {
         this.hubMessages = defaultHubMessages();
         this.currentGameMessage = null;
         this.currentHubMessage = null;
+        this.currentHubTransition = null;
         this.domainColorIndex = 0;
         this.domainColorCycleElapsedTicks = 0L;
         this.tickCounter = 0L;
@@ -116,8 +126,8 @@ public class BossBarService {
             hubMessageTask = plugin.getServer().getScheduler().runTaskTimer(
                     plugin,
                     this::rotateGameMessage,
-                    HUB_MESSAGE_ROTATION_INTERVAL_TICKS,
-                    HUB_MESSAGE_ROTATION_INTERVAL_TICKS
+                    GAME_MESSAGE_ROTATION_INTERVAL_TICKS,
+                    GAME_MESSAGE_ROTATION_INTERVAL_TICKS
             );
         }
         if (messageStore != null) {
@@ -149,6 +159,7 @@ public class BossBarService {
         }
         trackedPlayers.clear();
         activeBars.clear();
+        currentHubTransition = null;
     }
 
     public void show(Player player) {
@@ -236,6 +247,8 @@ public class BossBarService {
                 return null;
             }
             String text = formatTemplate(hubMessage.getText());
+            text = forceBold(text);
+            text = resolveAnimatedText(text, hubMessage, currentHubTransition);
             return new DisplayState(text, sanitizeValue(hubMessage.getValue()));
         }
         if (state == GameState.IN_GAME || state == GameState.ENDING) {
@@ -292,6 +305,7 @@ public class BossBarService {
             return;
         }
         currentHubMessage = nextHubMessage(hubMessages, currentHubMessage);
+        currentHubTransition = createTransition(currentHubMessage);
     }
 
     private void rotateGameMessage() {
@@ -361,24 +375,35 @@ public class BossBarService {
         } else {
             this.hubMessages = Collections.unmodifiableList(new ArrayList<>(loadedHub));
         }
-        if (isHubServer() && (currentHubMessage == null || !containsMessage(hubMessages, currentHubMessage))) {
-            currentHubMessage = firstMessage(hubMessages);
+        if (isHubServer()) {
+            BossBarMessage resolvedHub = resolveCurrentMessage(hubMessages, currentHubMessage);
+            if (resolvedHub == null) {
+                currentHubMessage = firstMessage(hubMessages);
+                currentHubTransition = createTransition(currentHubMessage);
+            } else {
+                currentHubMessage = resolvedHub;
+            }
         }
-        if (isGameServer() && (currentGameMessage == null || !containsMessage(gameMessages, currentGameMessage))) {
-            currentGameMessage = firstMessage(gameMessages);
+        if (isGameServer()) {
+            BossBarMessage resolvedGame = resolveCurrentMessage(gameMessages, currentGameMessage);
+            if (resolvedGame == null) {
+                currentGameMessage = firstMessage(gameMessages);
+            } else {
+                currentGameMessage = resolvedGame;
+            }
         }
     }
 
-    private boolean containsMessage(List<BossBarMessage> messages, BossBarMessage target) {
+    private BossBarMessage resolveCurrentMessage(List<BossBarMessage> messages, BossBarMessage target) {
         if (messages == null || messages.isEmpty() || target == null) {
-            return false;
+            return null;
         }
         for (BossBarMessage message : messages) {
             if (sameMessage(message, target)) {
-                return true;
+                return message;
             }
         }
-        return false;
+        return null;
     }
 
     private List<BossBarMessage> defaultGameMessages() {
@@ -400,6 +425,206 @@ public class BossBarService {
             return null;
         }
         return messages.get(0);
+    }
+
+    private String resolveAnimatedText(String text, BossBarMessage message, MessageTransition transition) {
+        String source = text == null ? "" : text;
+        if (message == null) {
+            return source;
+        }
+        TransitionAnimationType animationType = TransitionAnimationType.from(message.getAnimationType());
+        if (animationType == TransitionAnimationType.NONE) {
+            return source;
+        }
+
+        String plainText = ChatColor.stripColor(source);
+        if (plainText == null || plainText.trim().isEmpty()) {
+            return source;
+        }
+
+        ChatColor startColor = resolveConfiguredColor(message.getStartColor(), ChatColor.YELLOW);
+        ChatColor endColor = resolveConfiguredColor(message.getEndColor(), ChatColor.WHITE);
+        ChatColor animationColor = resolveConfiguredColor(message.getAnimationColor(), ChatColor.GOLD);
+        long elapsedTicks = transitionElapsedTicks(transition, message);
+
+        if (elapsedTicks < HUB_MESSAGE_PRE_ANIMATION_DELAY_TICKS) {
+            return style(plainText, startColor);
+        }
+        long animationElapsedTicks = elapsedTicks - HUB_MESSAGE_PRE_ANIMATION_DELAY_TICKS;
+        if (animationElapsedTicks >= HUB_MESSAGE_ANIMATION_WINDOW_TICKS) {
+            return style(plainText, endColor);
+        }
+
+        if (animationType == TransitionAnimationType.SWEEP) {
+            return buildSweepText(plainText, animationElapsedTicks, startColor, endColor, animationColor);
+        }
+        if (animationType == TransitionAnimationType.FLASH) {
+            return buildFlashText(plainText, animationElapsedTicks, startColor, endColor, message);
+        }
+        return source;
+    }
+
+    private String buildSweepText(String plainText,
+                                  long elapsedTicks,
+                                  ChatColor startColor,
+                                  ChatColor endColor,
+                                  ChatColor animationColor) {
+        int length = plainText.length();
+        if (length <= 0) {
+            return "";
+        }
+        int frame = resolveSweepFrame(elapsedTicks, length);
+        if (frame <= 0) {
+            return style(plainText, startColor);
+        }
+        if (frame > length) {
+            return style(plainText, endColor);
+        }
+
+        int sweepIndex = frame - 1;
+        StringBuilder out = new StringBuilder(plainText.length() * 6);
+        if (sweepIndex > 0) {
+            out.append(style(plainText.substring(0, sweepIndex), endColor));
+        }
+        out.append(style(String.valueOf(plainText.charAt(sweepIndex)), animationColor));
+        if (sweepIndex + 1 < length) {
+            out.append(style(plainText.substring(sweepIndex + 1), startColor));
+        }
+        return out.toString();
+    }
+
+    private int resolveSweepFrame(long elapsedTicks, int textLength) {
+        if (elapsedTicks <= 0L || textLength <= 0) {
+            return 0;
+        }
+        double progress = Math.max(0.0D, Math.min(1.0D, (double) elapsedTicks / (double) HUB_MESSAGE_ANIMATION_WINDOW_TICKS));
+        int frame = (int) Math.floor(progress * (textLength + 1.0D));
+        if (frame <= 0) {
+            return 0;
+        }
+        if (frame > textLength) {
+            return textLength + 1;
+        }
+        return frame;
+    }
+
+    private String buildFlashText(String plainText,
+                                  long elapsedTicks,
+                                  ChatColor startColor,
+                                  ChatColor endColor,
+                                  BossBarMessage message) {
+        long startTick = secondsToTicks(message.getStartSeconds());
+        long endTick = secondsToTicks(message.getEndSeconds());
+        if (endTick < startTick) {
+            endTick = startTick;
+        }
+
+        if (elapsedTicks < startTick) {
+            return style(plainText, startColor);
+        }
+        if (elapsedTicks > endTick) {
+            return style(plainText, endColor);
+        }
+
+        long elapsedInWindow = elapsedTicks - startTick;
+        long flashFrames = FLASH_COUNT * 2L;
+        long frame = elapsedInWindow / FLASH_STEP_TICKS;
+        if (frame < flashFrames) {
+            return frame % 2L == 0L ? style(plainText, endColor) : style(plainText, startColor);
+        }
+        return style(plainText, endColor);
+    }
+
+    private long secondsToTicks(double seconds) {
+        double clamped = Math.max(0.0D, Math.min(4.0D, seconds));
+        return (long) (clamped * 20.0D);
+    }
+
+    private long transitionElapsedTicks(MessageTransition transition, BossBarMessage message) {
+        if (transition == null || message == null) {
+            return HUB_MESSAGE_ROTATION_INTERVAL_TICKS;
+        }
+        if (!transition.matches(resolveMessageKey(message))) {
+            return HUB_MESSAGE_ROTATION_INTERVAL_TICKS;
+        }
+        long elapsedMillis = Math.max(0L, System.currentTimeMillis() - transition.startedAtMillis);
+        return elapsedMillis / TICK_MILLIS;
+    }
+
+    private MessageTransition createTransition(BossBarMessage message) {
+        if (message == null) {
+            return null;
+        }
+        return new MessageTransition(resolveMessageKey(message), System.currentTimeMillis());
+    }
+
+    private String resolveMessageKey(BossBarMessage message) {
+        if (message == null) {
+            return "";
+        }
+        String id = message.getId();
+        if (id != null && !id.trim().isEmpty()) {
+            return id.trim();
+        }
+        String text = message.getText();
+        return text == null ? "" : text.trim();
+    }
+
+    private ChatColor resolveConfiguredColor(String value, ChatColor fallback) {
+        if (value == null || value.trim().isEmpty()) {
+            return fallback;
+        }
+        String raw = value.trim();
+        if (raw.length() >= 2 && (raw.charAt(0) == '&' || raw.charAt(0) == ChatColor.COLOR_CHAR)) {
+            ChatColor byChar = ChatColor.getByChar(raw.charAt(1));
+            if (byChar != null && byChar.isColor()) {
+                return byChar;
+            }
+        }
+        String normalized = raw.toUpperCase(Locale.ROOT);
+        if (normalized.startsWith("CHATCOLOR.")) {
+            normalized = normalized.substring("CHATCOLOR.".length());
+        }
+        normalized = normalized.replace('-', '_').replace(' ', '_');
+        try {
+            ChatColor parsed = ChatColor.valueOf(normalized);
+            if (parsed != null && parsed.isColor()) {
+                return parsed;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Ignore invalid colors and keep fallback.
+        }
+        return fallback;
+    }
+
+    private String style(String text, ChatColor color) {
+        String safe = text == null ? "" : text;
+        ChatColor resolved = color == null ? ChatColor.WHITE : color;
+        return resolved.toString() + ChatColor.BOLD + safe;
+    }
+
+    private String forceBold(String text) {
+        String safe = text == null ? "" : text;
+        if (safe.isEmpty()) {
+            return ChatColor.BOLD.toString();
+        }
+        StringBuilder out = new StringBuilder(safe.length() * 2);
+        out.append(ChatColor.BOLD);
+        for (int i = 0; i < safe.length(); i++) {
+            char current = safe.charAt(i);
+            out.append(current);
+            if (current != ChatColor.COLOR_CHAR || i + 1 >= safe.length()) {
+                continue;
+            }
+            ChatColor code = ChatColor.getByChar(safe.charAt(i + 1));
+            if (code == null) {
+                continue;
+            }
+            if (code.isColor() || code == ChatColor.RESET) {
+                out.append(ChatColor.BOLD);
+            }
+        }
+        return out.toString();
     }
 
     private String formatTemplate(String template) {
@@ -497,6 +722,41 @@ public class BossBarService {
         private DisplayState(String text, float value) {
             this.text = text;
             this.value = value;
+        }
+    }
+
+    private static final class MessageTransition {
+        private final String messageKey;
+        private final long startedAtMillis;
+
+        private MessageTransition(String messageKey, long startedAtMillis) {
+            this.messageKey = messageKey == null ? "" : messageKey;
+            this.startedAtMillis = startedAtMillis;
+        }
+
+        private boolean matches(String key) {
+            String safe = key == null ? "" : key;
+            return messageKey.equals(safe);
+        }
+    }
+
+    private enum TransitionAnimationType {
+        NONE,
+        SWEEP,
+        FLASH;
+
+        private static TransitionAnimationType from(String raw) {
+            if (raw == null || raw.trim().isEmpty()) {
+                return NONE;
+            }
+            String normalized = raw.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+            if ("SWEEP".equals(normalized) || "SWEEPING".equals(normalized)) {
+                return SWEEP;
+            }
+            if ("FLASH".equals(normalized) || "FLASHING".equals(normalized)) {
+                return FLASH;
+            }
+            return NONE;
         }
     }
 
