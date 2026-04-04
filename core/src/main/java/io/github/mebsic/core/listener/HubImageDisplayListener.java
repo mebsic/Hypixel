@@ -54,8 +54,11 @@ public class HubImageDisplayListener implements Listener {
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
     private static final long IMAGE_INITIAL_REFRESH_DELAY_TICKS = 1L;
     private static final long IMAGE_REFRESH_INTERVAL_TICKS = 1200L;
+    private static final long IMAGE_REFRESH_THROTTLE_MILLIS = 15_000L;
     private static final int IMAGE_SOURCE_CONNECT_TIMEOUT_MILLIS = 10_000;
     private static final int IMAGE_SOURCE_READ_TIMEOUT_MILLIS = 10_000;
+    private static final String IMAGE_HTTP_USER_AGENT = "ImageService";
+    private static final String IMAGE_HTTP_ACCEPT = "image/*";
     private static final int IMAGE_GRID_WIDTH = 15;
     private static final int IMAGE_GRID_HEIGHT = 6;
     private static final int IMAGE_TILE_SIZE = 128;
@@ -68,6 +71,7 @@ public class HubImageDisplayListener implements Listener {
     private final BukkitTask refreshTask;
     private final List<MapTile> mapTiles;
     private volatile String activeGameKey;
+    private volatile long lastRefreshRequestedAt;
     private RuntimeImage runtimeImage;
 
     public HubImageDisplayListener(Plugin plugin, CorePlugin corePlugin, ServerType serverType) {
@@ -80,7 +84,7 @@ public class HubImageDisplayListener implements Listener {
         ensureImageSourceDocument();
         subscribeToMapConfigUpdates();
         this.refreshTask = startRefreshTask();
-        refreshDisplay();
+        refreshDisplay(true);
     }
 
     public void shutdown() {
@@ -104,9 +108,19 @@ public class HubImageDisplayListener implements Listener {
     }
 
     private void refreshDisplay() {
+        refreshDisplay(false);
+    }
+
+    private void refreshDisplay(boolean bypassThrottle) {
         if (plugin == null || !serverType.isHub()) {
             return;
         }
+        long now = System.currentTimeMillis();
+        long elapsed = now - lastRefreshRequestedAt;
+        if (!bypassThrottle && elapsed >= 0L && elapsed < IMAGE_REFRESH_THROTTLE_MILLIS) {
+            return;
+        }
+        lastRefreshRequestedAt = now;
         if (!refreshInFlight.compareAndSet(false, true)) {
             return;
         }
@@ -421,9 +435,19 @@ public class HubImageDisplayListener implements Listener {
             URLConnection connection = new URL(source).openConnection();
             connection.setConnectTimeout(IMAGE_SOURCE_CONNECT_TIMEOUT_MILLIS);
             connection.setReadTimeout(IMAGE_SOURCE_READ_TIMEOUT_MILLIS);
+            connection.setRequestProperty("User-Agent", IMAGE_HTTP_USER_AGENT);
+            connection.setRequestProperty("Accept", IMAGE_HTTP_ACCEPT);
+            connection.setRequestProperty("Cache-Control", "no-cache");
             if (connection instanceof HttpURLConnection) {
                 HttpURLConnection http = (HttpURLConnection) connection;
                 http.setInstanceFollowRedirects(true);
+                int status = http.getResponseCode();
+                if (status >= 400) {
+                    if (status == HttpURLConnection.HTTP_FORBIDDEN) {
+                        throw new IllegalArgumentException("HTTP 403 (forbidden). The image host blocked access; use a direct public image URL.");
+                    }
+                    throw new IllegalArgumentException("HTTP " + status + " while downloading image URL.");
+                }
             }
             String contentType = safeText(connection.getContentType()).toLowerCase(Locale.ROOT);
             if (!extensionSupported && !isSupportedImageContentType(contentType)) {
@@ -547,7 +571,7 @@ public class HubImageDisplayListener implements Listener {
         if (!shouldReloadForGameKey(updatedKey)) {
             return;
         }
-        plugin.getServer().getScheduler().runTask(plugin, this::refreshDisplay);
+        plugin.getServer().getScheduler().runTask(plugin, () -> refreshDisplay(true));
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -651,7 +675,7 @@ public class HubImageDisplayListener implements Listener {
         if (information == null) {
             return null;
         }
-        ImageLocation location = parseImageLocation(information.get("imageDisplay"));
+        ImageLocation location = parseImageLocation(information.get(MongoManager.MAP_INFORMATION_IMAGE_DISPLAY_KEY));
         if (location == null) {
             location = parseImageLocation(information.get("imageLocation"));
         }
@@ -674,7 +698,7 @@ public class HubImageDisplayListener implements Listener {
         }
         String facingOverride = safeText(information.get("imageFacing"));
 
-        Document imageDisplaySection = asDocument(information.get("imageDisplay"));
+        Document imageDisplaySection = asDocument(information.get(MongoManager.MAP_INFORMATION_IMAGE_DISPLAY_KEY));
         if (imageDisplaySection != null) {
             if (source.isEmpty()) {
                 source = safeText(imageDisplaySection.get("url"));
@@ -832,11 +856,11 @@ public class HubImageDisplayListener implements Listener {
         if (corePlugin == null || corePlugin.getMongoManager() == null) {
             return null;
         }
-        MongoCollection<Document> collection = corePlugin.getMongoManager().getCollection(MongoManager.MURDER_MYSTERY_INFORMATION_COLLECTION);
+        MongoCollection<Document> collection = corePlugin.getMongoManager().getCollection(MongoManager.MURDER_MYSTERY_COLLECTION);
         if (collection == null) {
             return null;
         }
-        Document record = collection.find(eq("_id", MongoManager.MURDER_MYSTERY_INFORMATION_DOCUMENT_ID)).first();
+        Document record = collection.find(eq("_id", MongoManager.MURDER_MYSTERY_COLLECTION)).first();
         return parseImageSourceOverride(record);
     }
 
@@ -844,18 +868,18 @@ public class HubImageDisplayListener implements Listener {
         if (corePlugin == null || corePlugin.getMongoManager() == null) {
             return;
         }
-        MongoCollection<Document> collection = corePlugin.getMongoManager().getCollection(MongoManager.MURDER_MYSTERY_INFORMATION_COLLECTION);
+        MongoCollection<Document> collection = corePlugin.getMongoManager().getCollection(MongoManager.MURDER_MYSTERY_COLLECTION);
         if (collection == null) {
             return;
         }
         Document defaults = new Document();
-        defaults.put("_id", MongoManager.MURDER_MYSTERY_INFORMATION_DOCUMENT_ID);
+        defaults.put("_id", MongoManager.MURDER_MYSTERY_COLLECTION);
         defaults.put("imageUrl", "");
         defaults.put("imageEnabled", true);
         defaults.put("imageFacing", "");
         try {
             collection.updateOne(
-                    eq("_id", MongoManager.MURDER_MYSTERY_INFORMATION_DOCUMENT_ID),
+                    eq("_id", MongoManager.MURDER_MYSTERY_COLLECTION),
                     new Document("$setOnInsert", defaults),
                     new UpdateOptions().upsert(true)
             );

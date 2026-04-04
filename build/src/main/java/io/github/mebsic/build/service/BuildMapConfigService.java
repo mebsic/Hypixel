@@ -522,10 +522,6 @@ public class BuildMapConfigService {
         if (player == null || gameType == null || gameType == ServerType.UNKNOWN) {
             return true;
         }
-        if (!gameType.isHub()) {
-            player.sendMessage(ChatColor.RED + "Hub image display can only be set for hub servers!");
-            return true;
-        }
         String mapWorld = safeString(worldDirectory);
         if (mapWorld.isEmpty() && player.getWorld() != null) {
             mapWorld = safeString(player.getWorld().getName());
@@ -4352,7 +4348,7 @@ public class BuildMapConfigService {
                 case PROFILE_NPC:
                     return "Profile NPC";
                 case HUB_IMAGE_DISPLAY:
-                    return "Hub Image Display";
+                    return "Information";
                 case LEADERBOARD:
                     return "Leaderboard Hologram";
                 case PARKOUR_START:

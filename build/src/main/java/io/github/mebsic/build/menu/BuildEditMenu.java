@@ -395,14 +395,14 @@ public class BuildEditMenu extends Menu {
     }
 
     private ItemStack noLocationsItem() {
+        String title = ChatColor.RED + "No Locations";
+        List<String> lore = new ArrayList<String>(2);
+        lore.add(ChatColor.GRAY + "To manage saved map locations,");
+        lore.add(ChatColor.GRAY + "create them first!");
+
         Material redTerracotta = Material.matchMaterial("RED_TERRACOTTA");
         if (redTerracotta != null) {
-            return item(
-                    redTerracotta,
-                    ChatColor.RED + "No Locations",
-                    ChatColor.GRAY + "To manage saved map locations,",
-                    ChatColor.GRAY + "create them first!"
-            );
+            return item(redTerracotta, title, lore);
         }
 
         ItemStack legacy = new ItemStack(Material.STAINED_CLAY, 1, (short) 14);
@@ -410,27 +410,24 @@ public class BuildEditMenu extends Menu {
         if (meta == null) {
             return legacy;
         }
-        meta.setDisplayName(ChatColor.RED + "No Locations");
-        List<String> lore = new ArrayList<String>(2);
-        lore.add(ChatColor.GRAY + "To manage saved map locations,");
-        lore.add(ChatColor.GRAY + "create them first!");
+        meta.setDisplayName(title);
         meta.setLore(lore);
         legacy.setItemMeta(meta);
         return legacy;
     }
 
     private ItemStack deleteMapItem() {
+        String title = ChatColor.RED + "Delete All Locations";
+        List<String> lore = new ArrayList<String>(5);
+        lore.add("");
+        lore.add(ChatColor.RED.toString() + ChatColor.BOLD + "WARNING");
+        lore.add(ChatColor.GRAY + "This will delete all saved map locations!");
+        lore.add("");
+        lore.add(ChatColor.GREEN + "Click to delete!");
+
         Material lavaBucket = Material.matchMaterial("LAVA_BUCKET");
         if (lavaBucket != null) {
-            return item(
-                    lavaBucket,
-                    ChatColor.RED + "Delete All Locations",
-                    "",
-                    ChatColor.RED.toString() + ChatColor.BOLD + "WARNING",
-                    ChatColor.GRAY + "This will delete all saved map locations!",
-                    "",
-                    ChatColor.GREEN + "Click to delete!"
-            );
+            return item(lavaBucket, title, lore);
         }
 
         ItemStack legacy = new ItemStack(Material.BUCKET);
@@ -438,13 +435,7 @@ public class BuildEditMenu extends Menu {
         if (meta == null) {
             return legacy;
         }
-        meta.setDisplayName(ChatColor.RED + "Delete All Locations");
-        List<String> lore = new ArrayList<String>(5);
-        lore.add("");
-        lore.add(ChatColor.RED.toString() + ChatColor.BOLD + "WARNING");
-        lore.add(ChatColor.GRAY + "This will delete all saved map locations!");
-        lore.add("");
-        lore.add(ChatColor.GREEN + "Click to delete!");
+        meta.setDisplayName(title);
         meta.setLore(lore);
         legacy.setItemMeta(meta);
         return legacy;

@@ -92,8 +92,6 @@ public class BuildEditLocationsMenu extends Menu {
                 if (!metric.isEmpty()) {
                     lore.add(ChatColor.GOLD + "Leaderboard Type: " + leaderboardTypeLabel(metric));
                 }
-            } else if (entry.getType() == BuildMapConfigService.MapLocationType.HUB_IMAGE_DISPLAY) {
-                lore.add(ChatColor.GOLD + "Server Type Information");
             }
             lore.add("");
             lore.add(ChatColor.YELLOW + "Click to teleport!");
@@ -327,7 +325,7 @@ public class BuildEditLocationsMenu extends Menu {
                 ((SkullMeta) meta).setOwner(owner);
             }
         }
-        meta.setDisplayName(ChatColor.GREEN + (entry == null ? "Location" : entry.displayType()));
+        meta.setDisplayName(ChatColor.GREEN + locationDisplayName(entry));
         if (lore != null && !lore.isEmpty()) {
             List<String> colored = new ArrayList<String>(lore.size());
             for (String line : lore) {
@@ -337,6 +335,16 @@ public class BuildEditLocationsMenu extends Menu {
         }
         stack.setItemMeta(meta);
         return stack;
+    }
+
+    private String locationDisplayName(BuildMapConfigService.MapLocationEntry entry) {
+        if (entry == null) {
+            return "Location";
+        }
+        if (entry.getType() == BuildMapConfigService.MapLocationType.HUB_IMAGE_DISPLAY) {
+            return "Information";
+        }
+        return entry.displayType();
     }
 
     private Material resolveArmorStandMaterial() {
