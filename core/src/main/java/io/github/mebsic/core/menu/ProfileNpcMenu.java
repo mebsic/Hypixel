@@ -1,6 +1,7 @@
 package io.github.mebsic.core.menu;
 
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Stats;
 import io.github.mebsic.core.server.ServerType;
@@ -31,17 +32,6 @@ public class ProfileNpcMenu extends Menu {
     private static final int STATS_SLOT = 13;
     private static final int CLOSE_SLOT = 31;
     private static final String MODE_NAME = "Classic";
-
-    private static final String BOW_KILLS_KEY = "murdermystery.bowKills";
-    private static final String KNIFE_KILLS_KEY = "murdermystery.knifeKills";
-    private static final String THROWN_KNIFE_KILLS_KEY = "murdermystery.thrownKnifeKills";
-    private static final String WINS_AS_DETECTIVE_KEY = "murdermystery.winsAsDetective";
-    private static final String WINS_AS_MURDERER_KEY = "murdermystery.winsAsMurderer";
-    private static final String KILLS_AS_HERO_KEY = "murdermystery.killsAsHero";
-    private static final String LIFETIME_KILLS_RANK_KEY = "murdermystery.lifetimeKillsRank";
-    private static final String LIFETIME_WINS_RANK_KEY = "murdermystery.lifetimeWinsRank";
-    private static final String QUICKEST_DETECTIVE_WIN_SECONDS_KEY = "murdermystery.quickestDetectiveWinSeconds";
-    private static final String QUICKEST_MURDERER_WIN_SECONDS_KEY = "murdermystery.quickestMurdererWinSeconds";
     private static final long LIVE_PROFILE_CACHE_TTL_MILLIS = 30_000L;
     private static final int LIVE_PROFILE_CACHE_MAX_ENTRIES = 2_000;
     private static final long RANK_CACHE_TTL_MILLIS = 60_000L;
@@ -79,18 +69,18 @@ public class ProfileNpcMenu extends Menu {
         Profile profile = resolveProfileSnapshot(player);
         Stats stats = profile == null ? null : profile.getStats();
 
-        int bowKills = counter(stats, BOW_KILLS_KEY, "bowKills");
-        int knifeKills = counter(stats, KNIFE_KILLS_KEY, "knifeKills");
-        int thrownKnifeKills = counter(stats, THROWN_KNIFE_KILLS_KEY, "thrownKnifeKills");
+        int bowKills = counter(stats, MongoManager.MURDER_MYSTERY_BOW_KILLS_KEY);
+        int knifeKills = counter(stats, MongoManager.MURDER_MYSTERY_KNIFE_KILLS_KEY);
+        int thrownKnifeKills = counter(stats, MongoManager.MURDER_MYSTERY_THROWN_KNIFE_KILLS_KEY);
         int lifetimeKills = stats == null ? 0 : Math.max(0, stats.getKills());
-        int lifetimeKillsRank = counter(stats, LIFETIME_KILLS_RANK_KEY, "lifetimeKillsRank");
+        int lifetimeKillsRank = counter(stats, MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_RANK_KEY);
 
         int games = stats == null ? 0 : Math.max(0, stats.getGames());
-        int detectiveWins = counter(stats, WINS_AS_DETECTIVE_KEY, "winsAsDetective");
-        int murdererWins = counter(stats, WINS_AS_MURDERER_KEY, "winsAsMurderer");
-        int killsAsHero = counter(stats, KILLS_AS_HERO_KEY, "killsAsHero");
+        int detectiveWins = counter(stats, MongoManager.MURDER_MYSTERY_WINS_AS_DETECTIVE_KEY);
+        int murdererWins = counter(stats, MongoManager.MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
+        int killsAsHero = counter(stats, MongoManager.MURDER_MYSTERY_KILLS_AS_HERO_KEY);
         int lifetimeWins = stats == null ? 0 : Math.max(0, stats.getWins());
-        int lifetimeWinsRank = counter(stats, LIFETIME_WINS_RANK_KEY, "lifetimeWinsRank");
+        int lifetimeWinsRank = counter(stats, MongoManager.MURDER_MYSTERY_LIFETIME_WINS_RANK_KEY);
 
         if ((lifetimeKills > 0 && lifetimeKillsRank <= 0) || (lifetimeWins > 0 && lifetimeWinsRank <= 0)) {
             int[] resolvedRanks = resolveLifetimeRanksAsync(player.getUniqueId(), lifetimeKills, lifetimeWins);
@@ -102,8 +92,8 @@ public class ProfileNpcMenu extends Menu {
             }
         }
 
-        int quickestDetectiveWinSeconds = quickestCounter(stats, QUICKEST_DETECTIVE_WIN_SECONDS_KEY, "quickestDetectiveWinSeconds");
-        int quickestMurdererWinSeconds = quickestCounter(stats, QUICKEST_MURDERER_WIN_SECONDS_KEY, "quickestMurdererWinSeconds");
+        int quickestDetectiveWinSeconds = quickestCounter(stats, MongoManager.MURDER_MYSTERY_QUICKEST_DETECTIVE_WIN_SECONDS_KEY);
+        int quickestMurdererWinSeconds = quickestCounter(stats, MongoManager.MURDER_MYSTERY_QUICKEST_MURDERER_WIN_SECONDS_KEY);
 
         List<String> lore = new ArrayList<String>();
         lore.add(ChatColor.GRAY + "Bow Kills: " + ChatColor.GREEN + formatNumber(bowKills));
@@ -229,30 +219,8 @@ public class ProfileNpcMenu extends Menu {
         return Math.max(0, stats.getCustomCounter(key));
     }
 
-    private int counter(Stats stats, String primaryKey, String fallbackKey) {
-        if (stats == null) {
-            return 0;
-        }
-        int value = counter(stats, primaryKey);
-        if (fallbackKey == null || fallbackKey.trim().isEmpty()) {
-            return value;
-        }
-        return Math.max(value, counter(stats, fallbackKey));
-    }
-
-    private int quickestCounter(Stats stats, String primaryKey, String fallbackKey) {
-        if (stats == null) {
-            return 0;
-        }
-        int primary = counter(stats, primaryKey);
-        int fallback = counter(stats, fallbackKey);
-        if (primary <= 0) {
-            return fallback;
-        }
-        if (fallback <= 0) {
-            return primary;
-        }
-        return Math.min(primary, fallback);
+    private int quickestCounter(Stats stats, String key) {
+        return counter(stats, key);
     }
 
     private int[] resolveLifetimeRanksAsync(UUID playerId, int lifetimeKills, int lifetimeWins) {
@@ -335,10 +303,10 @@ public class ProfileNpcMenu extends Menu {
         }
         try {
             if (killsRank > 0) {
-                killsRank += countHigherStats(profiles, "stats.murderMysteryKills", "stats.kills", lifetimeKills);
+                killsRank += countHigherStats(profiles, "stats.murdermystery.lifetimeKills", lifetimeKills);
             }
             if (winsRank > 0) {
-                winsRank += countHigherStats(profiles, "stats.murderMysteryWins", "stats.wins", lifetimeWins);
+                winsRank += countHigherStats(profiles, "stats.murdermystery.lifetimeWins", lifetimeWins);
             }
         } catch (Exception ignored) {
             // Fall back to placeholder rank values when rank query is unavailable.
@@ -349,17 +317,11 @@ public class ProfileNpcMenu extends Menu {
 
     private int countHigherStats(MongoCollection<Document> profiles,
                                  String primaryField,
-                                 String legacyField,
                                  int threshold) {
         if (profiles == null || threshold < 0) {
             return 0;
         }
-        long modernCount = profiles.countDocuments(Filters.gt(primaryField, threshold));
-        long legacyCount = profiles.countDocuments(Filters.and(
-                Filters.exists(primaryField, false),
-                Filters.gt(legacyField, threshold)
-        ));
-        long total = modernCount + legacyCount;
+        long total = profiles.countDocuments(Filters.gt(primaryField, threshold));
         if (total <= 0L) {
             return 0;
         }

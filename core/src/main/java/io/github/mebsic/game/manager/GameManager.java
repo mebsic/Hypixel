@@ -304,16 +304,16 @@ public class GameManager {
             if (mongo == null) {
                 return "";
             }
-            MongoCollection<Document> collection = mongo.getCollection(MapConfigStore.COLLECTION_NAME);
+            MongoCollection<Document> collection = mongo.getCollection(MongoManager.MAPS_COLLECTION);
             if (collection == null) {
                 return "";
             }
             String gameKey = resolveMapConfigGameKey();
             String usedKey = gameKey;
             Document root = collection.find(Filters.eq("_id", gameKey)).first();
-            if (root == null && !MapConfigStore.DEFAULT_GAME_KEY.equals(gameKey)) {
-                root = collection.find(Filters.eq("_id", MapConfigStore.DEFAULT_GAME_KEY)).first();
-                usedKey = MapConfigStore.DEFAULT_GAME_KEY;
+            if (root == null && !MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(gameKey)) {
+                root = collection.find(Filters.eq("_id", MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY)).first();
+                usedKey = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
             }
             if (root == null) {
                 return "";
@@ -330,7 +330,7 @@ public class GameManager {
         String group = plugin == null ? "" : plugin.getConfig().getString("server.group", "");
         String normalized = MapConfigStore.normalizeGameKey(group);
         if (normalized.isEmpty()) {
-            return MapConfigStore.DEFAULT_GAME_KEY;
+            return MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         }
         return normalized;
     }

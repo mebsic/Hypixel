@@ -2,6 +2,7 @@ package io.github.mebsic.core.menu;
 
 import com.mongodb.client.MongoCollection;
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.util.CommonMessages;
@@ -26,8 +27,6 @@ import java.util.UUID;
 
 public final class GiftSupport {
     static final String PRESENT_HEAD_OWNER = "MHF_Present";
-    static final String GIFT_HISTORY_COLLECTION = "rank_gift_history";
-    static final String GIFTED_COUNTER_KEY = "ranksGifted";
     public static final String PROFILE_LOADING_SELF_MESSAGE = ChatColor.RED + CommonMessages.PROFILE_LOADING;
     public static final String PROFILE_LOADING_TARGET_MESSAGE = ChatColor.RED + "That player's profile is still loading! Try again in a moment.";
     public static final String GIFT_LOADING_MESSAGE = ChatColor.RED + "That gift is still loading! Try again in a moment.";
@@ -235,22 +234,18 @@ public final class GiftSupport {
     }
 
     public static void incrementGiftedRanks(Profile profile) {
-        if (profile == null || profile.getStats() == null) {
+        if (profile == null) {
             return;
         }
         int current = readGiftedRanks(profile);
-        int updated = Math.max(0, current + 1);
-        int value = profile.getStats().getCustomCounter(GIFTED_COUNTER_KEY);
-        if (value != updated) {
-            profile.getStats().addCustomCounter(GIFTED_COUNTER_KEY, updated - value);
-        }
+        profile.setRanksGifted(Math.max(0, current + 1));
     }
 
     public static int readGiftedRanks(Profile profile) {
-        if (profile == null || profile.getStats() == null) {
+        if (profile == null) {
             return 0;
         }
-        return Math.max(0, profile.getStats().getCustomCounter(GIFTED_COUNTER_KEY));
+        return Math.max(0, profile.getRanksGifted());
     }
 
     public static void recordGiftHistoryAsync(CorePlugin plugin,
@@ -277,7 +272,7 @@ public final class GiftSupport {
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                MongoCollection<Document> collection = plugin.getMongoManager().getCollection(GIFT_HISTORY_COLLECTION);
+                MongoCollection<Document> collection = plugin.getMongoManager().getCollection(MongoManager.RANK_GIFT_HISTORY_COLLECTION);
                 if (collection == null) {
                     return;
                 }

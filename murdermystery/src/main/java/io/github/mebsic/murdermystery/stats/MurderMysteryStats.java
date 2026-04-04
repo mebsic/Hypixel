@@ -1,23 +1,12 @@
 package io.github.mebsic.murdermystery.stats;
 
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Stats;
 import io.github.mebsic.core.service.CoreApi;
 
 import java.util.UUID;
 
 public final class MurderMysteryStats {
-    public static final String TOKENS = "murdermystery.tokens";
-    private static final String LEGACY_TOKENS = "tokens";
-    public static final String BOW_KILLS = "murdermystery.bowKills";
-    public static final String KNIFE_KILLS = "murdermystery.knifeKills";
-    public static final String THROWN_KNIFE_KILLS = "murdermystery.thrownKnifeKills";
-    public static final String WINS_AS_DETECTIVE = "murdermystery.winsAsDetective";
-    public static final String WINS_AS_MURDERER = "murdermystery.winsAsMurderer";
-    public static final String KILLS_AS_MURDERER = "murdermystery.killsAsMurderer";
-    public static final String KILLS_AS_HERO = "murdermystery.killsAsHero";
-    public static final String QUICKEST_DETECTIVE_WIN_SECONDS = "murdermystery.quickestDetectiveWinSeconds";
-    public static final String QUICKEST_MURDERER_WIN_SECONDS = "murdermystery.quickestMurdererWinSeconds";
-    public static final String HINTS_ENABLED = "murdermystery.hintsEnabled";
     private static final int HINTS_STATE_ENABLED = 1;
     private static final int HINTS_STATE_DISABLED = 2;
 
@@ -28,104 +17,94 @@ public final class MurderMysteryStats {
         if (stats == null) {
             return 0;
         }
-        return stats.getCustomCounter(WINS_AS_DETECTIVE);
+        return stats.getCustomCounter(MongoManager.MURDER_MYSTERY_WINS_AS_DETECTIVE_KEY);
     }
 
     public static int getWinsAsMurderer(Stats stats) {
         if (stats == null) {
             return 0;
         }
-        return stats.getCustomCounter(WINS_AS_MURDERER);
+        return stats.getCustomCounter(MongoManager.MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
     }
 
     public static void addDetectiveWin(Stats stats) {
         if (stats == null) {
             return;
         }
-        stats.addCustomCounter(WINS_AS_DETECTIVE, 1);
+        stats.addCustomCounter(MongoManager.MURDER_MYSTERY_WINS_AS_DETECTIVE_KEY, 1);
     }
 
     public static void addMurdererWin(Stats stats) {
         if (stats == null) {
             return;
         }
-        stats.addCustomCounter(WINS_AS_MURDERER, 1);
+        stats.addCustomCounter(MongoManager.MURDER_MYSTERY_WINS_AS_MURDERER_KEY, 1);
     }
 
     public static int getKillsAsMurderer(Stats stats) {
         if (stats == null) {
             return 0;
         }
-        return stats.getCustomCounter(KILLS_AS_MURDERER);
+        return stats.getCustomCounter(MongoManager.MURDER_MYSTERY_KILLS_AS_MURDERER_KEY);
     }
 
     public static void addMurdererKills(Stats stats, int amount) {
         if (stats == null || amount <= 0) {
             return;
         }
-        stats.addCustomCounter(KILLS_AS_MURDERER, amount);
+        stats.addCustomCounter(MongoManager.MURDER_MYSTERY_KILLS_AS_MURDERER_KEY, amount);
     }
 
     public static void addBowKills(Stats stats, int amount) {
-        addPositiveCounter(stats, BOW_KILLS, amount);
+        addPositiveCounter(stats, MongoManager.MURDER_MYSTERY_BOW_KILLS_KEY, amount);
     }
 
     public static void addKnifeKills(Stats stats, int amount) {
-        addPositiveCounter(stats, KNIFE_KILLS, amount);
+        addPositiveCounter(stats, MongoManager.MURDER_MYSTERY_KNIFE_KILLS_KEY, amount);
     }
 
     public static void addThrownKnifeKills(Stats stats, int amount) {
-        addPositiveCounter(stats, THROWN_KNIFE_KILLS, amount);
+        addPositiveCounter(stats, MongoManager.MURDER_MYSTERY_THROWN_KNIFE_KILLS_KEY, amount);
     }
 
     public static void addHeroKills(Stats stats, int amount) {
-        addPositiveCounter(stats, KILLS_AS_HERO, amount);
+        addPositiveCounter(stats, MongoManager.MURDER_MYSTERY_KILLS_AS_HERO_KEY, amount);
     }
 
     public static void updateQuickestDetectiveWinSeconds(Stats stats, int elapsedSeconds) {
-        updateQuickestCounter(stats, QUICKEST_DETECTIVE_WIN_SECONDS, elapsedSeconds);
+        updateQuickestCounter(stats, MongoManager.MURDER_MYSTERY_QUICKEST_DETECTIVE_WIN_SECONDS_KEY, elapsedSeconds);
     }
 
     public static void updateQuickestMurdererWinSeconds(Stats stats, int elapsedSeconds) {
-        updateQuickestCounter(stats, QUICKEST_MURDERER_WIN_SECONDS, elapsedSeconds);
+        updateQuickestCounter(stats, MongoManager.MURDER_MYSTERY_QUICKEST_MURDERER_WIN_SECONDS_KEY, elapsedSeconds);
     }
 
     public static int getTokens(Stats stats) {
         if (stats == null) {
             return 0;
         }
-        int namespaced = stats.getCustomCounter(TOKENS);
-        if (namespaced > 0) {
-            return namespaced;
-        }
-        return stats.getCustomCounter(LEGACY_TOKENS);
+        return stats.getCustomCounter(MongoManager.MURDER_MYSTERY_TOKENS_KEY);
     }
 
     public static int getTokens(CoreApi coreApi, UUID uuid) {
         if (coreApi == null || uuid == null) {
             return 0;
         }
-        int namespaced = coreApi.getCounter(uuid, TOKENS);
-        if (namespaced > 0) {
-            return namespaced;
-        }
-        return coreApi.getCounter(uuid, LEGACY_TOKENS);
+        return coreApi.getCounter(uuid, MongoManager.MURDER_MYSTERY_TOKENS_KEY);
     }
 
     public static void addTokens(Stats stats, int amount) {
         if (stats == null || amount <= 0) {
             return;
         }
-        migrateLegacyTokens(stats);
-        stats.addCustomCounter(TOKENS, amount);
+        stats.addCustomCounter(MongoManager.MURDER_MYSTERY_TOKENS_KEY, amount);
     }
 
     public static void addTokens(CoreApi coreApi, UUID uuid, int amount) {
         if (coreApi == null || uuid == null || amount <= 0) {
             return;
         }
-        migrateLegacyTokens(coreApi, uuid);
-        coreApi.addCounter(uuid, TOKENS, amount);
+        coreApi.addCounter(uuid, MongoManager.MURDER_MYSTERY_TOKENS_KEY, amount);
     }
 
     public static boolean spendTokens(CoreApi coreApi, UUID uuid, int amount) {
@@ -135,18 +114,17 @@ public final class MurderMysteryStats {
         if (amount <= 0) {
             return true;
         }
-        migrateLegacyTokens(coreApi, uuid);
-        return coreApi.spendCounter(uuid, TOKENS, amount);
+        return coreApi.spendCounter(uuid, MongoManager.MURDER_MYSTERY_TOKENS_KEY, amount);
     }
 
     public static boolean areHintsEnabled(Stats stats) {
         if (stats == null) {
             return true;
         }
-        if (!hasCustomCounter(stats, HINTS_ENABLED)) {
+        if (!hasCustomCounter(stats, MongoManager.MURDER_MYSTERY_HINTS_ENABLED_KEY)) {
             return true;
         }
-        return stats.getCustomCounter(HINTS_ENABLED) != HINTS_STATE_DISABLED;
+        return stats.getCustomCounter(MongoManager.MURDER_MYSTERY_HINTS_ENABLED_KEY) != HINTS_STATE_DISABLED;
     }
 
     public static boolean setHintsEnabled(Stats stats, boolean enabled) {
@@ -154,48 +132,24 @@ public final class MurderMysteryStats {
             return false;
         }
         int desired = enabled ? HINTS_STATE_ENABLED : HINTS_STATE_DISABLED;
-        if (!hasCustomCounter(stats, HINTS_ENABLED)) {
-            stats.addCustomCounter(HINTS_ENABLED, desired);
+        if (!hasCustomCounter(stats, MongoManager.MURDER_MYSTERY_HINTS_ENABLED_KEY)) {
+            stats.addCustomCounter(MongoManager.MURDER_MYSTERY_HINTS_ENABLED_KEY, desired);
             return true;
         }
-        int current = Math.max(0, stats.getCustomCounter(HINTS_ENABLED));
+        int current = Math.max(0, stats.getCustomCounter(MongoManager.MURDER_MYSTERY_HINTS_ENABLED_KEY));
         if (current == desired) {
             return false;
         }
-        stats.addCustomCounter(HINTS_ENABLED, desired - current);
+        stats.addCustomCounter(MongoManager.MURDER_MYSTERY_HINTS_ENABLED_KEY, desired - current);
         return true;
     }
 
     public static boolean ensureHintsEnabledCounterExists(Stats stats) {
-        if (stats == null || hasCustomCounter(stats, HINTS_ENABLED)) {
+        if (stats == null || hasCustomCounter(stats, MongoManager.MURDER_MYSTERY_HINTS_ENABLED_KEY)) {
             return false;
         }
-        stats.addCustomCounter(HINTS_ENABLED, HINTS_STATE_ENABLED);
+        stats.addCustomCounter(MongoManager.MURDER_MYSTERY_HINTS_ENABLED_KEY, HINTS_STATE_ENABLED);
         return true;
-    }
-
-    private static void migrateLegacyTokens(Stats stats) {
-        if (stats == null) {
-            return;
-        }
-        int legacy = stats.getCustomCounter(LEGACY_TOKENS);
-        if (legacy <= 0) {
-            return;
-        }
-        stats.addCustomCounter(TOKENS, legacy);
-        stats.addCustomCounter(LEGACY_TOKENS, -legacy);
-    }
-
-    private static void migrateLegacyTokens(CoreApi coreApi, UUID uuid) {
-        if (coreApi == null || uuid == null) {
-            return;
-        }
-        int legacy = coreApi.getCounter(uuid, LEGACY_TOKENS);
-        if (legacy <= 0) {
-            return;
-        }
-        coreApi.addCounter(uuid, TOKENS, legacy);
-        coreApi.spendCounter(uuid, LEGACY_TOKENS, legacy);
     }
 
     private static void addPositiveCounter(Stats stats, String key, int amount) {

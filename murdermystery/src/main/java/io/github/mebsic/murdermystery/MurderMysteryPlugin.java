@@ -1,6 +1,7 @@
 package io.github.mebsic.murdermystery;
 
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.server.MapConfigResolver;
 import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.service.CoreApi;
@@ -16,6 +17,7 @@ import io.github.mebsic.game.service.BossBarService;
 import io.github.mebsic.game.service.QueueService;
 import io.github.mebsic.game.command.StartCommand;
 import io.github.mebsic.hub.listener.HubCosmeticsListener;
+import io.github.mebsic.core.listener.HubImageDisplayListener;
 import io.github.mebsic.core.listener.HubLeaderboardListener;
 import io.github.mebsic.core.listener.HubNpcListener;
 import io.github.mebsic.core.listener.HubParkourListener;
@@ -67,8 +69,6 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
     private static final long HUB_SPAWN_STARTUP_REFRESH_DELAY_TICKS = 20L;
     private static final int PARKOUR_PROFILE_INIT_MAX_ATTEMPTS = 20;
     private static final long PARKOUR_PROFILE_INIT_RETRY_TICKS = 10L;
-    private static final String QUICKEST_DETECTIVE_WIN_SECONDS_KEY = "murdermystery.quickestDetectiveWinSeconds";
-    private static final String QUICKEST_MURDERER_WIN_SECONDS_KEY = "murdermystery.quickestMurdererWinSeconds";
     private static final String MAP_CONFIG_UPDATE_CHANNEL = "map_config_update";
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
     private static final String CITIZENS_PLUGIN_NAME = "Citizens";
@@ -101,6 +101,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
     private HubParkourListener hubParkourListener;
     private HubNpcListener hubNpcListener;
     private HubLeaderboardListener hubLeaderboardListener;
+    private HubImageDisplayListener hubImageDisplayListener;
 
     @Override
     public void onEnable() {
@@ -276,6 +277,10 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
             hubLeaderboardListener.shutdown();
             hubLeaderboardListener = null;
         }
+        if (hubImageDisplayListener != null) {
+            hubImageDisplayListener.shutdown();
+            hubImageDisplayListener = null;
+        }
         if (hubParkourListener != null) {
             hubParkourListener.shutdown();
             hubParkourListener = null;
@@ -379,6 +384,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
             }
         }
         this.hubLeaderboardListener = new HubLeaderboardListener(this, corePlugin, serverType);
+        this.hubImageDisplayListener = new HubImageDisplayListener(this, corePlugin, serverType);
         corePlugin.setHubParkourCommandHandler(hubParkourListener);
         TablistService tablistService = new TablistService(coreApi, serverType);
         getServer().getPluginManager().registerEvents(new HubListener(this), this);
@@ -389,6 +395,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
             getServer().getPluginManager().registerEvents(hubNpcListener, this);
         }
         getServer().getPluginManager().registerEvents(hubLeaderboardListener, this);
+        getServer().getPluginManager().registerEvents(hubImageDisplayListener, this);
         subscribeToHubMapConfigUpdates();
         this.tablistTask = getServer().getScheduler().runTaskTimer(this, tablistService::updateAll, 20L, 20L);
         this.hubScoreboardTask = getServer().getScheduler().runTaskTimer(this,
@@ -544,7 +551,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         }
         String resolvedGameKey = MapConfigStore.normalizeGameKey(gameKey);
         if (resolvedGameKey.isEmpty()) {
-            resolvedGameKey = MapConfigStore.DEFAULT_GAME_KEY;
+            resolvedGameKey = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         }
         try {
             corePlugin.getPubSubService().publish(MAP_CONFIG_UPDATE_CHANNEL, MAP_CONFIG_UPDATE_PREFIX + resolvedGameKey);
@@ -573,10 +580,10 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
 
     private String resolveHubGameKey() {
         if (corePlugin == null) {
-            return MapConfigStore.DEFAULT_GAME_KEY;
+            return MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         }
         String normalized = MapConfigStore.normalizeGameKey(corePlugin.getConfig().getString("server.group", ""));
-        return normalized.isEmpty() ? MapConfigStore.DEFAULT_GAME_KEY : normalized;
+        return normalized.isEmpty() ? MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY : normalized;
     }
 
     private String parseUpdatedGameKey(String message) {
@@ -703,8 +710,8 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         changed |= ensureCounterExists(stats, counters, "parkour.last_ms." + typeKey);
         changed |= ensureCounterExists(stats, counters, "parkour.completions." + typeKey);
         // Persist profile NPC time-stat placeholders on first join/load.
-        changed |= ensureCounterExists(stats, counters, QUICKEST_DETECTIVE_WIN_SECONDS_KEY);
-        changed |= ensureCounterExists(stats, counters, QUICKEST_MURDERER_WIN_SECONDS_KEY);
+        changed |= ensureCounterExists(stats, counters, MongoManager.MURDER_MYSTERY_QUICKEST_DETECTIVE_WIN_SECONDS_KEY);
+        changed |= ensureCounterExists(stats, counters, MongoManager.MURDER_MYSTERY_QUICKEST_MURDERER_WIN_SECONDS_KEY);
         return changed;
     }
 

@@ -1,6 +1,7 @@
 package io.github.mebsic.proxy.service;
 
 import io.github.mebsic.core.server.ServerType;
+import io.github.mebsic.proxy.manager.MongoManager;
 import io.github.mebsic.proxy.config.ProxyConfig;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
@@ -30,7 +31,6 @@ public class ServerRegistryService {
     private static final long LOOKUP_REFRESH_MAX_AGE_MILLIS = 250L;
     private static final long CLEANUP_INTERVAL_MILLIS = 10_000L;
     private static final long REFRESH_FAILURE_LOG_INTERVAL_MILLIS = 10_000L;
-    private static final String AUTOSCALE_COLLECTION = "autoscale";
     private static final Logger LOGGER = LoggerFactory.getLogger(ServerRegistryService.class);
     private final ProxyServer proxy;
     private final ProxyConfig config;
@@ -102,7 +102,7 @@ public class ServerRegistryService {
             return;
         }
         MongoCollection<Document> collection = database.getCollection(config.getRegistryCollection());
-        MongoCollection<Document> drainingCollection = database.getCollection(AUTOSCALE_COLLECTION);
+        MongoCollection<Document> drainingCollection = database.getCollection(MongoManager.AUTOSCALE_COLLECTION);
         String group = config.getRegistryGroup() == null ? "" : config.getRegistryGroup().trim();
         if (now - lastCleanupMillis >= CLEANUP_INTERVAL_MILLIS) {
             cleanupStaleRecords(collection, group, now);

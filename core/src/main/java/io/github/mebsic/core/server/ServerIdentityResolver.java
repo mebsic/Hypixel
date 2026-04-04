@@ -1,5 +1,6 @@
 package io.github.mebsic.core.server;
 
+import io.github.mebsic.core.manager.MongoManager;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -44,7 +45,7 @@ public final class ServerIdentityResolver {
 
     private static boolean applyDefaults(FileConfiguration config) {
         boolean changed = false;
-        String group = firstNonBlank(config.getString("server.group", ""), env("GAME_TYPE"), "murdermystery");
+        String group = firstNonBlank(config.getString("server.group", ""), env("GAME_TYPE"), MongoManager.MURDER_MYSTERY_COLLECTION);
         changed |= setStringIfMissing(config, "server.group", group);
         changed |= setStringIfMissing(config, "server.type", inferType());
         changed |= setStringIfMissing(config, "server.address", firstNonBlank(env("HOSTNAME"), "localhost"));

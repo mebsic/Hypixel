@@ -662,12 +662,12 @@ public class PartyCommand implements SimpleCommand {
                 .map(connection -> connection.getServerInfo().getName())
                 .orElse(null);
         if (targetName == null || targetName.trim().isEmpty()) {
-            sendFramed(player, Component.text("Couldn't determine your current server.", NamedTextColor.RED));
+            sendFramed(player, Component.text("Cannot determine the current server!", NamedTextColor.RED));
             return;
         }
         RegisteredServer target = proxy.getServer(targetName).orElse(null);
         if (target == null) {
-            sendFramed(player, Component.text("Couldn't determine your current server.", NamedTextColor.RED));
+            sendFramed(player, Component.text("Cannot determine the current server!", NamedTextColor.RED));
             return;
         }
         boolean targetIsGame = false;
@@ -676,13 +676,9 @@ public class PartyCommand implements SimpleCommand {
             if (details != null) {
                 ServerType type = details.getType();
                 targetIsGame = type.isGame();
-                if (!type.isHub() && !type.isGame()) {
-                    sendFramed(player, Component.text("You can only warp from hub or game servers!", NamedTextColor.RED));
-                    return;
-                }
                 if (type.isGame() && isWarpBlockedGameState(details.getState())) {
                     sendFramed(player, Component.text(
-                            "You cannot warp your party while this game is in progress.",
+                            "You cannot warp because the game has started!",
                             NamedTextColor.RED
                     ));
                     return;
@@ -696,7 +692,7 @@ public class PartyCommand implements SimpleCommand {
         List<Player> toMove = onlinePartyMembersNotOnTarget(player.getUniqueId(), targetName);
         if (!serverHasCapacity(targetName, toMove.size())) {
             sendFramed(player, Component.text(
-                    "This server doesn't have enough room for your party right now.",
+                    "You cannot warp because this server is full!",
                     NamedTextColor.RED
             ));
             return;
@@ -1075,13 +1071,6 @@ public class PartyCommand implements SimpleCommand {
             return;
         }
         sendFramedToParty(player.getUniqueId(), Component.text("The party is no longer muted.", NamedTextColor.GREEN));
-    }
-
-    private void sendFeatureUnavailable(Player player, String feature) {
-        sendFramed(player, Component.text(
-                "The /" + commandRoot + " " + feature + " command is not implemented yet.",
-                NamedTextColor.RED
-        ));
     }
 
     private Component noPlayerFound(String input) {

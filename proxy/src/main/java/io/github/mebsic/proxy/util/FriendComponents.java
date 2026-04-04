@@ -1,5 +1,6 @@
 package io.github.mebsic.proxy.util;
 
+import io.github.mebsic.core.util.CommonMessages;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -43,8 +44,7 @@ public final class FriendComponents {
     }
 
     public static Component noPlayerFound(String rawName) {
-        String safe = rawName == null ? "unknown" : rawName;
-        return Component.text("No player found with name " + safe + "!", NamedTextColor.RED);
+        return Component.text(CommonMessages.PLAYER_NOT_FOUND_COMMAND, NamedTextColor.RED);
     }
 
     public static Component pageHeader(String title, int page, int totalPages, String commandPrefix) {

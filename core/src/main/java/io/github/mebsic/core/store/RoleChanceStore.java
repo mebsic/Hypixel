@@ -16,17 +16,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.in;
 import static com.mongodb.client.model.Filters.eq;
 
 public class RoleChanceStore {
+
     private final MongoCollection<Document> collection;
 
     public RoleChanceStore(MongoManager mongo) {
         this.collection = mongo.getRoleChances();
     }
 
-    public Map<UUID, RoleChance> load(Collection<UUID> uuids, double defaultPrimaryChance, double defaultSecondaryChance) {
+    public Map<UUID, RoleChance> load(Collection<UUID> uuids, double defaultMurdererChance, double defaultDetectiveChance) {
         Map<UUID, RoleChance> chances = new HashMap<>();
         if (uuids == null || uuids.isEmpty()) {
             return chances;
@@ -35,7 +37,7 @@ public class RoleChanceStore {
         for (UUID uuid : uuids) {
             ids.add(uuid.toString());
         }
-        for (Document doc : collection.find(in("uuid", ids))) {
+        for (Document doc : collection.find(and(eq(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_ROLE_CHANCE_RECORD_TYPE), in("uuid", ids)))) {
             String id = doc.getString("uuid");
             if (id == null) {
                 continue;
@@ -46,20 +48,14 @@ public class RoleChanceStore {
             } catch (IllegalArgumentException ignored) {
                 continue;
             }
-            Number primaryValue = doc.get("primaryChance", Number.class);
-            if (primaryValue == null) {
-                primaryValue = doc.get("murdererChance", Number.class);
-            }
-            Number secondaryValue = doc.get("secondaryChance", Number.class);
-            if (secondaryValue == null) {
-                secondaryValue = doc.get("detectiveChance", Number.class);
-            }
-            double primaryChance = primaryValue != null ? primaryValue.doubleValue() : defaultPrimaryChance;
-            double secondaryChance = secondaryValue != null ? secondaryValue.doubleValue() : defaultSecondaryChance;
-            chances.put(uuid, new RoleChance(uuid, primaryChance, secondaryChance));
+            Number murdererValue = doc.get("murdererChance", Number.class);
+            Number detectiveValue = doc.get("detectiveChance", Number.class);
+            double murdererChance = murdererValue != null ? murdererValue.doubleValue() : defaultMurdererChance;
+            double detectiveChance = detectiveValue != null ? detectiveValue.doubleValue() : defaultDetectiveChance;
+            chances.put(uuid, new RoleChance(uuid, murdererChance, detectiveChance));
         }
         for (UUID uuid : uuids) {
-            chances.putIfAbsent(uuid, new RoleChance(uuid, defaultPrimaryChance, defaultSecondaryChance));
+            chances.putIfAbsent(uuid, new RoleChance(uuid, defaultMurdererChance, defaultDetectiveChance));
         }
         return chances;
     }
@@ -72,25 +68,26 @@ public class RoleChanceStore {
         long now = System.currentTimeMillis();
         for (RoleChance chance : chances) {
             Document update = new Document("uuid", chance.getUuid().toString())
-                    .append("primaryChance", chance.getPrimaryChance())
-                    .append("secondaryChance", chance.getSecondaryChance())
+                    .append(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_ROLE_CHANCE_RECORD_TYPE)
+                    .append("murdererChance", chance.getMurdererChance())
+                    .append("detectiveChance", chance.getDetectiveChance())
                     .append("updatedAt", now);
             writes.add(new UpdateOneModel<>(
-                    eq("uuid", chance.getUuid().toString()),
+                    and(eq("uuid", chance.getUuid().toString()), eq(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_ROLE_CHANCE_RECORD_TYPE)),
                     new Document("$set", update),
                     new UpdateOptions().upsert(true)));
         }
         collection.bulkWrite(writes);
     }
 
-    public void ensureDefault(UUID uuid, double defaultPrimaryChance, double defaultSecondaryChance) {
+    public void ensureDefault(UUID uuid, double defaultMurdererChance, double defaultDetectiveChance) {
         if (uuid == null) {
             return;
         }
-        ensureDefaults(Collections.singletonList(uuid), defaultPrimaryChance, defaultSecondaryChance);
+        ensureDefaults(Collections.singletonList(uuid), defaultMurdererChance, defaultDetectiveChance);
     }
 
-    public void ensureDefaults(Collection<UUID> uuids, double defaultPrimaryChance, double defaultSecondaryChance) {
+    public void ensureDefaults(Collection<UUID> uuids, double defaultMurdererChance, double defaultDetectiveChance) {
         if (uuids == null || uuids.isEmpty()) {
             return;
         }
@@ -101,14 +98,13 @@ public class RoleChanceStore {
                 continue;
             }
             Document defaults = new Document("uuid", uuid.toString())
-                    .append("primaryChance", defaultPrimaryChance)
-                    .append("secondaryChance", defaultSecondaryChance)
-                    .append("murdererChance", defaultPrimaryChance)
-                    .append("detectiveChance", defaultSecondaryChance)
+                    .append(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_ROLE_CHANCE_RECORD_TYPE)
+                    .append("murdererChance", defaultMurdererChance)
+                    .append("detectiveChance", defaultDetectiveChance)
                     .append("createdAt", now)
                     .append("updatedAt", now);
             writes.add(new UpdateOneModel<>(
-                    eq("uuid", uuid.toString()),
+                    and(eq("uuid", uuid.toString()), eq(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_ROLE_CHANCE_RECORD_TYPE)),
                     new Document("$setOnInsert", defaults),
                     new UpdateOptions().upsert(true)));
         }

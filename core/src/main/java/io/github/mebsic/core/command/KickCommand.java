@@ -43,7 +43,7 @@ public class KickCommand implements CommandExecutor {
         UUID targetUuid = target != null ? target.getUniqueId() : MojangApi.lookupUuid(args[0]);
         String targetName = target != null ? target.getName() : args[0];
         if (targetUuid == null) {
-            sender.sendMessage(ChatColor.RED + "Player not found!");
+            sender.sendMessage(ChatColor.RED + CommonMessages.PLAYER_NOT_FOUND_COMMAND);
             return true;
         }
         if (sender instanceof Player && targetUuid.equals(((Player) sender).getUniqueId())) {

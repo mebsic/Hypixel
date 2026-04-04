@@ -556,6 +556,10 @@ public class PartyService {
         party.moderators.remove(member);
         memberToLeader.remove(member);
         notifyMemberRemovedFromParty(member);
+        if (party.members.size() <= 1) {
+            disband(party);
+            return LeaveResult.DISBANDED;
+        }
         return LeaveResult.LEFT;
     }
 

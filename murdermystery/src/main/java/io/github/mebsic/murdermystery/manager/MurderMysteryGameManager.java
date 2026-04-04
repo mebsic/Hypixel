@@ -1456,10 +1456,10 @@ public class MurderMysteryGameManager extends GameManager {
                 continue;
             }
             if (murderer != null) {
-                chance.adjustPrimaryChance(mmPlayer == murderer ? -MURDERER_DECREASE : MURDERER_INCREASE, MIN_ROLE_CHANCE, MAX_ROLE_CHANCE);
+                chance.adjustMurdererChance(mmPlayer == murderer ? -MURDERER_DECREASE : MURDERER_INCREASE, MIN_ROLE_CHANCE, MAX_ROLE_CHANCE);
             }
             if (detective != null) {
-                chance.adjustSecondaryChance(mmPlayer == detective ? -DETECTIVE_DECREASE : DETECTIVE_INCREASE, MIN_ROLE_CHANCE, MAX_ROLE_CHANCE);
+                chance.adjustDetectiveChance(mmPlayer == detective ? -DETECTIVE_DECREASE : DETECTIVE_INCREASE, MIN_ROLE_CHANCE, MAX_ROLE_CHANCE);
             }
         }
         chanceStore.save(chances.values());
@@ -1472,7 +1472,7 @@ public class MurderMysteryGameManager extends GameManager {
         double total = 0.0;
         for (MurderMysteryGamePlayer mmPlayer : candidates) {
             RoleChance chance = chances.get(mmPlayer.getUuid());
-            double weight = chance == null ? 1.0 : (murderer ? chance.getPrimaryChance() : chance.getSecondaryChance());
+            double weight = chance == null ? 1.0 : (murderer ? chance.getMurdererChance() : chance.getDetectiveChance());
             total += Math.max(0.0, weight);
         }
         if (total <= 0.0) {
@@ -1482,7 +1482,7 @@ public class MurderMysteryGameManager extends GameManager {
         double running = 0.0;
         for (MurderMysteryGamePlayer mmPlayer : candidates) {
             RoleChance chance = chances.get(mmPlayer.getUuid());
-            double weight = chance == null ? 1.0 : (murderer ? chance.getPrimaryChance() : chance.getSecondaryChance());
+            double weight = chance == null ? 1.0 : (murderer ? chance.getMurdererChance() : chance.getDetectiveChance());
             running += Math.max(0.0, weight);
             if (roll <= running) {
                 return mmPlayer;

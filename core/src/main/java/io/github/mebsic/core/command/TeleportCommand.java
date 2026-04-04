@@ -38,7 +38,7 @@ public class TeleportCommand implements CommandExecutor {
         if (args.length == 1) {
             Player target = Bukkit.getPlayerExact(args[0]);
             if (target == null) {
-                player.sendMessage(ChatColor.RED + "Player not found!");
+                player.sendMessage(ChatColor.RED + CommonMessages.PLAYER_NOT_FOUND_COMMAND);
                 return true;
             }
             player.teleport(target.getLocation());
@@ -50,7 +50,7 @@ public class TeleportCommand implements CommandExecutor {
             Player from = Bukkit.getPlayerExact(args[0]);
             Player to = Bukkit.getPlayerExact(args[1]);
             if (from == null || to == null) {
-                player.sendMessage(ChatColor.RED + "Player not found!");
+                player.sendMessage(ChatColor.RED + CommonMessages.PLAYER_NOT_FOUND_COMMAND);
                 return true;
             }
             from.teleport(to.getLocation());

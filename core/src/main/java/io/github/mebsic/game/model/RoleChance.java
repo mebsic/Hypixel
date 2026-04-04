@@ -4,33 +4,33 @@ import java.util.UUID;
 
 public class RoleChance {
     private final UUID uuid;
-    private double primaryChance;
-    private double secondaryChance;
+    private double murdererChance;
+    private double detectiveChance;
 
-    public RoleChance(UUID uuid, double primaryChance, double secondaryChance) {
+    public RoleChance(UUID uuid, double murdererChance, double detectiveChance) {
         this.uuid = uuid;
-        this.primaryChance = primaryChance;
-        this.secondaryChance = secondaryChance;
+        this.murdererChance = murdererChance;
+        this.detectiveChance = detectiveChance;
     }
 
     public UUID getUuid() {
         return uuid;
     }
 
-    public double getPrimaryChance() {
-        return primaryChance;
+    public double getMurdererChance() {
+        return murdererChance;
     }
 
-    public double getSecondaryChance() {
-        return secondaryChance;
+    public double getDetectiveChance() {
+        return detectiveChance;
     }
 
-    public void adjustPrimaryChance(double delta, double min, double max) {
-        primaryChance = clamp(primaryChance + delta, min, max);
+    public void adjustMurdererChance(double delta, double min, double max) {
+        murdererChance = clamp(murdererChance + delta, min, max);
     }
 
-    public void adjustSecondaryChance(double delta, double min, double max) {
-        secondaryChance = clamp(secondaryChance + delta, min, max);
+    public void adjustDetectiveChance(double delta, double min, double max) {
+        detectiveChance = clamp(detectiveChance + delta, min, max);
     }
 
     private double clamp(double value, double min, double max) {

@@ -45,7 +45,7 @@ public class GiveCommand implements CommandExecutor {
         if (args.length >= 3) {
             target = Bukkit.getPlayer(args[0]);
             if (target == null) {
-                sender.sendMessage(ChatColor.RED + "That player must be online!");
+                sender.sendMessage(ChatColor.RED + CommonMessages.PLAYER_NOT_FOUND_COMMAND);
                 return true;
             }
             rawItem = args[1];

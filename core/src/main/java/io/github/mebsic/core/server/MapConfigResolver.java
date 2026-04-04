@@ -44,19 +44,19 @@ public final class MapConfigResolver {
             MapConfigStore store = new MapConfigStore(mongo);
             store.ensureDefaults(gameKey);
             JsonObject root = store.loadRoot(gameKey);
-            if (root == null && !MapConfigStore.DEFAULT_GAME_KEY.equals(gameKey)) {
-                store.ensureDefaults(MapConfigStore.DEFAULT_GAME_KEY);
-                root = store.loadRoot(MapConfigStore.DEFAULT_GAME_KEY);
+            if (root == null && !MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(gameKey)) {
+                store.ensureDefaults(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
+                root = store.loadRoot(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
             }
             if (root != null) {
                 return root;
             }
-            plugin.getLogger().warning("No map config found in Mongo collection " + MapConfigStore.COLLECTION_NAME
+            plugin.getLogger().warning("No map config found in Mongo collection " + MongoManager.MAPS_COLLECTION
                     + " for key '" + gameKey + "'.");
         }
 
         plugin.getLogger().warning("Map config is unavailable from Mongo collection "
-                + MapConfigStore.COLLECTION_NAME + " for key '" + resolveGameKey(config) + "'.");
+                + MongoManager.MAPS_COLLECTION + " for key '" + resolveGameKey(config) + "'.");
         return null;
     }
 
@@ -330,10 +330,10 @@ public final class MapConfigResolver {
 
     private static String resolveGameKey(FileConfiguration config) {
         if (config == null) {
-            return MapConfigStore.DEFAULT_GAME_KEY;
+            return MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         }
         String normalized = MapConfigStore.normalizeGameKey(config.getString("server.group", ""));
-        return normalized.isEmpty() ? MapConfigStore.DEFAULT_GAME_KEY : normalized;
+        return normalized.isEmpty() ? MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY : normalized;
     }
 
     private static JsonObject resolveGameSection(JsonObject root, String gameKey) {
@@ -349,12 +349,12 @@ public final class MapConfigResolver {
         if (section != null) {
             return section;
         }
-        if (!MapConfigStore.DEFAULT_GAME_KEY.equals(gameKey)) {
-            section = child(gameTypes, MapConfigStore.DEFAULT_GAME_KEY);
+        if (!MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(gameKey)) {
+            section = child(gameTypes, MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
             if (section != null) {
                 return section;
             }
-            return child(root, MapConfigStore.DEFAULT_GAME_KEY);
+            return child(root, MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
         }
         return null;
     }
@@ -388,9 +388,6 @@ public final class MapConfigResolver {
             }
             String value = readLocationValue(childElement(section, "hubSpawn"));
             if (value == null) {
-                value = readLocationValue(childElement(section, "lobbySpawn"));
-            }
-            if (value == null) {
                 value = readLocationValue(childElement(section, "spawn"));
             }
             if (value != null) {
@@ -406,9 +403,6 @@ public final class MapConfigResolver {
             }
             String value = readLocationValue(childElement(section, "hubSpawn"));
             if (value == null) {
-                value = readLocationValue(childElement(section, "lobbySpawn"));
-            }
-            if (value == null) {
                 value = readLocationValue(childElement(section, "spawn"));
             }
             if (value != null) {
@@ -422,9 +416,6 @@ public final class MapConfigResolver {
                 continue;
             }
             String value = readLocationValue(childElement(section, "hubSpawn"));
-            if (value == null) {
-                value = readLocationValue(childElement(section, "lobbySpawn"));
-            }
             if (value == null) {
                 value = readLocationValue(childElement(section, "spawn"));
             }
@@ -603,7 +594,7 @@ public final class MapConfigResolver {
         if (map == null) {
             return false;
         }
-        if (hasValue(childElement(map, "hubSpawn")) || hasValue(childElement(map, "lobbySpawn"))) {
+        if (hasValue(childElement(map, "hubSpawn"))) {
             return true;
         }
         return hasNonEmptyArray(childElement(map, "npcs"))
@@ -649,11 +640,7 @@ public final class MapConfigResolver {
         if (map == null) {
             return null;
         }
-        String value = readLocationValue(childElement(map, "hubSpawn"));
-        if (value == null) {
-            value = readLocationValue(childElement(map, "lobbySpawn"));
-        }
-        return value;
+        return readLocationValue(childElement(map, "hubSpawn"));
     }
 
     private static String readLocationValue(JsonElement value) {

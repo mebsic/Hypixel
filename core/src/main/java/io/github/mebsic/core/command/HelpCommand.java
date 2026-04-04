@@ -1,5 +1,6 @@
 package io.github.mebsic.core.command;
 
+import io.github.mebsic.core.util.CommonMessages;
 import io.github.mebsic.core.util.NetworkConstants;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -33,7 +34,7 @@ public class HelpCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("This command is for players.");
+            sender.sendMessage(ChatColor.RED + CommonMessages.ONLY_PLAYERS_COMMAND);
             return true;
         }
         Player player = (Player) sender;

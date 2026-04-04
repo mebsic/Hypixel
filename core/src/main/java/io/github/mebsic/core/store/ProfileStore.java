@@ -16,6 +16,7 @@ import org.bson.Document;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Locale;
@@ -27,29 +28,13 @@ import static com.mongodb.client.model.Filters.eq;
 
 public class ProfileStore {
     private static final Set<String> BASE_STATS_KEYS = new HashSet<String>();
-    private static final String LEGACY_WINS_KEY = "wins";
-    private static final String LEGACY_KILLS_KEY = "kills";
-    private static final String LEGACY_GAMES_KEY = "games";
-    private static final String MURDER_MYSTERY_WINS_KEY = "murderMysteryWins";
-    private static final String MURDER_MYSTERY_KILLS_KEY = "murderMysteryKills";
-    private static final String MURDER_MYSTERY_GAMES_KEY = "murderMysteryGames";
-    private static final String MURDER_MYSTERY_WINS_AS_MURDERER_KEY = "murdermystery.winsAsMurderer";
-    private static final String MURDER_MYSTERY_KILLS_AS_MURDERER_KEY = "murdermystery.killsAsMurderer";
-    private static final String GIFTED_COUNTER_KEY = "ranks_gifted";
-    private static final String GIFTED_COUNTER_CAMEL_KEY = "ranksGifted";
-    private static final String GIFTED_COUNTER_FLAT_KEY = "ranksgifted";
-    private static final String RANKS_GIFTED_TOP_LEVEL_KEY = "ranksGifted";
 
     static {
-        BASE_STATS_KEYS.add(LEGACY_WINS_KEY);
-        BASE_STATS_KEYS.add(LEGACY_KILLS_KEY);
-        BASE_STATS_KEYS.add(LEGACY_GAMES_KEY);
-        BASE_STATS_KEYS.add(MURDER_MYSTERY_WINS_KEY);
-        BASE_STATS_KEYS.add(MURDER_MYSTERY_KILLS_KEY);
-        BASE_STATS_KEYS.add(MURDER_MYSTERY_GAMES_KEY);
-        BASE_STATS_KEYS.add("custom");
+        BASE_STATS_KEYS.add(MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY);
+        BASE_STATS_KEYS.add(MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY);
+        BASE_STATS_KEYS.add(MongoManager.MURDER_MYSTERY_LIFETIME_GAMES_KEY);
     }
-    private static final String DEFAULT_KNIFE_ID = "iron_sword";
+    private static final String DEFAULT_KNIFE_ID = KnifeSkinStore.DEFAULT_KNIFE_ID;
     private static final KnifeSkinDefinition DEFAULT_KNIFE = new KnifeSkinDefinition(
             DEFAULT_KNIFE_ID,
             "IRON_SWORD",
@@ -69,7 +54,7 @@ public class ProfileStore {
                 if (entry == null || entry.getKey() == null || entry.getValue() == null) {
                     continue;
                 }
-                String key = entry.getKey().trim().toLowerCase(Locale.ROOT);
+                String key = KnifeSkinStore.normalizeKnifeSkinId(entry.getKey());
                 if (key.isEmpty()) {
                     continue;
                 }
@@ -181,31 +166,22 @@ public class ProfileStore {
         if (spectatorFirstPersonEnabled != null) {
             profile.setSpectatorFirstPersonEnabled(spectatorFirstPersonEnabled);
         }
-        Document stats = doc.get("stats", Document.class);
+        Document statsRoot = doc.get("stats", Document.class);
+        Document stats = statsRoot == null ? null : statsRoot.get(MongoManager.MURDER_MYSTERY_COLLECTION, Document.class);
         if (stats != null) {
             Stats s = profile.getStats();
-            s.addKills(readStatValue(stats, MURDER_MYSTERY_KILLS_KEY, LEGACY_KILLS_KEY));
-            s.addWins(readStatValue(stats, MURDER_MYSTERY_WINS_KEY, LEGACY_WINS_KEY));
-            s.addGames(readStatValue(stats, MURDER_MYSTERY_GAMES_KEY, LEGACY_GAMES_KEY));
-            Document custom = stats.get("custom", Document.class);
-            if (custom != null) {
-                for (Map.Entry<String, Object> entry : custom.entrySet()) {
-                    if (entry == null || entry.getKey() == null) {
-                        continue;
-                    }
-                    Object value = entry.getValue();
-                    if (!(value instanceof Number)) {
-                        continue;
-                    }
-                    s.addCustomCounter(entry.getKey(), ((Number) value).intValue());
-                }
-            }
-            // Backward compatibility: treat any extra numeric stats keys as custom counters.
+            s.addKills(readStatValue(stats, MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY));
+            s.addWins(readStatValue(stats, MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY));
+            s.addGames(readStatValue(stats, MongoManager.MURDER_MYSTERY_LIFETIME_GAMES_KEY));
+            // Treat any extra numeric stats keys as custom counters for the Murder Mystery scope.
             for (Map.Entry<String, Object> entry : stats.entrySet()) {
                 if (entry == null || entry.getKey() == null) {
                     continue;
                 }
                 if (BASE_STATS_KEYS.contains(entry.getKey())) {
+                    continue;
+                }
+                if (isGiftedCounterKey(entry.getKey())) {
                     continue;
                 }
                 Object value = entry.getValue();
@@ -215,8 +191,9 @@ public class ProfileStore {
                 s.addCustomCounter(entry.getKey(), ((Number) value).intValue());
             }
         }
-        syncGiftedCounters(profile.getStats(), readStoredGiftedRanks(doc, profile.getStats()));
-        Document cosmetics = doc.get("cosmetics", Document.class);
+        profile.setRanksGifted(readGiftedRanks(doc));
+        Document cosmeticsRoot = doc.get("cosmetics", Document.class);
+        Document cosmetics = cosmeticsRoot == null ? null : cosmeticsRoot.get(MongoManager.MURDER_MYSTERY_COLLECTION, Document.class);
         if (cosmetics != null) {
             for (CosmeticType type : CosmeticType.values()) {
                 Document typeDoc = cosmetics.get(type.name().toLowerCase(), Document.class);
@@ -225,7 +202,7 @@ public class ProfileStore {
                 }
                 String selected = typeDoc.getString("selected");
                 if (selected != null) {
-                    String normalizedSelected = selected.trim().toLowerCase(Locale.ROOT);
+                    String normalizedSelected = normalizeCosmeticId(type, selected);
                     if (!normalizedSelected.isEmpty()) {
                         profile.getSelected().put(type, normalizedSelected);
                     }
@@ -237,7 +214,7 @@ public class ProfileStore {
                         if (unlockedId == null) {
                             continue;
                         }
-                        String normalizedUnlocked = unlockedId.trim().toLowerCase(Locale.ROOT);
+                        String normalizedUnlocked = normalizeCosmeticId(type, unlockedId);
                         if (!normalizedUnlocked.isEmpty()) {
                             profile.getUnlocked().get(type).add(normalizedUnlocked);
                         }
@@ -250,7 +227,7 @@ public class ProfileStore {
                         if (favorite == null) {
                             continue;
                         }
-                        String normalized = favorite.trim().toLowerCase(Locale.ROOT);
+                        String normalized = normalizeCosmeticId(type, favorite);
                         if (normalized.isEmpty()) {
                             continue;
                         }
@@ -261,42 +238,20 @@ public class ProfileStore {
                 }
             }
         }
-        // legacy knife migration
-        if (profile.getSelected().get(CosmeticType.KNIFE) != null
-                && profile.getSelected().get(CosmeticType.KNIFE).equalsIgnoreCase("default")) {
-            profile.getSelected().put(CosmeticType.KNIFE, "iron_sword");
-        }
-        if (profile.getSelected().get(CosmeticType.KNIFE) != null
-                && profile.getSelected().get(CosmeticType.KNIFE).equalsIgnoreCase("mm_skin_02_chest")) {
-            profile.getSelected().put(CosmeticType.KNIFE, "random");
-        }
-        if (profile.getSelected().get(CosmeticType.KNIFE) != null
-                && profile.getSelected().get(CosmeticType.KNIFE).equalsIgnoreCase("mm_skin_03_ender_chest")) {
-            profile.getSelected().put(CosmeticType.KNIFE, "random_favorite");
-        }
-        if (profile.getUnlocked().get(CosmeticType.KNIFE).contains("default")) {
-            profile.getUnlocked().get(CosmeticType.KNIFE).add("iron_sword");
-        }
-        profile.getUnlocked().get(CosmeticType.KNIFE).remove("mm_skin_02_chest");
-        profile.getUnlocked().get(CosmeticType.KNIFE).remove("mm_skin_03_ender_chest");
-        if (profile.getFavorites().get(CosmeticType.KNIFE).contains("default")) {
-            profile.getFavorites().get(CosmeticType.KNIFE).remove("default");
-            profile.getFavorites().get(CosmeticType.KNIFE).add("iron_sword");
-        }
-        profile.getFavorites().get(CosmeticType.KNIFE).remove("mm_skin_02_chest");
-        profile.getFavorites().get(CosmeticType.KNIFE).remove("mm_skin_03_ender_chest");
         profile.getFavorites().get(CosmeticType.KNIFE).retainAll(profile.getUnlocked().get(CosmeticType.KNIFE));
         return new LoadResult(profile, false);
     }
 
     public void save(Profile profile) {
         MongoCollection<Document> collection = mongo.getProfiles();
-        Document stats = new Document(MURDER_MYSTERY_WINS_KEY, profile.getStats().getWins())
-                .append(MURDER_MYSTERY_KILLS_KEY, profile.getStats().getKills())
-                .append(MURDER_MYSTERY_GAMES_KEY, profile.getStats().getGames());
-        Document custom = new Document();
+        Document murderMysteryStats = new Document(MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY, profile.getStats().getWins())
+                .append(MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY, profile.getStats().getKills())
+                .append(MongoManager.MURDER_MYSTERY_LIFETIME_GAMES_KEY, profile.getStats().getGames());
         for (Map.Entry<String, Integer> entry : profile.getStats().getCustomCounters().entrySet()) {
             if (entry == null || entry.getKey() == null) {
+                continue;
+            }
+            if (BASE_STATS_KEYS.contains(entry.getKey())) {
                 continue;
             }
             if (isGiftedCounterKey(entry.getKey())) {
@@ -306,22 +261,30 @@ public class ProfileStore {
             if (value == null) {
                 continue;
             }
-            custom.append(entry.getKey(), Math.max(0, value));
+            murderMysteryStats.append(entry.getKey(), Math.max(0, value));
         }
-        if (!custom.isEmpty()) {
-            stats.append("custom", custom);
-        }
-        Document cosmetics = new Document();
+        Document stats = new Document(MongoManager.MURDER_MYSTERY_COLLECTION, murderMysteryStats);
+        Document cosmeticsByType = new Document();
         for (CosmeticType typeKey : CosmeticType.values()) {
             Document typeDoc = new Document();
             String selected = profile.getSelected().get(typeKey);
             if (selected != null) {
-                selected = selected.trim().toLowerCase(Locale.ROOT);
+                selected = normalizeCosmeticId(typeKey, selected);
             }
             if (selected != null && !selected.isEmpty()) {
                 typeDoc.append("selected", selected);
             }
-            typeDoc.append("unlocked", profile.getUnlocked().get(typeKey));
+            java.util.Set<String> unlockedNormalized = new LinkedHashSet<String>();
+            java.util.Set<String> unlockedSource = profile.getUnlocked().get(typeKey);
+            if (unlockedSource != null) {
+                for (String unlockedId : unlockedSource) {
+                    String normalizedUnlocked = normalizeCosmeticId(typeKey, unlockedId);
+                    if (!normalizedUnlocked.isEmpty()) {
+                        unlockedNormalized.add(normalizedUnlocked);
+                    }
+                }
+            }
+            typeDoc.append("unlocked", unlockedNormalized);
             java.util.Set<String> favorites = profile.getFavorites().get(typeKey);
             java.util.Set<String> validFavorites = new java.util.HashSet<String>();
             if (favorites != null) {
@@ -329,11 +292,11 @@ public class ProfileStore {
                     if (favorite == null) {
                         continue;
                     }
-                    String normalized = favorite.trim().toLowerCase(Locale.ROOT);
+                    String normalized = normalizeCosmeticId(typeKey, favorite);
                     if (normalized.isEmpty()) {
                         continue;
                     }
-                    if (profile.getUnlocked().get(typeKey).contains(normalized)) {
+                    if (unlockedNormalized.contains(normalized)) {
                         validFavorites.add(normalized);
                     }
                 }
@@ -342,7 +305,7 @@ public class ProfileStore {
             if (typeKey == CosmeticType.KNIFE && !knifeSkins.isEmpty()) {
                 typeDoc.append("selectedMeta", buildKnifeMeta(selected));
                 java.util.List<Document> meta = new ArrayList<>();
-                for (String id : profile.getUnlocked().get(typeKey)) {
+                for (String id : unlockedNormalized) {
                     Document knifeMeta = buildKnifeMeta(id);
                     if (knifeMeta != null) {
                         meta.add(knifeMeta);
@@ -350,21 +313,20 @@ public class ProfileStore {
                 }
                 typeDoc.append("meta", meta);
             }
-            cosmetics.append(typeKey.name().toLowerCase(), typeDoc);
+            cosmeticsByType.append(typeKey.name().toLowerCase(), typeDoc);
         }
+        Document cosmetics = new Document(MongoManager.MURDER_MYSTERY_COLLECTION, cosmeticsByType);
         Rank rank = profile.getRank() == null ? Rank.DEFAULT : profile.getRank();
         String mvpPlusPlusPrefixColor = null;
         if (canUseMvpPlusPlusPrefixColor(rank)) {
             mvpPlusPlusPrefixColor = RankColorUtil.getEffectiveMvpPlusPlusPrefixColorId(profile.getMvpPlusPlusPrefixColor());
         }
-        int giftedRanks = readGiftedRanks(profile.getStats());
-
         Document doc = new Document("uuid", profile.getUuid().toString())
                 .append("name", profile.getName())
                 .append("rank", rank.name())
                 .append("networkLevel", profile.getNetworkLevel())
                 .append("networkGold", profile.getNetworkGold())
-                .append(RANKS_GIFTED_TOP_LEVEL_KEY, giftedRanks)
+                .append(MongoManager.PROFILE_RANKS_GIFTED_KEY, Math.max(0, profile.getRanksGifted()))
                 .append("hypixelExperience", profile.getHypixelExperience())
                 .append("plusColor", profile.getPlusColor())
                 .append("mvpPlusPlusPrefixColor", mvpPlusPlusPrefixColor)
@@ -398,8 +360,23 @@ public class ProfileStore {
         if (id == null || id.trim().isEmpty()) {
             return knifeSkins.get(DEFAULT_KNIFE_ID);
         }
-        KnifeSkinDefinition def = knifeSkins.get(id.trim().toLowerCase(Locale.ROOT));
+        KnifeSkinDefinition def = knifeSkins.get(normalizeCosmeticId(CosmeticType.KNIFE, id));
         return def == null ? knifeSkins.get(DEFAULT_KNIFE_ID) : def;
+    }
+
+    private String normalizeCosmeticId(CosmeticType type, String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        String normalized = trimmed.toLowerCase(Locale.ROOT);
+        if (type == CosmeticType.KNIFE) {
+            return KnifeSkinStore.normalizeKnifeSkinId(normalized);
+        }
+        return normalized;
     }
 
     public void updateRank(UUID uuid, String name, Rank rank) {
@@ -459,14 +436,8 @@ public class ProfileStore {
                         "playerVisibilityEnabled",
                         "networkLevel",
                         "networkGold",
-                        RANKS_GIFTED_TOP_LEVEL_KEY,
                         "hypixelExperience",
-                        "stats." + GIFTED_COUNTER_KEY,
-                        "stats." + GIFTED_COUNTER_CAMEL_KEY,
-                        "stats." + GIFTED_COUNTER_FLAT_KEY,
-                        "stats.custom." + GIFTED_COUNTER_KEY,
-                        "stats.custom." + GIFTED_COUNTER_CAMEL_KEY,
-                        "stats.custom." + GIFTED_COUNTER_FLAT_KEY
+                        MongoManager.PROFILE_RANKS_GIFTED_KEY
                 ))
                 .first();
         if (doc == null) {
@@ -514,7 +485,7 @@ public class ProfileStore {
         }
         Integer networkGoldRaw = doc.getInteger("networkGold");
         int networkGold = networkGoldRaw == null ? 0 : Math.max(0, networkGoldRaw);
-        int giftedRanks = readStoredGiftedRanks(doc, doc.get("stats", Document.class));
+        int giftedRanks = readGiftedRanks(doc);
         return new ProfileMeta(
                 name == null ? fallbackName : name,
                 rank,
@@ -547,7 +518,7 @@ public class ProfileStore {
                 .append("spectatorHideOtherSpectatorsEnabled", false)
                 .append("spectatorFirstPersonEnabled", false)
                 .append("buildModeExpiresAt", 0L)
-                .append(RANKS_GIFTED_TOP_LEVEL_KEY, 0);
+                .append(MongoManager.PROFILE_RANKS_GIFTED_KEY, 0);
     }
 
     private static boolean canUseMvpPlusPlusPrefixColor(Rank rank) {
@@ -558,90 +529,11 @@ public class ProfileStore {
         return rank == Rank.MVP_PLUS || rank == Rank.MVP_PLUS_PLUS;
     }
 
-    private int readGiftedRanks(Document stats) {
-        if (stats == null) {
+    private int readGiftedRanks(Document profile) {
+        if (profile == null) {
             return 0;
         }
-        Document custom = stats.get("custom", Document.class);
-        int gifted = 0;
-        gifted = Math.max(gifted, readGiftedCounter(custom, GIFTED_COUNTER_KEY));
-        gifted = Math.max(gifted, readGiftedCounter(custom, GIFTED_COUNTER_CAMEL_KEY));
-        gifted = Math.max(gifted, readGiftedCounter(custom, GIFTED_COUNTER_FLAT_KEY));
-        gifted = Math.max(gifted, readGiftedCounter(stats, GIFTED_COUNTER_KEY));
-        gifted = Math.max(gifted, readGiftedCounter(stats, GIFTED_COUNTER_CAMEL_KEY));
-        gifted = Math.max(gifted, readGiftedCounter(stats, GIFTED_COUNTER_FLAT_KEY));
-        return gifted;
-    }
-
-    private int readGiftedRanks(Stats stats) {
-        if (stats == null) {
-            return 0;
-        }
-        int gifted = 0;
-        gifted = Math.max(gifted, Math.max(0, stats.getCustomCounter(GIFTED_COUNTER_KEY)));
-        gifted = Math.max(gifted, Math.max(0, stats.getCustomCounter(GIFTED_COUNTER_CAMEL_KEY)));
-        gifted = Math.max(gifted, Math.max(0, stats.getCustomCounter(GIFTED_COUNTER_FLAT_KEY)));
-        return gifted;
-    }
-
-    private int readStoredGiftedRanks(Document profile, Document stats) {
-        int gifted = readGiftedRanks(stats);
-        if (profile != null) {
-            Integer topLevel = profile.getInteger(RANKS_GIFTED_TOP_LEVEL_KEY);
-            if (topLevel != null) {
-                gifted = Math.max(gifted, Math.max(0, topLevel));
-            }
-        }
-        return gifted;
-    }
-
-    private int readStoredGiftedRanks(Document profile, Stats stats) {
-        int gifted = readGiftedRanks(stats);
-        if (profile != null) {
-            Integer topLevel = profile.getInteger(RANKS_GIFTED_TOP_LEVEL_KEY);
-            if (topLevel != null) {
-                gifted = Math.max(gifted, Math.max(0, topLevel));
-            }
-        }
-        return gifted;
-    }
-
-    private void syncGiftedCounters(Stats stats, int value) {
-        if (stats == null) {
-            return;
-        }
-        int safeValue = Math.max(0, value);
-        setGiftedCounter(stats, GIFTED_COUNTER_CAMEL_KEY, safeValue);
-        clearGiftedCounter(stats, GIFTED_COUNTER_KEY);
-        clearGiftedCounter(stats, GIFTED_COUNTER_FLAT_KEY);
-    }
-
-    private void setGiftedCounter(Stats stats, String key, int value) {
-        if (stats == null || key == null || key.trim().isEmpty()) {
-            return;
-        }
-        int current = stats.getCustomCounter(key);
-        if (current == value) {
-            return;
-        }
-        stats.addCustomCounter(key, value - current);
-    }
-
-    private void clearGiftedCounter(Stats stats, String key) {
-        if (stats == null || key == null || key.trim().isEmpty()) {
-            return;
-        }
-        int current = stats.getCustomCounter(key);
-        if (current > 0) {
-            stats.addCustomCounter(key, -current);
-        }
-    }
-
-    private int readGiftedCounter(Document source, String key) {
-        if (source == null || key == null || key.trim().isEmpty()) {
-            return 0;
-        }
-        Object raw = source.get(key);
+        Object raw = profile.get(MongoManager.PROFILE_RANKS_GIFTED_KEY);
         if (raw instanceof Number) {
             return Math.max(0, ((Number) raw).intValue());
         }
@@ -652,10 +544,7 @@ public class ProfileStore {
         if (key == null || key.trim().isEmpty()) {
             return false;
         }
-        String normalized = key.trim();
-        return GIFTED_COUNTER_KEY.equals(normalized)
-                || GIFTED_COUNTER_CAMEL_KEY.equals(normalized)
-                || GIFTED_COUNTER_FLAT_KEY.equals(normalized);
+        return MongoManager.PROFILE_RANKS_GIFTED_KEY.equals(key.trim());
     }
 
     public static final class ProfileMeta {
@@ -751,25 +640,6 @@ public class ProfileStore {
         }
     }
 
-    public void storeLeaderboards(Map<UUID, Stats> cache) {
-        MongoCollection<Document> collection = mongo.getLeaderboards();
-        java.util.List<Document> entries = new java.util.ArrayList<>();
-        for (Map.Entry<UUID, Stats> entry : cache.entrySet()) {
-            Stats stats = entry.getValue();
-            Document doc = new Document("uuid", entry.getKey().toString())
-                    .append(MURDER_MYSTERY_WINS_KEY, stats.getWins())
-                    .append(MURDER_MYSTERY_KILLS_KEY, stats.getKills())
-                    .append(MURDER_MYSTERY_GAMES_KEY, stats.getGames())
-                    .append(MURDER_MYSTERY_WINS_AS_MURDERER_KEY, stats.getCustomCounter(MURDER_MYSTERY_WINS_AS_MURDERER_KEY))
-                    .append(MURDER_MYSTERY_KILLS_AS_MURDERER_KEY, stats.getCustomCounter(MURDER_MYSTERY_KILLS_AS_MURDERER_KEY));
-            entries.add(doc);
-        }
-        Document snapshot = new Document("type", "murdermystery")
-                .append("createdAt", System.currentTimeMillis())
-                .append("entries", entries);
-        collection.insertOne(snapshot);
-    }
-
     private int readStatValue(Document stats, String key) {
         if (stats == null) {
             return 0;
@@ -777,21 +647,6 @@ public class ProfileStore {
         Integer value = readNumericStat(stats, key);
         if (value != null) {
             return value;
-        }
-        return 0;
-    }
-
-    private int readStatValue(Document stats, String primaryKey, String fallbackKey) {
-        if (stats == null) {
-            return 0;
-        }
-        Integer primary = readNumericStat(stats, primaryKey);
-        if (primary != null) {
-            return primary;
-        }
-        Integer fallback = readNumericStat(stats, fallbackKey);
-        if (fallback != null) {
-            return fallback;
         }
         return 0;
     }

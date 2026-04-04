@@ -6,6 +6,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.UpdateOptions;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.server.ServerIdentityResolver;
 import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.server.ServerTypeResolver;
@@ -40,7 +41,7 @@ public class ServerRegistryService {
         String identity = ServerIdentityResolver.resolveIdentity(config, "lobby1A");
         this.serverId = identity;
         this.type = ServerTypeResolver.resolve(config, ServerType.MURDER_MYSTERY_HUB);
-        this.group = config.getString("server.group", "murdermystery");
+        this.group = config.getString("server.group", MongoManager.MURDER_MYSTERY_COLLECTION);
         this.address = config.getString("server.address", "hub");
         this.port = config.getInt("server.port", 25565);
         this.heartbeatSeconds = Math.max(1, config.getInt("server.heartbeatSeconds", 2));
@@ -55,7 +56,7 @@ public class ServerRegistryService {
         }
         this.client = MongoClients.create(mongoUri);
         MongoDatabase db = client.getDatabase(mongoDatabase);
-        this.collection = db.getCollection("server_registry");
+        this.collection = db.getCollection(MongoManager.SERVER_REGISTRY_COLLECTION);
         sendUpdate("online");
         this.task = plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin,
                 () -> sendUpdate("online"),

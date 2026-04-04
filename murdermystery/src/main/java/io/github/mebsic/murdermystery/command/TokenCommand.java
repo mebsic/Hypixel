@@ -2,6 +2,7 @@ package io.github.mebsic.murdermystery.command;
 
 import io.github.mebsic.core.util.CommonMessages;
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.service.ProfileCommandSyncService;
@@ -18,8 +19,6 @@ import org.bukkit.entity.Player;
 import java.util.UUID;
 
 public class TokenCommand implements CommandExecutor {
-    private static final String LEGACY_TOKENS = "tokens";
-
     private final CorePlugin corePlugin;
 
     public TokenCommand(CorePlugin corePlugin) {
@@ -48,7 +47,7 @@ public class TokenCommand implements CommandExecutor {
         UUID uuid = target != null ? target.getUniqueId() : MojangApi.lookupUuid(args[0]);
         String name = target != null ? target.getName() : args[0];
         if (uuid == null) {
-            sender.sendMessage(ChatColor.RED + "Player not found!");
+            sender.sendMessage(ChatColor.RED + CommonMessages.PLAYER_NOT_FOUND_COMMAND);
             return true;
         }
 
@@ -72,17 +71,13 @@ public class TokenCommand implements CommandExecutor {
                 if (selfTarget) {
                     sender.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
                 } else {
-                    sender.sendMessage(ChatColor.RED + "Profile is not loaded yet! Try again in a moment.");
+                    sender.sendMessage(ChatColor.RED + CommonMessages.TARGET_PROFILE_LOADING_COMMAND);
                 }
                 return true;
             }
             int current = MurderMysteryStats.getTokens(profile.getStats());
             if (current != amount) {
-                profile.getStats().addCustomCounter(MurderMysteryStats.TOKENS, amount - current);
-            }
-            int legacy = profile.getStats().getCustomCounter(LEGACY_TOKENS);
-            if (legacy > 0) {
-                profile.getStats().addCustomCounter(LEGACY_TOKENS, -legacy);
+                profile.getStats().addCustomCounter(MongoManager.MURDER_MYSTERY_TOKENS_KEY, amount - current);
             }
             corePlugin.saveProfile(profile);
         } else {
@@ -93,11 +88,7 @@ public class TokenCommand implements CommandExecutor {
             Profile profile = corePlugin.getProfileStore().load(uuid, name);
             int current = MurderMysteryStats.getTokens(profile.getStats());
             if (current != amount) {
-                profile.getStats().addCustomCounter(MurderMysteryStats.TOKENS, amount - current);
-            }
-            int legacy = profile.getStats().getCustomCounter(LEGACY_TOKENS);
-            if (legacy > 0) {
-                profile.getStats().addCustomCounter(LEGACY_TOKENS, -legacy);
+                profile.getStats().addCustomCounter(MongoManager.MURDER_MYSTERY_TOKENS_KEY, amount - current);
             }
             corePlugin.getProfileStore().save(profile);
         }
@@ -106,9 +97,9 @@ public class TokenCommand implements CommandExecutor {
         if (sync != null) {
             sync.dispatchCounterSet(
                     uuid,
-                    MurderMysteryStats.TOKENS,
+                    MongoManager.MURDER_MYSTERY_TOKENS_KEY,
                     amount,
-                    LEGACY_TOKENS,
+                    null,
                     null
             );
         }

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.store.MapConfigStore;
 import io.github.mebsic.game.map.GameMap;
@@ -114,7 +115,7 @@ public class MapManager {
             }
         }
         if (maps.isEmpty()) {
-            plugin.getLogger().warning("No maps loaded from MongoDB collection " + MapConfigStore.COLLECTION_NAME + ".");
+            plugin.getLogger().warning("No maps loaded from MongoDB collection " + MongoManager.MAPS_COLLECTION + ".");
         }
         this.rotation = config != null && config.rotation != null ? new ArrayList<>(config.rotation) : new ArrayList<>();
         registerConfiguredAliases(config);
@@ -305,14 +306,14 @@ public class MapManager {
         }
         String gameKey = MapConfigStore.normalizeGameKey(plugin.getConfig().getString("server.group", ""));
         if (gameKey.isEmpty()) {
-            gameKey = MapConfigStore.DEFAULT_GAME_KEY;
+            gameKey = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         }
         MapConfigStore store = new MapConfigStore(plugin.getMongoManager());
         store.ensureDefaults(gameKey);
         JsonObject root = store.loadRoot(gameKey);
-        if (root == null && !MapConfigStore.DEFAULT_GAME_KEY.equals(gameKey)) {
-            store.ensureDefaults(MapConfigStore.DEFAULT_GAME_KEY);
-            root = store.loadRoot(MapConfigStore.DEFAULT_GAME_KEY);
+        if (root == null && !MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(gameKey)) {
+            store.ensureDefaults(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
+            root = store.loadRoot(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
         }
         return root;
     }
@@ -356,7 +357,7 @@ public class MapManager {
         }
         addGameTypeKeyVariants(keys, typeName);
         addGameTypeKeyVariants(keys, type.getGameTypeDisplayName());
-        addGameTypeKeyVariants(keys, "murdermystery");
+        addGameTypeKeyVariants(keys, MongoManager.MURDER_MYSTERY_COLLECTION);
 
         return new ArrayList<>(keys);
     }

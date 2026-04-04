@@ -3,6 +3,7 @@ package io.github.mebsic.proxy.service;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import io.github.mebsic.core.util.HypixelExperienceUtil;
+import io.github.mebsic.proxy.manager.MongoManager;
 import org.bson.Document;
 
 import java.util.HashMap;
@@ -107,7 +108,7 @@ public class RankResolver {
         if (cached != null) {
             profileCache.remove(uuid, cached);
         }
-        MongoCollection<Document> collection = database.getCollection("profiles");
+        MongoCollection<Document> collection = database.getCollection(MongoManager.PROFILES_COLLECTION);
         try {
             Document loaded = collection.find(new Document("uuid", uuid.toString())).first();
             if (loaded == null) {

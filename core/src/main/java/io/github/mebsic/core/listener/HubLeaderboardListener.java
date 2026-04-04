@@ -2,6 +2,7 @@ package io.github.mebsic.core.listener;
 
 import com.mongodb.client.MongoCollection;
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.store.MapConfigStore;
@@ -41,14 +42,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.mongodb.client.model.Filters.eq;
 
 public class HubLeaderboardListener implements Listener {
-    private static final String MAPS_COLLECTION = "maps";
     private static final String MAP_CONFIG_UPDATE_CHANNEL = "map_config_update";
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
-    private static final String LEADERBOARD_METRIC_KILLS = "kills";
-    private static final String LEADERBOARD_METRIC_WINS = "wins";
-    private static final String LEADERBOARD_METRIC_WINS_AS_MURDERER = "wins_as_murderer";
-    private static final String LEGACY_LEADERBOARD_METRIC_KILLS_AS_MURDERER = "kills_as_murderer";
-    private static final String MURDER_MYSTERY_WINS_AS_MURDERER_KEY = "murdermystery.winsAsMurderer";
     private static final double HOLOGRAM_LINE_SPACING = 0.40d;
     private static final double LEADERBOARD_HOLOGRAM_BASE_Y_OFFSET = 2.4d;
     private static final double LEADERBOARD_HOLOGRAM_COLUMN_RADIUS_SQUARED = 0.04d;
@@ -75,7 +70,7 @@ public class HubLeaderboardListener implements Listener {
         this.serverType = serverType == null ? ServerType.UNKNOWN : serverType;
         this.leaderboardsByAnchor = new ConcurrentHashMap<UUID, RuntimeLeaderboard>();
         this.refreshInFlight = new AtomicBoolean(false);
-        this.activeGameKey = MapConfigStore.DEFAULT_GAME_KEY;
+        this.activeGameKey = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         loadAndSpawn();
         subscribeToMapConfigUpdates();
         this.refreshTask = startRefreshTask();
@@ -343,7 +338,7 @@ public class HubLeaderboardListener implements Listener {
 
     private String modeNameForType(ServerType type) {
         String normalized = gameTypeToken(type);
-        if ("murdermystery".equals(normalized)) {
+        if (MongoManager.MURDER_MYSTERY_COLLECTION.equals(normalized)) {
             return "Classic";
         }
         return "Default";
@@ -419,22 +414,22 @@ public class HubLeaderboardListener implements Listener {
             normalizedMetrics.add(normalizeMetric(metric));
         }
 
-        boolean includeKills = normalizedMetrics.contains(LEADERBOARD_METRIC_KILLS);
-        boolean includeWins = normalizedMetrics.contains(LEADERBOARD_METRIC_WINS);
-        boolean includeMurdererWins = normalizedMetrics.contains(LEADERBOARD_METRIC_WINS_AS_MURDERER);
+        boolean includeKills = normalizedMetrics.contains(MongoManager.LEADERBOARD_METRIC_KILLS);
+        boolean includeWins = normalizedMetrics.contains(MongoManager.LEADERBOARD_METRIC_WINS);
+        boolean includeMurdererWins = normalizedMetrics.contains(MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER);
         if (!includeKills && !includeWins && !includeMurdererWins) {
             return Collections.emptyMap();
         }
 
         Map<String, List<LeaderboardEntry>> entriesByMetric = new HashMap<String, List<LeaderboardEntry>>();
         if (includeKills) {
-            entriesByMetric.put(LEADERBOARD_METRIC_KILLS, new ArrayList<LeaderboardEntry>());
+            entriesByMetric.put(MongoManager.LEADERBOARD_METRIC_KILLS, new ArrayList<LeaderboardEntry>());
         }
         if (includeWins) {
-            entriesByMetric.put(LEADERBOARD_METRIC_WINS, new ArrayList<LeaderboardEntry>());
+            entriesByMetric.put(MongoManager.LEADERBOARD_METRIC_WINS, new ArrayList<LeaderboardEntry>());
         }
         if (includeMurdererWins) {
-            entriesByMetric.put(LEADERBOARD_METRIC_WINS_AS_MURDERER, new ArrayList<LeaderboardEntry>());
+            entriesByMetric.put(MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER, new ArrayList<LeaderboardEntry>());
         }
 
         for (Document doc : profiles.find()) {
@@ -446,7 +441,8 @@ public class HubLeaderboardListener implements Listener {
             if (name.isEmpty()) {
                 continue;
             }
-            Document stats = doc.get("stats", Document.class);
+            Document statsRoot = doc.get("stats", Document.class);
+            Document stats = statsRoot == null ? null : statsRoot.get(MongoManager.MURDER_MYSTERY_COLLECTION, Document.class);
             Rank rank = parseRank(doc.getString("rank"));
             String mvpPlusPlusPrefixColor = safeText(doc.getString("mvpPlusPlusPrefixColor"));
             ChatColor nameColor = RankFormatUtil.baseColor(
@@ -457,19 +453,19 @@ public class HubLeaderboardListener implements Listener {
             if (includeKills) {
                 int kills = readKills(stats);
                 if (kills > 0) {
-                    entriesByMetric.get(LEADERBOARD_METRIC_KILLS).add(new LeaderboardEntry(uuid, name, kills, nameColor));
+                    entriesByMetric.get(MongoManager.LEADERBOARD_METRIC_KILLS).add(new LeaderboardEntry(uuid, name, kills, nameColor));
                 }
             }
             if (includeWins) {
                 int wins = readWins(stats);
                 if (wins > 0) {
-                    entriesByMetric.get(LEADERBOARD_METRIC_WINS).add(new LeaderboardEntry(uuid, name, wins, nameColor));
+                    entriesByMetric.get(MongoManager.LEADERBOARD_METRIC_WINS).add(new LeaderboardEntry(uuid, name, wins, nameColor));
                 }
             }
             if (includeMurdererWins) {
                 int murdererWins = readMurdererWins(stats);
                 if (murdererWins > 0) {
-                    entriesByMetric.get(LEADERBOARD_METRIC_WINS_AS_MURDERER)
+                    entriesByMetric.get(MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER)
                             .add(new LeaderboardEntry(uuid, name, murdererWins, nameColor));
                 }
             }
@@ -511,13 +507,9 @@ public class HubLeaderboardListener implements Listener {
         if (stats == null) {
             return 0;
         }
-        Object modern = stats.get("murderMysteryWins");
+        Object modern = stats.get(MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY);
         if (modern instanceof Number) {
             return Math.max(0, ((Number) modern).intValue());
-        }
-        Object legacy = stats.get("wins");
-        if (legacy instanceof Number) {
-            return Math.max(0, ((Number) legacy).intValue());
         }
         return 0;
     }
@@ -526,13 +518,9 @@ public class HubLeaderboardListener implements Listener {
         if (stats == null) {
             return 0;
         }
-        Object modern = stats.get("murderMysteryKills");
+        Object modern = stats.get(MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY);
         if (modern instanceof Number) {
             return Math.max(0, ((Number) modern).intValue());
-        }
-        Object legacy = stats.get("kills");
-        if (legacy instanceof Number) {
-            return Math.max(0, ((Number) legacy).intValue());
         }
         return 0;
     }
@@ -541,25 +529,9 @@ public class HubLeaderboardListener implements Listener {
         if (stats == null) {
             return 0;
         }
-        Object modern = stats.get(MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
-        if (modern instanceof Number) {
-            return Math.max(0, ((Number) modern).intValue());
-        }
-        Object legacy = stats.get("winsAsMurderer");
-        if (legacy instanceof Number) {
-            return Math.max(0, ((Number) legacy).intValue());
-        }
-        Document custom = stats.get("custom", Document.class);
-        if (custom == null) {
-            return 0;
-        }
-        Object customModern = custom.get(MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
-        if (customModern instanceof Number) {
-            return Math.max(0, ((Number) customModern).intValue());
-        }
-        Object customLegacy = custom.get("winsAsMurderer");
-        if (customLegacy instanceof Number) {
-            return Math.max(0, ((Number) customLegacy).intValue());
+        Object value = stats.get(MongoManager.MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
+        if (value instanceof Number) {
+            return Math.max(0, ((Number) value).intValue());
         }
         return 0;
     }
@@ -578,10 +550,10 @@ public class HubLeaderboardListener implements Listener {
 
     private String leaderboardMetricLabel(String metric) {
         String resolved = normalizeMetric(metric);
-        if (LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(resolved)) {
+        if (MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(resolved)) {
             return "Lifetime Wins as Murderer";
         }
-        if (LEADERBOARD_METRIC_WINS.equals(resolved)) {
+        if (MongoManager.LEADERBOARD_METRIC_WINS.equals(resolved)) {
             return "Lifetime Wins";
         }
         return "Lifetime Kills";
@@ -589,20 +561,19 @@ public class HubLeaderboardListener implements Listener {
 
     private String normalizeMetric(String metric) {
         String normalized = safeText(metric).toLowerCase(Locale.ROOT);
-        if (LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(normalized)
-                || LEGACY_LEADERBOARD_METRIC_KILLS_AS_MURDERER.equals(normalized)
+        if (MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(normalized)
                 || "murdererwins".equals(normalized)
                 || "winsasmurderer".equals(normalized)
                 || "murderer_wins".equals(normalized)
                 || "murdererkills".equals(normalized)
                 || "killsasmurderer".equals(normalized)
                 || "murderer_kills".equals(normalized)) {
-            return LEADERBOARD_METRIC_WINS_AS_MURDERER;
+            return MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER;
         }
-        if (LEADERBOARD_METRIC_WINS.equals(normalized)) {
-            return LEADERBOARD_METRIC_WINS;
+        if (MongoManager.LEADERBOARD_METRIC_WINS.equals(normalized)) {
+            return MongoManager.LEADERBOARD_METRIC_WINS;
         }
-        return LEADERBOARD_METRIC_KILLS;
+        return MongoManager.LEADERBOARD_METRIC_KILLS;
     }
 
     private String gameTypeToken(ServerType type) {
@@ -899,9 +870,9 @@ public class HubLeaderboardListener implements Listener {
             }
             addGameKeyCandidate(candidates, typeName);
         }
-        addGameKeyCandidate(candidates, MapConfigStore.DEFAULT_GAME_KEY);
+        addGameKeyCandidate(candidates, MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
         if (candidates.isEmpty()) {
-            candidates.add(MapConfigStore.DEFAULT_GAME_KEY);
+            candidates.add(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
         }
         return candidates;
     }
@@ -952,8 +923,8 @@ public class HubLeaderboardListener implements Listener {
                 continue;
             }
             Document gameSection = resolveGameSection(root, gameKey);
-            if (gameSection == null && !MapConfigStore.DEFAULT_GAME_KEY.equals(gameKey)) {
-                gameSection = resolveGameSection(root, MapConfigStore.DEFAULT_GAME_KEY);
+            if (gameSection == null && !MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(gameKey)) {
+                gameSection = resolveGameSection(root, MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
             }
             if (gameSection == null) {
                 continue;
@@ -1010,7 +981,7 @@ public class HubLeaderboardListener implements Listener {
     }
 
     private Document loadRoot(String gameKey) {
-        MongoCollection<Document> maps = corePlugin.getMongoManager().getCollection(MAPS_COLLECTION);
+        MongoCollection<Document> maps = corePlugin.getMongoManager().getCollection(MongoManager.MAPS_COLLECTION);
         if (maps == null || gameKey == null || gameKey.trim().isEmpty()) {
             return null;
         }
@@ -1031,7 +1002,7 @@ public class HubLeaderboardListener implements Listener {
             return section;
         }
         if (gameTypes != null) {
-            section = asDocument(gameTypes.get(MapConfigStore.DEFAULT_GAME_KEY));
+            section = asDocument(gameTypes.get(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY));
             if (section != null) {
                 return section;
             }
@@ -1090,7 +1061,7 @@ public class HubLeaderboardListener implements Listener {
         if (map == null) {
             return false;
         }
-        return map.get("hubSpawn") != null || map.get("lobbySpawn") != null;
+        return map.get("hubSpawn") != null;
     }
 
     private void addRuntimeMapCandidates(List<String> target) {
@@ -1292,7 +1263,7 @@ public class HubLeaderboardListener implements Listener {
         private final Document map;
 
         private ResolvedHubMap(String gameKey, Document map) {
-            this.gameKey = gameKey == null ? MapConfigStore.DEFAULT_GAME_KEY : gameKey;
+            this.gameKey = gameKey == null ? MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY : gameKey;
             this.map = map;
         }
     }

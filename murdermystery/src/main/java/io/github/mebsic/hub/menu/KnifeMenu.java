@@ -7,6 +7,7 @@ import io.github.mebsic.core.model.KnifeSkinDefinition;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.service.CoreApi;
 import io.github.mebsic.core.service.CosmeticService;
+import io.github.mebsic.core.store.KnifeSkinStore;
 import io.github.mebsic.core.util.NetworkConstants;
 import io.github.mebsic.murdermystery.stats.MurderMysteryStats;
 import org.bukkit.ChatColor;
@@ -146,10 +147,10 @@ public class KnifeMenu extends Menu {
         if (CosmeticService.RANDOM_FAVORITE_KNIFE_ID.equals(normalized)) {
             return "Random Favorite Knife Skin";
         }
-        if ("mm_skin_02_chest".equals(normalized)) {
+        if (KnifeSkinStore.SKIN_02_CHEST_ID.equals(normalized)) {
             return "Random Knife Skin";
         }
-        if ("mm_skin_03_ender_chest".equals(normalized)) {
+        if (KnifeSkinStore.SKIN_03_ENDER_CHEST_ID.equals(normalized)) {
             return "Random Favorite Knife Skin";
         }
         KnifeSkinDefinition skin = coreApi.getKnifeSkins().get(normalized);
@@ -179,7 +180,11 @@ public class KnifeMenu extends Menu {
         if (trimmed.isEmpty()) {
             return "";
         }
-        return trimmed.toLowerCase(Locale.ROOT);
+        String normalized = trimmed.toLowerCase(Locale.ROOT);
+        if (KnifeSkinStore.skinNumber(normalized) > 0) {
+            return KnifeSkinStore.normalizeKnifeSkinId(normalized);
+        }
+        return normalized;
     }
 
     private Set<String> normalizeIdSet(Set<String> values) {

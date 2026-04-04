@@ -24,6 +24,7 @@ public class BuildEditMenu extends Menu {
     private static final int TOP_MIDDLE_SLOT = 13;
     private static final int TOP_RIGHT_SLOT = 15;
     private static final int BOTTOM_LEFT_SLOT = 29;
+    private static final int BOTTOM_MIDDLE_SLOT = 31;
     private static final int BOTTOM_RIGHT_SLOT = 33;
 
     private static final int GAME_CLOSE_SLOT = 31;
@@ -76,6 +77,7 @@ public class BuildEditMenu extends Menu {
 
         if (isHubMode()) {
             set(inventory, BOTTOM_LEFT_SLOT, parkourItem(player));
+            set(inventory, BOTTOM_MIDDLE_SLOT, hubImageDisplayItem());
             set(inventory, BOTTOM_RIGHT_SLOT, leaderboardItem(player));
         }
     }
@@ -159,6 +161,13 @@ public class BuildEditMenu extends Menu {
         if (slot == BOTTOM_LEFT_SLOT) {
             if (mapConfigService != null) {
                 mapConfigService.handleParkourSetupFromMenu(player, gameType, worldDirectory, click.isRightClick());
+            }
+            player.closeInventory();
+            return;
+        }
+        if (slot == BOTTOM_MIDDLE_SLOT) {
+            if (mapConfigService != null) {
+                mapConfigService.setHubImageDisplayFromMenu(player, gameType, worldDirectory);
             }
             player.closeInventory();
             return;
@@ -319,6 +328,17 @@ public class BuildEditMenu extends Menu {
                 "",
                 ChatColor.YELLOW + "Click to add!",
                 ChatColor.DARK_GRAY + "Right-click to change leaderboard type!"
+        );
+    }
+
+    private ItemStack hubImageDisplayItem() {
+        return item(
+                Material.MAP,
+                ChatColor.GREEN + "Information",
+                ChatColor.GRAY + "This will add an image which",
+                ChatColor.GRAY + "displays in the hub.",
+                "",
+                ChatColor.YELLOW + "Click to add!"
         );
     }
 

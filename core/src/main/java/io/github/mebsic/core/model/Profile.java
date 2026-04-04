@@ -12,6 +12,7 @@ public class Profile {
     private Rank rank;
     private int networkLevel;
     private int networkGold;
+    private int ranksGifted;
     private long hypixelExperience;
     private String plusColor;
     private String mvpPlusPlusPrefixColor;
@@ -34,6 +35,7 @@ public class Profile {
         this.rank = Rank.DEFAULT;
         this.networkLevel = 0;
         this.networkGold = 0;
+        this.ranksGifted = 0;
         this.hypixelExperience = 0L;
         this.plusColor = null;
         this.mvpPlusPlusPrefixColor = null;
@@ -89,6 +91,14 @@ public class Profile {
 
     public void setNetworkGold(int networkGold) {
         this.networkGold = Math.max(0, networkGold);
+    }
+
+    public int getRanksGifted() {
+        return ranksGifted;
+    }
+
+    public void setRanksGifted(int ranksGifted) {
+        this.ranksGifted = Math.max(0, ranksGifted);
     }
 
     public long getHypixelExperience() {

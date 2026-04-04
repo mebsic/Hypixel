@@ -159,8 +159,8 @@ public class TipService {
                 continue;
             }
             RoleChance roleChance = chanceCache.get(player.getUniqueId());
-            double murdererWeight = resolvePrimaryChance(roleChance);
-            double detectiveWeight = resolveSecondaryChance(roleChance);
+            double murdererWeight = resolveMurdererChance(roleChance);
+            double detectiveWeight = resolveDetectiveChance(roleChance);
             double murdererPercent = toPercent(murdererWeight, totals.primaryTotal);
             double detectivePercent = toPercent(detectiveWeight, totals.secondaryTotal);
             sendActionBar(player, buildPregameActionBar(murdererPercent, detectivePercent), ActionBarPriority.LOW, 0L);
@@ -245,28 +245,28 @@ public class TipService {
     }
 
     private ChanceTotals calculateTotals(List<Player> participants) {
-        double primary = 0.0;
-        double secondary = 0.0;
+        double murderer = 0.0;
+        double detective = 0.0;
         for (Player participant : participants) {
             RoleChance chance = chanceCache.get(participant.getUniqueId());
-            primary += resolvePrimaryChance(chance);
-            secondary += resolveSecondaryChance(chance);
+            murderer += resolveMurdererChance(chance);
+            detective += resolveDetectiveChance(chance);
         }
-        return new ChanceTotals(primary, secondary);
+        return new ChanceTotals(murderer, detective);
     }
 
-    private double resolvePrimaryChance(RoleChance chance) {
+    private double resolveMurdererChance(RoleChance chance) {
         if (chance == null) {
             return Math.max(0.0, defaultMurdererChance);
         }
-        return Math.max(0.0, chance.getPrimaryChance());
+        return Math.max(0.0, chance.getMurdererChance());
     }
 
-    private double resolveSecondaryChance(RoleChance chance) {
+    private double resolveDetectiveChance(RoleChance chance) {
         if (chance == null) {
             return Math.max(0.0, defaultDetectiveChance);
         }
-        return Math.max(0.0, chance.getSecondaryChance());
+        return Math.max(0.0, chance.getDetectiveChance());
     }
 
     private double toPercent(double weight, double total) {

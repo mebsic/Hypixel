@@ -42,7 +42,7 @@ public class GoldCommand implements CommandExecutor {
         UUID uuid = target != null ? target.getUniqueId() : MojangApi.lookupUuid(args[0]);
         String name = target != null ? target.getName() : args[0];
         if (uuid == null) {
-            sender.sendMessage(ChatColor.RED + "Player not found!");
+            sender.sendMessage(ChatColor.RED + CommonMessages.PLAYER_NOT_FOUND_COMMAND);
             return true;
         }
 
@@ -67,7 +67,7 @@ public class GoldCommand implements CommandExecutor {
                 if (selfTarget) {
                     sender.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
                 } else {
-                    sender.sendMessage(ChatColor.RED + "Profile is not loaded yet! Try again in a moment.");
+                    sender.sendMessage(ChatColor.RED + CommonMessages.TARGET_PROFILE_LOADING_COMMAND);
                 }
                 return true;
             }

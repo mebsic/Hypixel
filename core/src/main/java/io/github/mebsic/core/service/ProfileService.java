@@ -3,6 +3,7 @@ package io.github.mebsic.core.service;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.store.ProfileStore;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -16,7 +17,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ProfileService {
-    private static final String PRIMARY_GIFTED_COUNTER_KEY = "ranksGifted";
 
     private final CorePlugin plugin;
     private final ProfileStore store;
@@ -246,22 +246,22 @@ public class ProfileService {
     }
 
     private int readGiftedRanks(Profile profile) {
-        if (profile == null || profile.getStats() == null) {
+        if (profile == null) {
             return 0;
         }
-        return Math.max(0, profile.getStats().getCustomCounter(PRIMARY_GIFTED_COUNTER_KEY));
+        return Math.max(0, profile.getRanksGifted());
     }
 
     private boolean setGiftedRanks(Profile profile, int target) {
-        if (profile == null || profile.getStats() == null) {
+        if (profile == null) {
             return false;
         }
         int desired = Math.max(0, target);
-        int current = profile.getStats().getCustomCounter(PRIMARY_GIFTED_COUNTER_KEY);
+        int current = Math.max(0, profile.getRanksGifted());
         if (current == desired) {
             return false;
         }
-        profile.getStats().addCustomCounter(PRIMARY_GIFTED_COUNTER_KEY, desired - current);
+        profile.setRanksGifted(desired);
         return true;
     }
 
@@ -273,7 +273,7 @@ public class ProfileService {
         if (sync == null) {
             return;
         }
-        sync.dispatchCounterSet(uuid, PRIMARY_GIFTED_COUNTER_KEY, Math.max(0, value), null, null);
+        sync.dispatchCounterSet(uuid, MongoManager.PROFILE_RANKS_GIFTED_KEY, Math.max(0, value), null, null);
     }
 
     private static final class PlayerSnapshot {

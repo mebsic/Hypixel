@@ -19,10 +19,6 @@ import java.util.Set;
 import static com.mongodb.client.model.Filters.eq;
 
 public class MapConfigStore {
-    public static final String COLLECTION_NAME = "maps";
-    public static final String DEFAULT_GAME_KEY = "murdermystery";
-    private static final String MAP_DROP_ITEMS_KEY = "dropItem";
-
     private final MongoManager mongo;
 
     public MapConfigStore(MongoManager mongo) {
@@ -134,7 +130,7 @@ public class MapConfigStore {
 
     private void ensureMurderMysteryNoMobSpawningDefaults(String gameKey) {
         String key = resolveGameKey(gameKey);
-        if (!DEFAULT_GAME_KEY.equalsIgnoreCase(key)) {
+        if (!MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equalsIgnoreCase(key)) {
             return;
         }
 
@@ -259,22 +255,22 @@ public class MapConfigStore {
 
     private String resolveGameKey(String gameKey) {
         String normalized = normalizeGameKey(gameKey);
-        return normalized.isEmpty() ? DEFAULT_GAME_KEY : normalized;
+        return normalized.isEmpty() ? MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY : normalized;
     }
 
     private MongoCollection<Document> collection() {
         if (mongo == null) {
             return null;
         }
-        mongo.ensureCollection(COLLECTION_NAME);
-        return mongo.getCollection(COLLECTION_NAME);
+        mongo.ensureCollection(MongoManager.MAPS_COLLECTION);
+        return mongo.getCollection(MongoManager.MAPS_COLLECTION);
     }
 
     private JsonObject defaultRoot(String gameKey) {
         JsonObject root = new JsonObject();
-        if (DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey)) {
+        if (MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey)) {
             JsonObject gameTypes = new JsonObject();
-            gameTypes.add(DEFAULT_GAME_KEY, defaultGameSection("hub", true, true));
+            gameTypes.add(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY, defaultGameSection("hub", true, true));
             root.add("gameTypes", gameTypes);
             return root;
         }
@@ -325,7 +321,7 @@ public class MapConfigStore {
 
         JsonArray dropItem = new JsonArray();
         dropItem.add(defaultLocation(2.5d, 64.0d, 2.5d, 0.0f, 0.0f));
-        map.add(MAP_DROP_ITEMS_KEY, dropItem);
+        map.add(MongoManager.MAP_DROP_ITEMS_KEY, dropItem);
         return map;
     }
 
@@ -519,7 +515,7 @@ public class MapConfigStore {
         if (map == null) {
             return false;
         }
-        if (hasValue(map.get("hubSpawn")) || hasValue(map.get("lobbySpawn"))) {
+        if (hasValue(map.get(MongoManager.MAP_HUB_SPAWN_KEY))) {
             return true;
         }
         return hasNonEmptyArray(map.get("npcs"))
@@ -541,10 +537,13 @@ public class MapConfigStore {
             return false;
         }
         boolean changed = false;
-        changed |= normalizeLocationField(root, "hubSpawn");
-        changed |= normalizeLocationField(root, "lobbySpawn");
+        changed |= canonicalizeHubSpawnField(root);
+        changed |= normalizeLocationField(root, MongoManager.MAP_HUB_SPAWN_KEY);
         changed |= normalizeLocationField(root, "spawn");
         changed |= normalizeServerTypeLocations(child(root, "serverTypes"));
+        if (root.has("maps") && root.get("maps") != null && root.get("maps").isJsonArray()) {
+            changed |= normalizeGameSectionLocations(root);
+        }
 
         JsonObject resolvedGameSection = resolveGameSection(root, gameKey);
         changed |= normalizeGameSectionLocations(resolvedGameSection);
@@ -577,8 +576,8 @@ public class MapConfigStore {
             return false;
         }
         boolean changed = false;
-        changed |= normalizeLocationField(section, "hubSpawn");
-        changed |= normalizeLocationField(section, "lobbySpawn");
+        changed |= canonicalizeHubSpawnField(section);
+        changed |= normalizeLocationField(section, MongoManager.MAP_HUB_SPAWN_KEY);
         changed |= normalizeLocationField(section, "spawn");
         changed |= normalizeServerTypeLocations(child(section, "serverTypes"));
 
@@ -600,10 +599,10 @@ public class MapConfigStore {
         }
         boolean changed = false;
         changed |= normalizeLocationField(map, "spawn");
-        changed |= normalizeLocationField(map, "hubSpawn");
-        changed |= normalizeLocationField(map, "lobbySpawn");
+        changed |= canonicalizeHubSpawnField(map);
+        changed |= normalizeLocationField(map, MongoManager.MAP_HUB_SPAWN_KEY);
         changed |= normalizeLocationArray(map, "spawns");
-        changed |= normalizeLocationArray(map, MAP_DROP_ITEMS_KEY);
+        changed |= normalizeLocationArray(map, MongoManager.MAP_DROP_ITEMS_KEY);
         return changed;
     }
 
@@ -617,11 +616,24 @@ public class MapConfigStore {
                 continue;
             }
             JsonObject section = entry.getValue().getAsJsonObject();
-            changed |= normalizeLocationField(section, "hubSpawn");
-            changed |= normalizeLocationField(section, "lobbySpawn");
+            changed |= canonicalizeHubSpawnField(section);
+            changed |= normalizeLocationField(section, MongoManager.MAP_HUB_SPAWN_KEY);
             changed |= normalizeLocationField(section, "spawn");
         }
         return changed;
+    }
+
+    private boolean canonicalizeHubSpawnField(JsonObject parent) {
+        if (parent == null || !parent.has(MongoManager.MAP_LOBBY_SPAWN_KEY)) {
+            return false;
+        }
+        JsonElement lobbySpawn = parent.get(MongoManager.MAP_LOBBY_SPAWN_KEY);
+        JsonElement hubSpawn = parent.get(MongoManager.MAP_HUB_SPAWN_KEY);
+        if ((hubSpawn == null || hubSpawn.isJsonNull()) && lobbySpawn != null && !lobbySpawn.isJsonNull()) {
+            parent.add(MongoManager.MAP_HUB_SPAWN_KEY, lobbySpawn.deepCopy());
+        }
+        parent.remove(MongoManager.MAP_LOBBY_SPAWN_KEY);
+        return true;
     }
 
     private boolean normalizeLocationArray(JsonObject parent, String key) {
@@ -830,9 +842,9 @@ public class MapConfigStore {
                 root.remove(gameKey);
                 gameTypes.add(gameKey, section);
             } else {
-                section = defaultGameSection(DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey) ? "hub" : "default",
-                        DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey),
-                        DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey));
+                section = defaultGameSection(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey) ? "hub" : "default",
+                        MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey),
+                        MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey));
                 gameTypes.add(gameKey, section);
             }
         }
@@ -860,7 +872,7 @@ public class MapConfigStore {
             root.remove("serverTypes");
         }
 
-        if (!DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey)) {
+        if (!MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equalsIgnoreCase(gameKey)) {
             return;
         }
 

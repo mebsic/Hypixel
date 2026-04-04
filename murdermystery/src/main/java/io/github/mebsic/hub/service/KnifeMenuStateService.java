@@ -7,6 +7,7 @@ import io.github.mebsic.core.model.CosmeticType;
 import io.github.mebsic.core.model.KnifeSkinDefinition;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.service.CoreApi;
+import io.github.mebsic.core.store.KnifeSkinStore;
 import org.bson.Document;
 import org.bukkit.entity.Player;
 
@@ -21,11 +22,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.eq;
 
 public class KnifeMenuStateService {
-    public static final String COLLECTION_NAME = "murdermystery_knife_menu_state";
-    private static final String GAME_TYPE = "murdermystery";
 
     private static final String SORT_A_Z = "A_Z";
     private static final String SORT_Z_A = "Z_A";
@@ -49,8 +49,8 @@ public class KnifeMenuStateService {
             this.collection = null;
             return;
         }
-        mongoManager.ensureCollection(COLLECTION_NAME);
-        this.collection = mongoManager.getCollection(COLLECTION_NAME);
+        mongoManager.ensureCollection(MongoManager.MURDER_MYSTERY_KNIFE_MENU_STATE_COLLECTION);
+        this.collection = mongoManager.getCollection(MongoManager.MURDER_MYSTERY_KNIFE_MENU_STATE_COLLECTION);
     }
 
     public void initialize(Collection<? extends Player> players) {
@@ -87,13 +87,13 @@ public class KnifeMenuStateService {
         favorites.retainAll(unlocked);
         favorites.remove("random");
         favorites.remove("random_favorite");
-        favorites.remove("mm_skin_02_chest");
-        favorites.remove("mm_skin_03_ender_chest");
+        favorites.remove(KnifeSkinStore.SKIN_02_CHEST_ID);
+        favorites.remove(KnifeSkinStore.SKIN_03_ENDER_CHEST_ID);
         List<String> favoriteOrdered = new ArrayList<String>(favorites);
         Collections.sort(favoriteOrdered);
         String selected = normalize(profile.getSelected().get(CosmeticType.KNIFE));
         if (selected.isEmpty()) {
-            selected = "iron_sword";
+            selected = KnifeSkinStore.DEFAULT_KNIFE_ID;
         }
 
         SortState current = getSortState(uuid);
@@ -108,7 +108,8 @@ public class KnifeMenuStateService {
 
         long now = System.currentTimeMillis();
         Document set = new Document("uuid", uuid.toString())
-                .append("gameType", GAME_TYPE)
+                .append(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_KNIFE_MENU_STATE_RECORD_TYPE)
+                .append("gameType", MongoManager.MURDER_MYSTERY_GAME_TYPE)
                 .append("playerName", safe(playerName))
                 .append("selectedKnifeSkin", selected)
                 .append("unlockedKnifeSkinIds", unlockedOrdered)
@@ -122,7 +123,7 @@ public class KnifeMenuStateService {
                 .append("sortOptions", SORT_OPTIONS)
                 .append("updatedAt", now);
         collection.updateOne(
-                eq("uuid", uuid.toString()),
+                and(eq("uuid", uuid.toString()), eq(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_KNIFE_MENU_STATE_RECORD_TYPE)),
                 new Document("$set", set).append("$setOnInsert", new Document("createdAt", now)),
                 new UpdateOptions().upsert(true)
         );
@@ -139,7 +140,7 @@ public class KnifeMenuStateService {
         if (collection == null) {
             return new SortState(SORT_LOWEST_RARITY, false);
         }
-        Document doc = collection.find(eq("uuid", uuid.toString())).first();
+        Document doc = collection.find(and(eq("uuid", uuid.toString()), eq(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_KNIFE_MENU_STATE_RECORD_TYPE))).first();
         if (doc == null) {
             return new SortState(SORT_LOWEST_RARITY, false);
         }
@@ -162,13 +163,14 @@ public class KnifeMenuStateService {
         }
         long now = System.currentTimeMillis();
         Document set = new Document("sortMode", safeSortMode)
-                .append("gameType", GAME_TYPE)
+                .append(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_KNIFE_MENU_STATE_RECORD_TYPE)
+                .append("gameType", MongoManager.MURDER_MYSTERY_GAME_TYPE)
                 .append("ownedItemsFirst", ownedItemsFirst)
                 .append("playerName", safe(playerName))
                 .append("sortOptions", SORT_OPTIONS)
                 .append("updatedAt", now);
         collection.updateOne(
-                eq("uuid", uuid.toString()),
+                and(eq("uuid", uuid.toString()), eq(MongoManager.MURDER_MYSTERY_RECORD_TYPE_FIELD, MongoManager.MURDER_MYSTERY_KNIFE_MENU_STATE_RECORD_TYPE)),
                 new Document("$set", set).append("$setOnInsert", new Document("createdAt", now).append("uuid", uuid.toString())),
                 new UpdateOptions().upsert(true)
         );
@@ -224,11 +226,11 @@ public class KnifeMenuStateService {
             if (normalized.isEmpty()) {
                 continue;
             }
-            if ("iron_sword".equals(normalized)
+            if (KnifeSkinStore.DEFAULT_KNIFE_ID.equals(normalized)
                     || "random".equals(normalized)
                     || "random_favorite".equals(normalized)
-                    || "mm_skin_02_chest".equals(normalized)
-                    || "mm_skin_03_ender_chest".equals(normalized)) {
+                    || KnifeSkinStore.SKIN_02_CHEST_ID.equals(normalized)
+                    || KnifeSkinStore.SKIN_03_ENDER_CHEST_ID.equals(normalized)) {
                 continue;
             }
             return true;
@@ -252,7 +254,11 @@ public class KnifeMenuStateService {
         if (trimmed.isEmpty()) {
             return "";
         }
-        return trimmed.toLowerCase(Locale.ROOT);
+        String normalized = trimmed.toLowerCase(Locale.ROOT);
+        if (KnifeSkinStore.skinNumber(normalized) > 0) {
+            return KnifeSkinStore.normalizeKnifeSkinId(normalized);
+        }
+        return normalized;
     }
 
     private String safe(String value) {

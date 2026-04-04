@@ -7,6 +7,7 @@ import net.citizensnpcs.api.npc.NPCRegistry;
 import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.menu.ClickToPlayNpcMenu;
 import io.github.mebsic.core.menu.ProfileNpcMenu;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Stats;
 import io.github.mebsic.core.server.ServerType;
@@ -54,12 +55,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import static com.mongodb.client.model.Filters.eq;
 
 public class HubNpcListener implements Listener {
-    private static final String MAPS_COLLECTION = "maps";
     private static final String MAP_CONFIG_UPDATE_CHANNEL = "map_config_update";
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
     private static final String CLICK_TO_PLAY_LABEL = "CLICK TO PLAY";
     private static final String PROFILE_CLICK_LABEL = "CLICK FOR STATS";
-    private static final String WINS_AS_MURDERER_KEY = "murdermystery.winsAsMurderer";
     private static final String DEFAULT_CLICK_TO_PLAY_SKIN = "MurderMytsery";
     private static final double HOLOGRAM_LINE_SPACING = 0.30d;
     private static final double CLICK_TO_PLAY_HOLOGRAM_BOTTOM_Y_OFFSET = 0.05d;
@@ -114,7 +113,7 @@ public class HubNpcListener implements Listener {
         this.linkedEntityToAnchor = new ConcurrentHashMap<UUID, UUID>();
         this.profileNpcTemplates = new ArrayList<ProfileNpcTemplate>();
         this.profileNpcsByViewer = new ConcurrentHashMap<UUID, List<RuntimeNpc>>();
-        this.activeGameKey = MapConfigStore.DEFAULT_GAME_KEY;
+        this.activeGameKey = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         this.registrySnapshot = createRegistrySnapshot();
         if (!citizensEnabled) {
             plugin.getLogger().warning("Citizens is missing or not initialized; hub NPC spawning is disabled.");
@@ -613,7 +612,7 @@ public class HubNpcListener implements Listener {
         }
         Stats stats = profile == null ? null : profile.getStats();
         int wins = stats == null ? 0 : Math.max(0, stats.getWins());
-        int winsAsMurderer = stats == null ? 0 : Math.max(0, stats.getCustomCounter(WINS_AS_MURDERER_KEY));
+        int winsAsMurderer = stats == null ? 0 : Math.max(0, stats.getCustomCounter(MongoManager.MURDER_MYSTERY_WINS_AS_MURDERER_KEY));
 
         List<String> lines = new ArrayList<String>(4);
         lines.add(ChatColor.GOLD.toString() + ChatColor.BOLD + "Your " + gameTypeLabel() + " Profile");
@@ -2097,9 +2096,9 @@ public class HubNpcListener implements Listener {
             }
             addGameKeyCandidate(candidates, typeName);
         }
-        addGameKeyCandidate(candidates, MapConfigStore.DEFAULT_GAME_KEY);
+        addGameKeyCandidate(candidates, MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
         if (candidates.isEmpty()) {
-            candidates.add(MapConfigStore.DEFAULT_GAME_KEY);
+            candidates.add(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
         }
         return candidates;
     }
@@ -2150,8 +2149,8 @@ public class HubNpcListener implements Listener {
                 continue;
             }
             Document gameSection = resolveGameSection(root, gameKey);
-            if (gameSection == null && !MapConfigStore.DEFAULT_GAME_KEY.equals(gameKey)) {
-                gameSection = resolveGameSection(root, MapConfigStore.DEFAULT_GAME_KEY);
+            if (gameSection == null && !MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(gameKey)) {
+                gameSection = resolveGameSection(root, MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
             }
             if (gameSection == null) {
                 continue;
@@ -2213,7 +2212,7 @@ public class HubNpcListener implements Listener {
     }
 
     private Document loadRoot(String gameKey) {
-        MongoCollection<Document> maps = corePlugin.getMongoManager().getCollection(MAPS_COLLECTION);
+        MongoCollection<Document> maps = corePlugin.getMongoManager().getCollection(MongoManager.MAPS_COLLECTION);
         if (maps == null || gameKey == null || gameKey.trim().isEmpty()) {
             return null;
         }
@@ -2234,7 +2233,7 @@ public class HubNpcListener implements Listener {
             return section;
         }
         if (gameTypes != null) {
-            section = asDocument(gameTypes.get(MapConfigStore.DEFAULT_GAME_KEY));
+            section = asDocument(gameTypes.get(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY));
             if (section != null) {
                 return section;
             }
@@ -2294,7 +2293,7 @@ public class HubNpcListener implements Listener {
         if (map == null) {
             return false;
         }
-        return map.get("hubSpawn") != null || map.get("lobbySpawn") != null;
+        return map.get("hubSpawn") != null;
     }
 
     private void addRuntimeMapCandidates(List<String> target) {
@@ -2485,7 +2484,7 @@ public class HubNpcListener implements Listener {
         private final Document map;
 
         private ResolvedHubMap(String gameKey, Document map) {
-            this.gameKey = gameKey == null ? MapConfigStore.DEFAULT_GAME_KEY : gameKey;
+            this.gameKey = gameKey == null ? MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY : gameKey;
             this.map = map;
         }
     }

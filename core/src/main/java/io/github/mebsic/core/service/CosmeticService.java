@@ -3,6 +3,7 @@ package io.github.mebsic.core.service;
 import io.github.mebsic.core.model.CosmeticType;
 import io.github.mebsic.core.model.KnifeSkinDefinition;
 import io.github.mebsic.core.model.Profile;
+import io.github.mebsic.core.store.KnifeSkinStore;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
@@ -19,17 +20,9 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class CosmeticService {
-    public static final String DEFAULT_KNIFE_ID = "iron_sword";
+    public static final String DEFAULT_KNIFE_ID = KnifeSkinStore.DEFAULT_KNIFE_ID;
     public static final String RANDOM_KNIFE_ID = "random";
     public static final String RANDOM_FAVORITE_KNIFE_ID = "random_favorite";
-    private static final String JUNGLE_SAPLING_KNIFE_ID = "mm_skin_44_sapling";
-    private static final String CHARCOAL_KNIFE_ID = "mm_skin_19_coal";
-    private static final String ROSE_BUSH_KNIFE_ID = "mm_skin_26_rose";
-    private static final String ROSE_RED_KNIFE_ID = "mm_skin_39_nether_wart";
-    private static final String LAPIS_LAZULI_KNIFE_ID = "mm_skin_33_prismarine_shard";
-    private static final String RAW_SALMON_KNIFE_ID = "mm_skin_38_raw_fish";
-    private static final String LEGACY_RANDOM_CHEST_ID = "mm_skin_02_chest";
-    private static final String LEGACY_RANDOM_FAVORITE_CHEST_ID = "mm_skin_03_ender_chest";
     private static final KnifeSkinDefinition DEFAULT_KNIFE = new KnifeSkinDefinition(
             DEFAULT_KNIFE_ID,
             "IRON_SWORD",
@@ -46,11 +39,12 @@ public class CosmeticService {
                 if (entry == null || entry.getKey() == null || entry.getValue() == null) {
                     continue;
                 }
-                String key = entry.getKey().trim().toLowerCase(Locale.ROOT);
+                String key = KnifeSkinStore.normalizeKnifeSkinId(entry.getKey());
                 if (key.isEmpty()) {
                     continue;
                 }
-                if (key.equals(LEGACY_RANDOM_CHEST_ID) || key.equals(LEGACY_RANDOM_FAVORITE_CHEST_ID)) {
+                if (key.equals(KnifeSkinStore.SKIN_02_CHEST_ID)
+                        || key.equals(KnifeSkinStore.SKIN_03_ENDER_CHEST_ID)) {
                     continue;
                 }
                 this.knifeSkins.put(key, entry.getValue());
@@ -120,9 +114,9 @@ public class CosmeticService {
             return false;
         }
         String normalized = normalizeId(id);
-        if (normalized.equals(LEGACY_RANDOM_CHEST_ID)) {
+        if (normalized.equals(KnifeSkinStore.SKIN_02_CHEST_ID)) {
             normalized = RANDOM_KNIFE_ID;
-        } else if (normalized.equals(LEGACY_RANDOM_FAVORITE_CHEST_ID)) {
+        } else if (normalized.equals(KnifeSkinStore.SKIN_03_ENDER_CHEST_ID)) {
             normalized = RANDOM_FAVORITE_KNIFE_ID;
         }
         if (normalized.isEmpty()) {
@@ -184,10 +178,11 @@ public class CosmeticService {
     }
 
     private KnifeSkinDefinition resolveKnife(String id) {
-        if (id == null) {
+        String normalized = normalizeId(id);
+        if (normalized.isEmpty()) {
             return knifeSkins.get(DEFAULT_KNIFE_ID);
         }
-        KnifeSkinDefinition definition = knifeSkins.get(id.toLowerCase(Locale.ROOT));
+        KnifeSkinDefinition definition = knifeSkins.get(normalized);
         return definition == null ? knifeSkins.get(DEFAULT_KNIFE_ID) : definition;
     }
 
@@ -196,9 +191,9 @@ public class CosmeticService {
             return DEFAULT_KNIFE_ID;
         }
         String selected = normalizeId(profile.getSelected().getOrDefault(CosmeticType.KNIFE, DEFAULT_KNIFE_ID));
-        if (selected.equals(LEGACY_RANDOM_CHEST_ID)) {
+        if (selected.equals(KnifeSkinStore.SKIN_02_CHEST_ID)) {
             selected = RANDOM_KNIFE_ID;
-        } else if (selected.equals(LEGACY_RANDOM_FAVORITE_CHEST_ID)) {
+        } else if (selected.equals(KnifeSkinStore.SKIN_03_ENDER_CHEST_ID)) {
             selected = RANDOM_FAVORITE_KNIFE_ID;
         }
         if (selected.equals(RANDOM_KNIFE_ID)) {
@@ -310,19 +305,12 @@ public class CosmeticService {
         String normalized = normalizeId(id);
         return normalized.equals(RANDOM_KNIFE_ID)
                 || normalized.equals(RANDOM_FAVORITE_KNIFE_ID)
-                || normalized.equals(LEGACY_RANDOM_CHEST_ID)
-                || normalized.equals(LEGACY_RANDOM_FAVORITE_CHEST_ID);
+                || normalized.equals(KnifeSkinStore.SKIN_02_CHEST_ID)
+                || normalized.equals(KnifeSkinStore.SKIN_03_ENDER_CHEST_ID);
     }
 
     private String normalizeId(String id) {
-        if (id == null) {
-            return "";
-        }
-        String trimmed = id.trim();
-        if (trimmed.isEmpty()) {
-            return "";
-        }
-        return trimmed.toLowerCase(Locale.ROOT);
+        return KnifeSkinStore.normalizeKnifeSkinId(id);
     }
 
     private Material resolveMaterial(KnifeSkinDefinition skin) {
@@ -352,27 +340,27 @@ public class CosmeticService {
             return;
         }
         String normalizedId = normalizeId(knifeId);
-        if (JUNGLE_SAPLING_KNIFE_ID.equals(normalizedId) && item.getType() == Material.SAPLING) {
+        if (KnifeSkinStore.SKIN_44_SAPLING_ID.equals(normalizedId) && item.getType() == Material.SAPLING) {
             item.setDurability((short) 3);
             return;
         }
-        if (CHARCOAL_KNIFE_ID.equals(normalizedId) && item.getType() == Material.COAL) {
+        if (KnifeSkinStore.SKIN_19_COAL_ID.equals(normalizedId) && item.getType() == Material.COAL) {
             item.setDurability((short) 1);
             return;
         }
-        if (ROSE_BUSH_KNIFE_ID.equals(normalizedId) && item.getType() == Material.DOUBLE_PLANT) {
+        if (KnifeSkinStore.SKIN_26_ROSE_ID.equals(normalizedId) && item.getType() == Material.DOUBLE_PLANT) {
             item.setDurability((short) 4);
             return;
         }
-        if (ROSE_RED_KNIFE_ID.equals(normalizedId) && item.getType() == Material.INK_SACK) {
+        if (KnifeSkinStore.SKIN_39_NETHER_WART_ID.equals(normalizedId) && item.getType() == Material.INK_SACK) {
             item.setDurability((short) 1);
             return;
         }
-        if (LAPIS_LAZULI_KNIFE_ID.equals(normalizedId) && item.getType() == Material.INK_SACK) {
+        if (KnifeSkinStore.SKIN_33_PRISMARINE_SHARD_ID.equals(normalizedId) && item.getType() == Material.INK_SACK) {
             item.setDurability((short) 4);
             return;
         }
-        if (RAW_SALMON_KNIFE_ID.equals(normalizedId) && item.getType() == Material.RAW_FISH) {
+        if (KnifeSkinStore.SKIN_38_RAW_FISH_ID.equals(normalizedId) && item.getType() == Material.RAW_FISH) {
             item.setDurability((short) 1);
         }
     }

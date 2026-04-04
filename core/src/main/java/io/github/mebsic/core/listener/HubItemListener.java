@@ -640,7 +640,7 @@ public class HubItemListener implements Listener {
         if (mongo == null || playerUuid == null) {
             return Collections.emptySet();
         }
-        MongoCollection<Document> friends = mongo.getCollection("friends");
+        MongoCollection<Document> friends = mongo.getCollection(MongoManager.FRIENDS_COLLECTION);
         if (friends == null) {
             return Collections.emptySet();
         }

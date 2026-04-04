@@ -3,6 +3,7 @@ package io.github.mebsic.proxy.service;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.UpdateOptions;
+import io.github.mebsic.proxy.manager.MongoManager;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import org.bson.Document;
@@ -15,9 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import static com.mongodb.client.model.Filters.eq;
 
 public class ChatChannelService {
-    private static final String COLLECTION_NAME = "profiles";
-    private static final String FIELD_CHAT_TYPE = "chatType";
-
     public enum ChatChannel {
         ALL,
         PARTY;
@@ -48,7 +46,7 @@ public class ChatChannelService {
     }
 
     public ChatChannelService(MongoDatabase database) {
-        this.collection = database == null ? null : database.getCollection(COLLECTION_NAME);
+        this.collection = database == null ? null : database.getCollection(MongoManager.PROFILES_COLLECTION);
     }
 
     public void track(UUID playerId) {
@@ -106,7 +104,7 @@ public class ChatChannelService {
         try {
             collection.updateOne(
                     eq("uuid", playerId.toString()),
-                    new Document("$setOnInsert", new Document(FIELD_CHAT_TYPE, ChatChannel.ALL.name())),
+                    new Document("$setOnInsert", new Document(MongoManager.PROFILE_CHAT_TYPE_FIELD, ChatChannel.ALL.name())),
                     new UpdateOptions().upsert(true)
             );
         } catch (Exception ignored) {
@@ -119,13 +117,13 @@ public class ChatChannelService {
         }
         try {
             Document doc = collection.find(eq("uuid", playerId.toString()))
-                    .projection(new Document(FIELD_CHAT_TYPE, 1))
+                    .projection(new Document(MongoManager.PROFILE_CHAT_TYPE_FIELD, 1))
                     .first();
             if (doc == null) {
                 channelByPlayer.remove(playerId);
                 return;
             }
-            String stored = doc.getString(FIELD_CHAT_TYPE);
+            String stored = doc.getString(MongoManager.PROFILE_CHAT_TYPE_FIELD);
             ChatChannel resolved = ChatChannel.fromInput(stored);
             if (resolved == null || resolved == ChatChannel.ALL) {
                 channelByPlayer.remove(playerId);
@@ -143,8 +141,8 @@ public class ChatChannelService {
         try {
             collection.updateOne(
                     eq("uuid", playerId.toString()),
-                    new Document("$set", new Document(FIELD_CHAT_TYPE, channel.name()))
-                            .append("$setOnInsert", new Document(FIELD_CHAT_TYPE, ChatChannel.ALL.name())),
+                    new Document("$set", new Document(MongoManager.PROFILE_CHAT_TYPE_FIELD, channel.name()))
+                            .append("$setOnInsert", new Document(MongoManager.PROFILE_CHAT_TYPE_FIELD, ChatChannel.ALL.name())),
                     new UpdateOptions().upsert(true)
             );
         } catch (Exception ignored) {

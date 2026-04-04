@@ -2,6 +2,7 @@ package io.github.mebsic.core.listener;
 
 import com.mongodb.client.MongoCollection;
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.model.Stats;
@@ -47,16 +48,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import static com.mongodb.client.model.Filters.eq;
 
 public class HubParkourListener implements Listener, HubParkourCommandHandler {
-    private static final String MAPS_COLLECTION = "maps";
     private static final String MAP_CONFIG_UPDATE_CHANNEL = "map_config_update";
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
-    private static final String MAP_PARKOUR_TITLE_COLOR_KEY = "titleColor";
-    private static final String MAP_PARKOUR_START_COLOR_KEY = "startColor";
-    private static final String MAP_PARKOUR_CHECKPOINT_COLOR_KEY = "checkpointColor";
-    private static final String MAP_PARKOUR_END_COLOR_KEY = "endColor";
-    private static final String PARKOUR_BEST_COUNTER_PREFIX = "parkour.best_ms.";
-    private static final String PARKOUR_LAST_COUNTER_PREFIX = "parkour.last_ms.";
-    private static final String PARKOUR_COMPLETION_COUNTER_PREFIX = "parkour.completions.";
     private static final double HOLOGRAM_LINE_SPACING = 0.30d;
     private static final double PARKOUR_HOLOGRAM_BASE_Y_OFFSET = -0.80d;
     private static final long FINISH_LINE_HINT_COOLDOWN_MS = 1500L;
@@ -108,10 +101,10 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
         this.markerHologramUuids = new ArrayList<UUID>();
 
         String typeKey = this.serverType.name().toLowerCase(Locale.ROOT);
-        this.bestTimeCounterKey = PARKOUR_BEST_COUNTER_PREFIX + typeKey;
-        this.lastTimeCounterKey = PARKOUR_LAST_COUNTER_PREFIX + typeKey;
-        this.completionCounterKey = PARKOUR_COMPLETION_COUNTER_PREFIX + typeKey;
-        this.activeGameKey = MapConfigStore.DEFAULT_GAME_KEY;
+        this.bestTimeCounterKey = MongoManager.PARKOUR_BEST_COUNTER_PREFIX + typeKey;
+        this.lastTimeCounterKey = MongoManager.PARKOUR_LAST_COUNTER_PREFIX + typeKey;
+        this.completionCounterKey = MongoManager.PARKOUR_COMPLETION_COUNTER_PREFIX + typeKey;
+        this.activeGameKey = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
 
         this.routes = Collections.emptyList();
         this.routesById = Collections.emptyMap();
@@ -1236,9 +1229,9 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
             }
             addGameKeyCandidate(candidates, typeName);
         }
-        addGameKeyCandidate(candidates, MapConfigStore.DEFAULT_GAME_KEY);
+        addGameKeyCandidate(candidates, MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
         if (candidates.isEmpty()) {
-            candidates.add(MapConfigStore.DEFAULT_GAME_KEY);
+            candidates.add(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
         }
         return candidates;
     }
@@ -1289,8 +1282,8 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
                 continue;
             }
             Document gameSection = resolveGameSection(root, gameKey);
-            if (gameSection == null && !MapConfigStore.DEFAULT_GAME_KEY.equals(gameKey)) {
-                gameSection = resolveGameSection(root, MapConfigStore.DEFAULT_GAME_KEY);
+            if (gameSection == null && !MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(gameKey)) {
+                gameSection = resolveGameSection(root, MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
             }
             if (gameSection == null) {
                 continue;
@@ -1339,7 +1332,7 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
     }
 
     private Document loadRootDocument(String gameKey) {
-        MongoCollection<Document> maps = corePlugin.getMongoManager().getCollection(MAPS_COLLECTION);
+        MongoCollection<Document> maps = corePlugin.getMongoManager().getCollection(MongoManager.MAPS_COLLECTION);
         if (maps == null || gameKey == null || gameKey.trim().isEmpty()) {
             return null;
         }
@@ -1360,7 +1353,7 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
             return section;
         }
         if (gameTypes != null) {
-            section = asDocument(gameTypes.get(MapConfigStore.DEFAULT_GAME_KEY));
+            section = asDocument(gameTypes.get(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY));
             if (section != null) {
                 return section;
             }
@@ -1421,7 +1414,7 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
         if (map == null) {
             return false;
         }
-        return map.get("hubSpawn") != null || map.get("lobbySpawn") != null;
+        return map.get("hubSpawn") != null;
     }
 
     private void addRuntimeMapCandidates(List<String> target) {
@@ -1533,10 +1526,10 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
             if (routeId.isEmpty()) {
                 routeId = "route-" + i;
             }
-            ChatColor titleColor = parseColor(rawRoute.get(MAP_PARKOUR_TITLE_COLOR_KEY), ChatColor.YELLOW);
-            ChatColor startColor = parseColor(rawRoute.get(MAP_PARKOUR_START_COLOR_KEY), ChatColor.GREEN);
-            ChatColor checkpointColor = parseColor(rawRoute.get(MAP_PARKOUR_CHECKPOINT_COLOR_KEY), ChatColor.AQUA);
-            ChatColor endColor = parseColor(rawRoute.get(MAP_PARKOUR_END_COLOR_KEY), ChatColor.RED);
+            ChatColor titleColor = parseColor(rawRoute.get(MongoManager.MAP_PARKOUR_TITLE_COLOR_KEY), ChatColor.YELLOW);
+            ChatColor startColor = parseColor(rawRoute.get(MongoManager.MAP_PARKOUR_START_COLOR_KEY), ChatColor.GREEN);
+            ChatColor checkpointColor = parseColor(rawRoute.get(MongoManager.MAP_PARKOUR_CHECKPOINT_COLOR_KEY), ChatColor.AQUA);
+            ChatColor endColor = parseColor(rawRoute.get(MongoManager.MAP_PARKOUR_END_COLOR_KEY), ChatColor.RED);
             parsed.add(new ParkourRoute(routeId, start, end, checkpoints, titleColor, startColor, checkpointColor, endColor));
         }
         return parsed;
@@ -1741,7 +1734,7 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
         private final Document map;
 
         private ResolvedHubMap(String gameKey, Document map) {
-            this.gameKey = gameKey == null ? MapConfigStore.DEFAULT_GAME_KEY : gameKey;
+            this.gameKey = gameKey == null ? MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY : gameKey;
             this.map = map;
         }
     }

@@ -40,7 +40,6 @@ import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.book.BookPromptService;
 import io.github.mebsic.core.service.CoreApi;
 import io.github.mebsic.core.service.CosmeticService;
-import io.github.mebsic.core.manager.LeaderboardsManager;
 import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.service.ProfileService;
 import io.github.mebsic.core.service.ProfileCommandSyncService;
@@ -110,12 +109,10 @@ import com.mongodb.client.model.UpdateOptions;
 import static com.mongodb.client.model.Filters.eq;
 
 public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
-    private static final String FRIENDS_COLLECTION = "friends";
     private static final String FRIEND_VISIBILITY_UPDATE_CHANNEL = "friend_visibility_update";
     private static final long BLOCKED_CACHE_TTL_MILLIS = 5_000L;
     private static final int HOTBAR_SLOT_ONE_INDEX = 0;
     private static final int RANK_COLOR_GIFTED_RANKS_REQUIRED = 100;
-    private static final String RANKS_GIFTED_COUNTER_KEY = "ranksGifted";
     private static final long BUILD_MODE_DURATION_MILLIS = 10L * 60L * 1000L;
     private static final int[] BUILD_MODE_WARNING_SECONDS = new int[]{300, 60, 30, 10, 5, 4, 3, 2, 1};
 
@@ -126,7 +123,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     private RoleChanceStore roleChanceStore;
     private ProfileService profileService;
     private CosmeticService cosmetics;
-    private LeaderboardsManager leaderboards;
     private PubSubService pubSub;
     private PunishmentService punishments;
     private ProfileCommandSyncService profileCommandSync;
@@ -271,9 +267,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             this.buildTablistTask = Bukkit.getScheduler().runTaskTimer(this, buildTablistService::updateAll, 20L, 20L);
             Bukkit.getScheduler().runTaskLater(this, buildTablistService::updateAll, 1L);
         }
-        if (leaderboards != null) {
-            leaderboards.start();
-        }
         ensureFriendDocumentsForOnlinePlayers();
         this.profileRefreshTask = Bukkit.getScheduler().runTaskTimer(
                 this,
@@ -304,8 +297,8 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             this.profileStore = null;
             this.punishmentStore = null;
             this.roleChanceStore = null;
-            knifeSkins.put("iron_sword", new KnifeSkinDefinition(
-                    "iron_sword",
+            knifeSkins.put(KnifeSkinStore.DEFAULT_KNIFE_ID, new KnifeSkinDefinition(
+                    KnifeSkinStore.DEFAULT_KNIFE_ID,
                     "IRON_SWORD",
                     "",
                     "",
@@ -314,7 +307,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         }
         this.cosmetics = new CosmeticService(knifeSkins);
         this.profileService = new ProfileService(this, profileStore, cosmetics);
-        this.leaderboards = new LeaderboardsManager(this);
         this.giftRequestService = new GiftRequestService();
         this.bookPromptService = new BookPromptService(this);
         if (isRedisEnabled()) {
@@ -338,23 +330,24 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (mongo == null) {
             return;
         }
-        mongo.ensureCollection("profiles");
-        mongo.ensureCollection("leaderboards");
-        mongo.ensureCollection("punishments");
-        mongo.ensureCollection("murdermystery_role_chances");
-        mongo.ensureCollection("knife_skins");
-        mongo.ensureCollection("server_registry");
-        mongo.ensureCollection("boss_bar_messages");
-        mongo.ensureCollection("rank_gift_history");
-        mongo.ensureCollection(MapConfigStore.COLLECTION_NAME);
-        mongo.ensureCollection(DomainSettingsStore.COLLECTION_NAME);
+        mongo.ensureCollection(MongoManager.PROFILES_COLLECTION);
+        mongo.ensureCollection(MongoManager.PUNISHMENTS_COLLECTION);
+        mongo.ensureCollection(MongoManager.MURDER_MYSTERY_KNIFE_SKINS_COLLECTION);
+        mongo.ensureCollection(MongoManager.MURDER_MYSTERY_ROLE_CHANCES_COLLECTION);
+        mongo.ensureCollection(MongoManager.MURDER_MYSTERY_KNIFE_MENU_STATE_COLLECTION);
+        mongo.ensureCollection(MongoManager.MURDER_MYSTERY_INFORMATION_COLLECTION);
+        mongo.ensureCollection(MongoManager.SERVER_REGISTRY_COLLECTION);
+        mongo.ensureCollection(MongoManager.BOSS_BAR_MESSAGES_COLLECTION);
+        mongo.ensureCollection(MongoManager.RANK_GIFT_HISTORY_COLLECTION);
+        mongo.ensureCollection(MongoManager.MAPS_COLLECTION);
+        mongo.ensureCollection(MongoManager.PROXY_SETTINGS_COLLECTION);
     }
 
     private void initializeNetworkDomainSettings() {
         if (mongo == null) {
             return;
         }
-        MongoCollection<Document> settings = mongo.getCollection(DomainSettingsStore.COLLECTION_NAME);
+        MongoCollection<Document> settings = mongo.getCollection(MongoManager.PROXY_SETTINGS_COLLECTION);
         if (settings == null) {
             return;
         }
@@ -383,10 +376,10 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             return;
         }
         MapConfigStore mapConfigs = new MapConfigStore(mongo);
-        mapConfigs.ensureDefaults(MapConfigStore.DEFAULT_GAME_KEY);
+        mapConfigs.ensureDefaults(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
 
         String group = MapConfigStore.normalizeGameKey(getConfig().getString("server.group", ""));
-        if (!group.isEmpty() && !MapConfigStore.DEFAULT_GAME_KEY.equals(group)) {
+        if (!group.isEmpty() && !MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(group)) {
             mapConfigs.ensureDefaults(group);
         }
     }
@@ -403,8 +396,8 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
                 map.put(definition.getId().toLowerCase(Locale.ROOT), definition);
             }
         }
-        map.putIfAbsent("iron_sword", new KnifeSkinDefinition(
-                "iron_sword",
+        map.putIfAbsent(KnifeSkinStore.DEFAULT_KNIFE_ID, new KnifeSkinDefinition(
+                KnifeSkinStore.DEFAULT_KNIFE_ID,
                 "IRON_SWORD",
                 "",
                 "",
@@ -503,9 +496,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (networkDomainRefreshTask != null) {
             networkDomainRefreshTask.cancel();
             networkDomainRefreshTask = null;
-        }
-        if (leaderboards != null) {
-            leaderboards.stop();
         }
         if (bookPromptService != null) {
             bookPromptService.shutdown();
@@ -819,9 +809,6 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             }
         }
         profileService.saveProfile(profile);
-        if (leaderboards != null) {
-            leaderboards.update(result.getUuid(), profile.getStats());
-        }
         if (pubSub != null) {
             pubSub.publish("game_result", result.getUuid().toString());
         }
@@ -1054,9 +1041,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (color == null) {
             return;
         }
-        int giftedRanks = profile.getStats() == null
-                ? 0
-                : Math.max(0, profile.getStats().getCustomCounter(RANKS_GIFTED_COUNTER_KEY));
+        int giftedRanks = Math.max(0, profile.getRanksGifted());
         boolean giftedRewardUnlocked = giftedRanks >= RANK_COLOR_GIFTED_RANKS_REQUIRED;
         if (!RankColorUtil.isPlusColorUnlocked(color, profile.getNetworkLevel(), giftedRewardUnlocked)) {
             return;
@@ -1422,8 +1407,24 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (key == null || key.trim().isEmpty()) {
             return 0;
         }
+        String normalizedKey = key.trim();
         Profile profile = profileService.getProfile(uuid);
-        return profile == null ? 0 : profile.getStats().getCustomCounter(key);
+        if (profile == null) {
+            return 0;
+        }
+        if (MongoManager.PROFILE_RANKS_GIFTED_KEY.equals(normalizedKey)) {
+            return Math.max(0, profile.getRanksGifted());
+        }
+        if (MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY.equals(normalizedKey)) {
+            return Math.max(0, profile.getStats().getWins());
+        }
+        if (MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY.equals(normalizedKey)) {
+            return Math.max(0, profile.getStats().getKills());
+        }
+        if (MongoManager.MURDER_MYSTERY_LIFETIME_GAMES_KEY.equals(normalizedKey)) {
+            return Math.max(0, profile.getStats().getGames());
+        }
+        return profile.getStats().getCustomCounter(normalizedKey);
     }
 
     @Override
@@ -1431,6 +1432,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (key == null || key.trim().isEmpty()) {
             return false;
         }
+        String normalizedKey = key.trim();
         if (amount <= 0) {
             return true;
         }
@@ -1438,11 +1440,32 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (profile == null) {
             return false;
         }
-        int current = profile.getStats().getCustomCounter(key);
+        int current;
+        if (MongoManager.PROFILE_RANKS_GIFTED_KEY.equals(normalizedKey)) {
+            current = Math.max(0, profile.getRanksGifted());
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY.equals(normalizedKey)) {
+            current = Math.max(0, profile.getStats().getWins());
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY.equals(normalizedKey)) {
+            current = Math.max(0, profile.getStats().getKills());
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_GAMES_KEY.equals(normalizedKey)) {
+            current = Math.max(0, profile.getStats().getGames());
+        } else {
+            current = profile.getStats().getCustomCounter(normalizedKey);
+        }
         if (current < amount) {
             return false;
         }
-        profile.getStats().addCustomCounter(key, -amount);
+        if (MongoManager.PROFILE_RANKS_GIFTED_KEY.equals(normalizedKey)) {
+            profile.setRanksGifted(current - amount);
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY.equals(normalizedKey)) {
+            profile.getStats().addWins(-amount);
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY.equals(normalizedKey)) {
+            profile.getStats().addKills(-amount);
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_GAMES_KEY.equals(normalizedKey)) {
+            profile.getStats().addGames(-amount);
+        } else {
+            profile.getStats().addCustomCounter(normalizedKey, -amount);
+        }
         profileService.saveProfile(profile);
         return true;
     }
@@ -1452,6 +1475,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (key == null || key.trim().isEmpty()) {
             return;
         }
+        String normalizedKey = key.trim();
         if (amount <= 0) {
             return;
         }
@@ -1459,7 +1483,17 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (profile == null) {
             return;
         }
-        profile.getStats().addCustomCounter(key, amount);
+        if (MongoManager.PROFILE_RANKS_GIFTED_KEY.equals(normalizedKey)) {
+            profile.setRanksGifted(Math.max(0, profile.getRanksGifted()) + amount);
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY.equals(normalizedKey)) {
+            profile.getStats().addWins(amount);
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY.equals(normalizedKey)) {
+            profile.getStats().addKills(amount);
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_GAMES_KEY.equals(normalizedKey)) {
+            profile.getStats().addGames(amount);
+        } else {
+            profile.getStats().addCustomCounter(normalizedKey, amount);
+        }
         profileService.saveProfile(profile);
     }
 
@@ -1515,7 +1549,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (uuid == null || mongo == null) {
             return;
         }
-        MongoCollection<Document> friends = mongo.getCollection(FRIENDS_COLLECTION);
+        MongoCollection<Document> friends = mongo.getCollection(MongoManager.FRIENDS_COLLECTION);
         if (friends == null) {
             return;
         }
@@ -1572,7 +1606,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (ownerId == null || mongo == null) {
             return Collections.emptySet();
         }
-        MongoCollection<Document> friends = mongo.getCollection(FRIENDS_COLLECTION);
+        MongoCollection<Document> friends = mongo.getCollection(MongoManager.FRIENDS_COLLECTION);
         if (friends == null) {
             return Collections.emptySet();
         }

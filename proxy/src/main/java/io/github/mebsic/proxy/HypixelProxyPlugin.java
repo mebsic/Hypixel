@@ -26,6 +26,7 @@ import io.github.mebsic.proxy.command.StaffChatCommand;
 import io.github.mebsic.proxy.command.UpdateCommand;
 import io.github.mebsic.proxy.config.ConfigLoader;
 import io.github.mebsic.proxy.config.ProxyConfig;
+import io.github.mebsic.proxy.manager.MongoManager;
 import io.github.mebsic.proxy.service.ServerRegistryService;
 import io.github.mebsic.proxy.service.BlockService;
 import io.github.mebsic.proxy.service.ChatChannelService;
@@ -729,9 +730,9 @@ public class HypixelProxyPlugin {
         ensureCollection(config.getMotdCollection());
         ensureCollection(config.getFriendsCollection());
         ensureCollection(config.getRegistryCollection());
-        ensureCollection("profiles");
-        ensureCollection("maps");
-        ensureCollection("autoscale");
+        ensureCollection(MongoManager.PROFILES_COLLECTION);
+        ensureCollection(MongoManager.MAPS_COLLECTION);
+        ensureCollection(MongoManager.AUTOSCALE_COLLECTION);
         seedMotdDocument();
         seedDomainDocument();
     }

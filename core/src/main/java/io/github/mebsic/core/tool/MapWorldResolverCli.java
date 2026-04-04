@@ -21,7 +21,7 @@ public final class MapWorldResolverCli {
 
         String gameKey = MapConfigStore.normalizeGameKey(gameType);
         if (gameKey.isEmpty()) {
-            gameKey = MapConfigStore.DEFAULT_GAME_KEY;
+            gameKey = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         }
         boolean hubServer = serverKind.toLowerCase(Locale.ROOT).contains("hub");
 
@@ -32,9 +32,9 @@ public final class MapWorldResolverCli {
             store.ensureDefaults(gameKey);
 
             String worldDirectory = store.resolveWorldDirectory(gameKey, hubServer);
-            if (worldDirectory.isEmpty() && !MapConfigStore.DEFAULT_GAME_KEY.equals(gameKey)) {
-                store.ensureDefaults(MapConfigStore.DEFAULT_GAME_KEY);
-                worldDirectory = store.resolveWorldDirectory(MapConfigStore.DEFAULT_GAME_KEY, hubServer);
+            if (worldDirectory.isEmpty() && !MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(gameKey)) {
+                store.ensureDefaults(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
+                worldDirectory = store.resolveWorldDirectory(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY, hubServer);
             }
             printIfNotBlank(worldDirectory);
         } catch (Exception ignored) {

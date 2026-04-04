@@ -60,37 +60,6 @@ public class BuildMapConfigService {
     private static final double PROFILE_NPC_HOLOGRAM_BOTTOM_Y_OFFSET = 2.60d;
     private static final double LEGACY_PARKOUR_HOLOGRAM_BASE_Y_OFFSET = 0.72d;
     private static final double PARKOUR_HOLOGRAM_BASE_Y_OFFSET = 2.0d;
-    private static final String MAP_SPAWNS_KEY = "spawns";
-    private static final String MAP_DROP_ITEMS_KEY = "dropItem";
-    private static final String MAP_CREATED_AT_KEY = "createdAt";
-    private static final String MAP_PREGAME_SPAWN_KEY = "pregameSpawn";
-    private static final String MAP_HUB_SPAWN_KEY = "hubSpawn";
-    private static final String MAP_LOBBY_SPAWN_KEY = "lobbySpawn";
-    private static final String MAP_NPCS_KEY = "npcs";
-    private static final String MAP_PROFILE_NPCS_KEY = "profileNpcs";
-    private static final String MAP_LEADERBOARDS_KEY = "leaderboards";
-    private static final String MAP_PARKOURS_KEY = "parkours";
-    private static final String MAP_CHECKPOINTS_KEY = "checkpoints";
-    private static final String MAP_START_KEY = "start";
-    private static final String MAP_END_KEY = "end";
-    private static final String MAP_PARKOUR_TITLE_COLOR_KEY = "titleColor";
-    private static final String MAP_PARKOUR_START_COLOR_KEY = "startColor";
-    private static final String MAP_PARKOUR_CHECKPOINT_COLOR_KEY = "checkpointColor";
-    private static final String MAP_PARKOUR_END_COLOR_KEY = "endColor";
-    private static final String MAP_NPC_KIND_KEY = "npcKind";
-    private static final String MAP_ENTITY_ID_KEY = "entityId";
-    private static final String MAP_HOLOGRAM_COLOR_KEY = "hologramColor";
-    private static final String MAP_SKIN_OWNER_KEY = "skinOwner";
-    private static final String MAP_OWNER_NAME_KEY = "ownerName";
-    private static final String MAP_OWNER_UUID_KEY = "ownerUuid";
-    private static final String MAP_METRIC_KEY = "metric";
-    private static final String MAP_LEADERBOARD_TITLE_COLOR_KEY = "titleColor";
-    private static final String MAP_LEADERBOARD_MODE_COLOR_KEY = "modeColor";
-    private static final String MAP_LEADERBOARD_RANK_COLOR_KEY = "rankColor";
-    private static final String MAP_LEADERBOARD_SEPARATOR_COLOR_KEY = "separatorColor";
-    private static final String MAP_LEADERBOARD_VALUE_COLOR_KEY = "valueColor";
-    private static final String MAP_LEADERBOARD_EMPTY_COLOR_KEY = "emptyColor";
-    private static final String MAP_LEADERBOARD_FOOTER_COLOR_KEY = "footerColor";
     private static final String MAP_CONFIG_UPDATE_CHANNEL = "map_config_update";
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
     // Build is editor-only: runtime NPC/hologram rendering belongs on hub servers.
@@ -102,12 +71,6 @@ public class BuildMapConfigService {
     public static final String MURDER_MYSTERY_CLICK_TO_PLAY_SKIN_REFERENCE = "MURDER4SVTVN";
     private static final String DEFAULT_PROFILE_NPC_COLOR = ChatColor.AQUA.name();
     private static final String DEFAULT_NPC_COLOR = ChatColor.GREEN.name();
-    private static final String LEADERBOARD_METRIC_KILLS = "kills";
-    private static final String LEADERBOARD_METRIC_WINS = "wins";
-    private static final String LEADERBOARD_METRIC_WINS_AS_MURDERER = "wins_as_murderer";
-    private static final String LEGACY_LEADERBOARD_METRIC_KILLS_AS_MURDERER = "kills_as_murderer";
-    private static final String MURDER_MYSTERY_WINS_AS_MURDERER_KEY = "murdermystery.winsAsMurderer";
-    private static final String MURDER_MYSTERY_KILLS_AS_MURDERER_KEY = "murdermystery.killsAsMurderer";
     private static final Set<PosixFilePermission> EXPORT_DIRECTORY_PERMISSIONS = Collections.unmodifiableSet(
             EnumSet.of(
                     PosixFilePermission.OWNER_READ,
@@ -443,7 +406,7 @@ public class BuildMapConfigService {
                 JsonObject map = findOrCreateMapByWorldDirectory(maps, mapWorld);
                 String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
 
-                JsonArray spawns = getOrCreateArray(map, MAP_SPAWNS_KEY);
+                JsonArray spawns = getOrCreateArray(map, MongoManager.MAP_SPAWNS_KEY);
                 spawns.add(toLocationJson(location, System.currentTimeMillis()));
 
                 applyMapRotationDefaults(gameSection, resolvedMapName);
@@ -494,8 +457,8 @@ public class BuildMapConfigService {
                 String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
 
                 // Waiting spawn is a single location for each map; replace any existing value.
-                map.remove(MAP_PREGAME_SPAWN_KEY);
-                map.add(MAP_PREGAME_SPAWN_KEY, toLocationJson(location, System.currentTimeMillis()));
+                map.remove(MongoManager.MAP_PREGAME_SPAWN_KEY);
+                map.add(MongoManager.MAP_PREGAME_SPAWN_KEY, toLocationJson(location, System.currentTimeMillis()));
 
                 applyMapRotationDefaults(gameSection, resolvedMapName);
                 saveMapConfigRoot(store, gameKey, root);
@@ -542,12 +505,59 @@ public class BuildMapConfigService {
                 JsonObject map = findOrCreateMapByWorldDirectory(maps, mapWorld);
                 String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
                 long createdAt = System.currentTimeMillis();
-                map.add(MAP_HUB_SPAWN_KEY, toLocationJson(location, createdAt));
-                // Keep legacy-compatible field in sync for older readers.
-                map.add(MAP_LOBBY_SPAWN_KEY, toLocationJson(location, createdAt));
+                map.add(MongoManager.MAP_HUB_SPAWN_KEY, toLocationJson(location, createdAt));
                 applyMapRotationDefaults(gameSection, resolvedMapName);
                 // Setting hub spawn should always promote this map to active.
                 gameSection.addProperty("activeMap", resolvedMapName);
+                saveMapConfigRoot(store, gameKey, root);
+            }
+            sendDone(player, location, null);
+        } catch (Exception ex) {
+            player.sendMessage(ChatColor.RED + "Failed to update map config in MongoDB!\n" + ex.getMessage());
+        }
+        return true;
+    }
+
+    public boolean setHubImageDisplayFromMenu(Player player, ServerType gameType, String worldDirectory) {
+        if (player == null || gameType == null || gameType == ServerType.UNKNOWN) {
+            return true;
+        }
+        if (!gameType.isHub()) {
+            player.sendMessage(ChatColor.RED + "Hub image display can only be set for hub servers!");
+            return true;
+        }
+        String mapWorld = safeString(worldDirectory);
+        if (mapWorld.isEmpty() && player.getWorld() != null) {
+            mapWorld = safeString(player.getWorld().getName());
+        }
+        if (mapWorld.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "Failed to resolve the map world!");
+            return true;
+        }
+        String gameKey = gameKeyForType(gameType);
+        if (gameKey.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "Failed to resolve game key for that game type!");
+            return true;
+        }
+        MapConfigStore store = mapConfigStore();
+        if (store == null) {
+            player.sendMessage(ChatColor.RED + "MongoDB map config store is unavailable!");
+            return true;
+        }
+        Location location = player.getLocation();
+        try {
+            synchronized (mapConfigLock) {
+                JsonObject root = loadMapConfigRoot(store, gameKey);
+                JsonObject gameSection = getOrCreateGameSection(root, gameKey);
+                JsonArray maps = getOrCreateArray(gameSection, "maps");
+                JsonObject map = findOrCreateMapByWorldDirectory(maps, mapWorld);
+                String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
+
+                JsonObject serverTypeSection = getOrCreateServerTypeSection(gameSection, gameType);
+                JsonObject information = getOrCreateObject(serverTypeSection, MongoManager.MAP_INFORMATION_KEY);
+                information.add(MongoManager.MAP_INFORMATION_IMAGE_DISPLAY_KEY, toLocationJson(location, System.currentTimeMillis()));
+
+                applyMapRotationDefaults(gameSection, resolvedMapName);
                 saveMapConfigRoot(store, gameKey, root);
             }
             sendDone(player, location, null);
@@ -597,15 +607,15 @@ public class BuildMapConfigService {
                 JsonObject map = findOrCreateMapByWorldDirectory(maps, mapWorld);
                 String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
 
-                JsonArray npcs = getOrCreateArray(map, MAP_NPCS_KEY);
+                JsonArray npcs = getOrCreateArray(map, MongoManager.MAP_NPCS_KEY);
                 JsonObject npc = toLocationJson(location, System.currentTimeMillis());
-                npc.addProperty(MAP_ENTITY_ID_KEY, entityId);
-                npc.addProperty(MAP_SKIN_OWNER_KEY, MURDER_MYSTERY_CLICK_TO_PLAY_SKIN_REFERENCE);
-                npc.addProperty(MAP_HOLOGRAM_COLOR_KEY, DEFAULT_CLICK_TO_PLAY_NPC_COLOR);
-                npc.addProperty(MAP_NPC_KIND_KEY, NPC_KIND_CLICK_TO_PLAY);
+                npc.addProperty(MongoManager.MAP_ENTITY_ID_KEY, entityId);
+                npc.addProperty(MongoManager.MAP_SKIN_OWNER_KEY, MURDER_MYSTERY_CLICK_TO_PLAY_SKIN_REFERENCE);
+                npc.addProperty(MongoManager.MAP_HOLOGRAM_COLOR_KEY, DEFAULT_CLICK_TO_PLAY_NPC_COLOR);
+                npc.addProperty(MongoManager.MAP_NPC_KIND_KEY, NPC_KIND_CLICK_TO_PLAY);
                 npcs = new JsonArray();
                 npcs.add(npc);
-                map.add(MAP_NPCS_KEY, npcs);
+                map.add(MongoManager.MAP_NPCS_KEY, npcs);
 
                 applyMapRotationDefaults(gameSection, resolvedMapName);
                 saveMapConfigRoot(store, gameKey, root);
@@ -670,15 +680,15 @@ public class BuildMapConfigService {
                 JsonObject map = findOrCreateMapByWorldDirectory(maps, mapWorld);
                 String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
 
-                JsonArray profileNpcs = getOrCreateArray(map, MAP_PROFILE_NPCS_KEY);
+                JsonArray profileNpcs = getOrCreateArray(map, MongoManager.MAP_PROFILE_NPCS_KEY);
                 JsonObject npc = toLocationJson(location, System.currentTimeMillis());
-                npc.addProperty(MAP_ENTITY_ID_KEY, entityId);
-                npc.addProperty(MAP_OWNER_UUID_KEY, ownerUuid == null ? "" : ownerUuid.toString());
-                npc.addProperty(MAP_OWNER_NAME_KEY, ownerName);
-                npc.addProperty(MAP_HOLOGRAM_COLOR_KEY, DEFAULT_PROFILE_NPC_COLOR);
+                npc.addProperty(MongoManager.MAP_ENTITY_ID_KEY, entityId);
+                npc.addProperty(MongoManager.MAP_OWNER_UUID_KEY, ownerUuid == null ? "" : ownerUuid.toString());
+                npc.addProperty(MongoManager.MAP_OWNER_NAME_KEY, ownerName);
+                npc.addProperty(MongoManager.MAP_HOLOGRAM_COLOR_KEY, DEFAULT_PROFILE_NPC_COLOR);
                 profileNpcs = new JsonArray();
                 profileNpcs.add(npc);
-                map.add(MAP_PROFILE_NPCS_KEY, profileNpcs);
+                map.add(MongoManager.MAP_PROFILE_NPCS_KEY, profileNpcs);
 
                 applyMapRotationDefaults(gameSection, resolvedMapName);
                 saveMapConfigRoot(store, gameKey, root);
@@ -694,7 +704,7 @@ public class BuildMapConfigService {
 
     public String getLeaderboardMetricSelection(Player player) {
         if (player == null || player.getUniqueId() == null) {
-            return LEADERBOARD_METRIC_KILLS;
+            return MongoManager.LEADERBOARD_METRIC_KILLS;
         }
         UUID uuid = player.getUniqueId();
         String metric = normalizeLeaderboardMetric(leaderboardMetricByPlayer.get(uuid));
@@ -704,7 +714,7 @@ public class BuildMapConfigService {
 
     public String toggleLeaderboardMetricSelection(Player player) {
         if (player == null || player.getUniqueId() == null) {
-            return LEADERBOARD_METRIC_KILLS;
+            return MongoManager.LEADERBOARD_METRIC_KILLS;
         }
         UUID uuid = player.getUniqueId();
         String next = nextLeaderboardMetric(getLeaderboardMetricSelection(player));
@@ -749,19 +759,19 @@ public class BuildMapConfigService {
                 JsonObject map = findOrCreateMapByWorldDirectory(maps, mapWorld);
                 String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
 
-                JsonArray leaderboards = getOrCreateArray(map, MAP_LEADERBOARDS_KEY);
+                JsonArray leaderboards = getOrCreateArray(map, MongoManager.MAP_LEADERBOARDS_KEY);
                 JsonObject board = toLocationJson(location, System.currentTimeMillis());
-                board.addProperty(MAP_ENTITY_ID_KEY, entityId);
-                board.addProperty(MAP_METRIC_KEY, normalizeLeaderboardMetric(selectedMetric));
-                board.addProperty(MAP_LEADERBOARD_TITLE_COLOR_KEY, ChatColor.AQUA.name());
-                board.addProperty(MAP_LEADERBOARD_MODE_COLOR_KEY, ChatColor.GRAY.name());
-                board.addProperty(MAP_LEADERBOARD_RANK_COLOR_KEY, ChatColor.YELLOW.name());
-                board.addProperty(MAP_LEADERBOARD_SEPARATOR_COLOR_KEY, ChatColor.GRAY.name());
-                board.addProperty(MAP_LEADERBOARD_VALUE_COLOR_KEY, ChatColor.YELLOW.name());
-                board.addProperty(MAP_LEADERBOARD_EMPTY_COLOR_KEY, ChatColor.DARK_GRAY.name());
-                board.addProperty(MAP_LEADERBOARD_FOOTER_COLOR_KEY, ChatColor.GRAY.name());
+                board.addProperty(MongoManager.MAP_ENTITY_ID_KEY, entityId);
+                board.addProperty(MongoManager.MAP_METRIC_KEY, normalizeLeaderboardMetric(selectedMetric));
+                board.addProperty(MongoManager.MAP_LEADERBOARD_TITLE_COLOR_KEY, ChatColor.AQUA.name());
+                board.addProperty(MongoManager.MAP_LEADERBOARD_MODE_COLOR_KEY, ChatColor.GRAY.name());
+                board.addProperty(MongoManager.MAP_LEADERBOARD_RANK_COLOR_KEY, ChatColor.YELLOW.name());
+                board.addProperty(MongoManager.MAP_LEADERBOARD_SEPARATOR_COLOR_KEY, ChatColor.GRAY.name());
+                board.addProperty(MongoManager.MAP_LEADERBOARD_VALUE_COLOR_KEY, ChatColor.YELLOW.name());
+                board.addProperty(MongoManager.MAP_LEADERBOARD_EMPTY_COLOR_KEY, ChatColor.DARK_GRAY.name());
+                board.addProperty(MongoManager.MAP_LEADERBOARD_FOOTER_COLOR_KEY, ChatColor.GRAY.name());
                 leaderboards = rebuildLeaderboardsForAdd(leaderboards, board, selectedMetric);
-                map.add(MAP_LEADERBOARDS_KEY, leaderboards);
+                map.add(MongoManager.MAP_LEADERBOARDS_KEY, leaderboards);
 
                 applyMapRotationDefaults(gameSection, resolvedMapName);
                 saveMapConfigRoot(store, gameKey, root);
@@ -855,16 +865,16 @@ public class BuildMapConfigService {
                 JsonObject map = findOrCreateMapByWorldDirectory(maps, mapWorld);
                 String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
 
-                JsonArray parkours = getOrCreateArray(map, MAP_PARKOURS_KEY);
+                JsonArray parkours = getOrCreateArray(map, MongoManager.MAP_PARKOURS_KEY);
                 JsonObject route = new JsonObject();
-                route.addProperty(MAP_ENTITY_ID_KEY, UUID.randomUUID().toString());
-                route.addProperty(MAP_CREATED_AT_KEY, System.currentTimeMillis());
-                route.addProperty(MAP_PARKOUR_TITLE_COLOR_KEY, ChatColor.YELLOW.name());
-                route.addProperty(MAP_PARKOUR_START_COLOR_KEY, ChatColor.GREEN.name());
-                route.addProperty(MAP_PARKOUR_CHECKPOINT_COLOR_KEY, ChatColor.AQUA.name());
-                route.addProperty(MAP_PARKOUR_END_COLOR_KEY, ChatColor.RED.name());
-                route.add(MAP_START_KEY, toLocationJson(draft.start, System.currentTimeMillis()));
-                route.add(MAP_END_KEY, toLocationJson(location, System.currentTimeMillis()));
+                route.addProperty(MongoManager.MAP_ENTITY_ID_KEY, UUID.randomUUID().toString());
+                route.addProperty(MongoManager.MAP_CREATED_AT_KEY, System.currentTimeMillis());
+                route.addProperty(MongoManager.MAP_PARKOUR_TITLE_COLOR_KEY, ChatColor.YELLOW.name());
+                route.addProperty(MongoManager.MAP_PARKOUR_START_COLOR_KEY, ChatColor.GREEN.name());
+                route.addProperty(MongoManager.MAP_PARKOUR_CHECKPOINT_COLOR_KEY, ChatColor.AQUA.name());
+                route.addProperty(MongoManager.MAP_PARKOUR_END_COLOR_KEY, ChatColor.RED.name());
+                route.add(MongoManager.MAP_START_KEY, toLocationJson(draft.start, System.currentTimeMillis()));
+                route.add(MongoManager.MAP_END_KEY, toLocationJson(location, System.currentTimeMillis()));
                 JsonArray checkpoints = new JsonArray();
                 for (Location checkpoint : draft.checkpoints) {
                     if (checkpoint == null) {
@@ -872,10 +882,10 @@ public class BuildMapConfigService {
                     }
                     checkpoints.add(toLocationJson(checkpoint, System.currentTimeMillis()));
                 }
-                route.add(MAP_CHECKPOINTS_KEY, checkpoints);
+                route.add(MongoManager.MAP_CHECKPOINTS_KEY, checkpoints);
                 parkours = new JsonArray();
                 parkours.add(route);
-                map.add(MAP_PARKOURS_KEY, parkours);
+                map.add(MongoManager.MAP_PARKOURS_KEY, parkours);
 
                 applyMapRotationDefaults(gameSection, resolvedMapName);
                 saveMapConfigRoot(store, gameKey, root);
@@ -946,10 +956,10 @@ public class BuildMapConfigService {
                     map = findMap(maps, mapWorld);
                 }
                 if (map != null) {
-                    JsonArray parkours = existingArray(map, MAP_PARKOURS_KEY);
+                    JsonArray parkours = existingArray(map, MongoManager.MAP_PARKOURS_KEY);
                     if (parkours != null && parkours.size() > 0) {
                         markers = collectAllParkourMarkers(map);
-                        map.add(MAP_PARKOURS_KEY, new JsonArray());
+                        map.add(MongoManager.MAP_PARKOURS_KEY, new JsonArray());
                         String resolvedMapName = mapWorldDirectoryOf(map, mapWorld);
                         applyMapRotationDefaults(gameSection, resolvedMapName);
                         saveMapConfigRoot(store, gameKey, root);
@@ -1012,20 +1022,20 @@ public class BuildMapConfigService {
                     continue;
                 }
                 JsonObject candidate = raw.getAsJsonObject();
-                String candidateMetric = normalizeLeaderboardMetric(safeString(candidate, MAP_METRIC_KEY));
+                String candidateMetric = normalizeLeaderboardMetric(safeString(candidate, MongoManager.MAP_METRIC_KEY));
                 if (targetMetric.equals(candidateMetric)) {
                     continue;
                 }
                 if (keptMetrics.contains(candidateMetric)) {
                     continue;
                 }
-                candidate.addProperty(MAP_METRIC_KEY, candidateMetric);
+                candidate.addProperty(MongoManager.MAP_METRIC_KEY, candidateMetric);
                 rebuilt.add(candidate);
                 keptMetrics.add(candidateMetric);
             }
         }
         if (replacement != null) {
-            replacement.addProperty(MAP_METRIC_KEY, targetMetric);
+            replacement.addProperty(MongoManager.MAP_METRIC_KEY, targetMetric);
             rebuilt.add(replacement);
         }
         return rebuilt;
@@ -1335,15 +1345,15 @@ public class BuildMapConfigService {
                 return false;
             }
             parkourMarkers = collectAllParkourMarkers(map);
-            map.add(MAP_SPAWNS_KEY, new JsonArray());
-            map.add(MAP_DROP_ITEMS_KEY, new JsonArray());
-            map.add(MAP_NPCS_KEY, new JsonArray());
-            map.add(MAP_PROFILE_NPCS_KEY, new JsonArray());
-            map.add(MAP_LEADERBOARDS_KEY, new JsonArray());
-            map.add(MAP_PARKOURS_KEY, new JsonArray());
-            map.remove(MAP_PREGAME_SPAWN_KEY);
-            map.remove(MAP_HUB_SPAWN_KEY);
-            map.remove(MAP_LOBBY_SPAWN_KEY);
+            map.add(MongoManager.MAP_SPAWNS_KEY, new JsonArray());
+            map.add(MongoManager.MAP_DROP_ITEMS_KEY, new JsonArray());
+            map.add(MongoManager.MAP_NPCS_KEY, new JsonArray());
+            map.add(MongoManager.MAP_PROFILE_NPCS_KEY, new JsonArray());
+            map.add(MongoManager.MAP_LEADERBOARDS_KEY, new JsonArray());
+            map.add(MongoManager.MAP_PARKOURS_KEY, new JsonArray());
+            map.remove(MongoManager.MAP_PREGAME_SPAWN_KEY);
+            map.remove(MongoManager.MAP_HUB_SPAWN_KEY);
+            clearHubInformationImageDisplay(gameSection, gameType);
             saveMapConfigRoot(store, gameKey, root);
         }
         despawnAllRuntimeArtifacts();
@@ -1375,16 +1385,21 @@ public class BuildMapConfigService {
                 return Collections.emptyList();
             }
             List<MapLocationEntry> entries = new ArrayList<>();
-            appendLocationEntries(entries, getOrCreateArray(map, MAP_SPAWNS_KEY), MapLocationType.PLAYER_SPAWN);
+            appendLocationEntries(entries, getOrCreateArray(map, MongoManager.MAP_SPAWNS_KEY), MapLocationType.PLAYER_SPAWN);
             if (!type.isHub()) {
                 appendLocationEntries(entries, getOrCreateDropItemArray(map), MapLocationType.ITEM_DROP);
             }
-            appendSingleLocationEntry(entries, child(map, MAP_PREGAME_SPAWN_KEY), MapLocationType.WAITING_SPAWN);
-            appendSingleLocationEntry(entries, child(map, MAP_HUB_SPAWN_KEY), MapLocationType.HUB_SPAWN);
-            appendLocationEntries(entries, getOrCreateArray(map, MAP_NPCS_KEY), MapLocationType.HUB_NPC);
-            appendLocationEntries(entries, getOrCreateArray(map, MAP_PROFILE_NPCS_KEY), MapLocationType.PROFILE_NPC);
-            appendLocationEntries(entries, getOrCreateArray(map, MAP_LEADERBOARDS_KEY), MapLocationType.LEADERBOARD);
-            appendParkourEntries(entries, getOrCreateArray(map, MAP_PARKOURS_KEY));
+            appendSingleLocationEntry(entries, child(map, MongoManager.MAP_PREGAME_SPAWN_KEY), MapLocationType.WAITING_SPAWN);
+            appendSingleLocationEntry(entries, child(map, MongoManager.MAP_HUB_SPAWN_KEY), MapLocationType.HUB_SPAWN);
+            appendSingleLocationEntry(
+                    entries,
+                    resolveHubInformationImageDisplay(gameSection, type),
+                    MapLocationType.HUB_IMAGE_DISPLAY
+            );
+            appendLocationEntries(entries, getOrCreateArray(map, MongoManager.MAP_NPCS_KEY), MapLocationType.HUB_NPC);
+            appendLocationEntries(entries, getOrCreateArray(map, MongoManager.MAP_PROFILE_NPCS_KEY), MapLocationType.PROFILE_NPC);
+            appendLocationEntries(entries, getOrCreateArray(map, MongoManager.MAP_LEADERBOARDS_KEY), MapLocationType.LEADERBOARD);
+            appendParkourEntries(entries, getOrCreateArray(map, MongoManager.MAP_PARKOURS_KEY));
             sortMostRecentFirst(entries);
             return entries;
         }
@@ -1418,19 +1433,26 @@ public class BuildMapConfigService {
                 return false;
             }
             if (entry.getType() == MapLocationType.WAITING_SPAWN) {
-                if (!map.has(MAP_PREGAME_SPAWN_KEY)) {
+                if (!map.has(MongoManager.MAP_PREGAME_SPAWN_KEY)) {
                     return false;
                 }
-                map.remove(MAP_PREGAME_SPAWN_KEY);
+                map.remove(MongoManager.MAP_PREGAME_SPAWN_KEY);
                 saveMapConfigRoot(store, gameKey, root);
                 return true;
             }
             if (entry.getType() == MapLocationType.HUB_SPAWN) {
-                if (!map.has(MAP_HUB_SPAWN_KEY) && !map.has(MAP_LOBBY_SPAWN_KEY)) {
+                if (!map.has(MongoManager.MAP_HUB_SPAWN_KEY)) {
                     return false;
                 }
-                map.remove(MAP_HUB_SPAWN_KEY);
-                map.remove(MAP_LOBBY_SPAWN_KEY);
+                map.remove(MongoManager.MAP_HUB_SPAWN_KEY);
+                saveMapConfigRoot(store, gameKey, root);
+                return true;
+            }
+            if (entry.getType() == MapLocationType.HUB_IMAGE_DISPLAY) {
+                boolean removed = clearHubInformationImageDisplay(gameSection, gameType);
+                if (!removed) {
+                    return false;
+                }
                 saveMapConfigRoot(store, gameKey, root);
                 return true;
             }
@@ -1438,7 +1460,7 @@ public class BuildMapConfigService {
                     || entry.getType() == MapLocationType.PARKOUR_END
                     || entry.getType() == MapLocationType.PARKOUR_CHECKPOINT
                     || entry.getType() == MapLocationType.PARKOUR_ROUTE) {
-                JsonArray parkours = existingArray(map, MAP_PARKOURS_KEY);
+                JsonArray parkours = existingArray(map, MongoManager.MAP_PARKOURS_KEY);
                 if (parkours == null || parkours.size() == 0) {
                     return false;
                 }
@@ -1456,7 +1478,7 @@ public class BuildMapConfigService {
                         rebuilt.add(current);
                     }
                 }
-                map.add(MAP_PARKOURS_KEY, rebuilt);
+                map.add(MongoManager.MAP_PARKOURS_KEY, rebuilt);
                 saveMapConfigRoot(store, gameKey, root);
                 return true;
             }
@@ -1701,9 +1723,9 @@ public class BuildMapConfigService {
         }
         store.ensureDefaults(gameKey);
         JsonObject root = store.loadRoot(gameKey);
-        if (root == null && !MapConfigStore.DEFAULT_GAME_KEY.equals(gameKey)) {
-            store.ensureDefaults(MapConfigStore.DEFAULT_GAME_KEY);
-            root = store.loadRoot(MapConfigStore.DEFAULT_GAME_KEY);
+        if (root == null && !MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY.equals(gameKey)) {
+            store.ensureDefaults(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
+            root = store.loadRoot(MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY);
         }
         return root == null ? new JsonObject() : root;
     }
@@ -1714,7 +1736,7 @@ public class BuildMapConfigService {
         }
         String resolvedGameKey = MapConfigStore.normalizeGameKey(gameKey);
         if (resolvedGameKey.isEmpty()) {
-            resolvedGameKey = MapConfigStore.DEFAULT_GAME_KEY;
+            resolvedGameKey = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         }
         store.saveRoot(resolvedGameKey, root == null ? new JsonObject() : root);
         publishMapConfigUpdate(resolvedGameKey);
@@ -1730,7 +1752,7 @@ public class BuildMapConfigService {
         }
         String resolvedGameKey = MapConfigStore.normalizeGameKey(gameKey);
         if (resolvedGameKey.isEmpty()) {
-            resolvedGameKey = MapConfigStore.DEFAULT_GAME_KEY;
+            resolvedGameKey = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         }
         try {
             pubSub.publish(MAP_CONFIG_UPDATE_CHANNEL, MAP_CONFIG_UPDATE_PREFIX + resolvedGameKey);
@@ -1758,7 +1780,7 @@ public class BuildMapConfigService {
         }
         String key = MapConfigStore.normalizeGameKey(gameKey);
         if (key.isEmpty()) {
-            key = MapConfigStore.DEFAULT_GAME_KEY;
+            key = MongoManager.MAP_CONFIG_DEFAULT_GAME_KEY;
         }
         JsonObject gameTypes = getOrCreateObject(root, "gameTypes");
         JsonObject section = child(gameTypes, key);
@@ -1776,6 +1798,44 @@ public class BuildMapConfigService {
         JsonObject created = new JsonObject();
         gameTypes.add(key, created);
         return created;
+    }
+
+    private JsonObject getOrCreateServerTypeSection(JsonObject gameSection, ServerType gameType) {
+        if (gameSection == null || gameType == null || gameType == ServerType.UNKNOWN) {
+            return new JsonObject();
+        }
+        JsonObject serverTypes = getOrCreateObject(gameSection, MongoManager.MAP_SERVER_TYPES_KEY);
+        JsonObject section = child(serverTypes, gameType.name());
+        if (section != null) {
+            return section;
+        }
+        JsonObject created = new JsonObject();
+        serverTypes.add(gameType.name(), created);
+        return created;
+    }
+
+    private JsonObject resolveHubInformationImageDisplay(JsonObject gameSection, ServerType gameType) {
+        if (gameSection == null || gameType == null || gameType == ServerType.UNKNOWN) {
+            return null;
+        }
+        JsonObject serverTypes = child(gameSection, MongoManager.MAP_SERVER_TYPES_KEY);
+        JsonObject serverType = child(serverTypes, gameType.name());
+        JsonObject information = child(serverType, MongoManager.MAP_INFORMATION_KEY);
+        return child(information, MongoManager.MAP_INFORMATION_IMAGE_DISPLAY_KEY);
+    }
+
+    private boolean clearHubInformationImageDisplay(JsonObject gameSection, ServerType gameType) {
+        if (gameSection == null || gameType == null || gameType == ServerType.UNKNOWN) {
+            return false;
+        }
+        JsonObject serverTypes = child(gameSection, MongoManager.MAP_SERVER_TYPES_KEY);
+        JsonObject serverType = child(serverTypes, gameType.name());
+        JsonObject information = child(serverType, MongoManager.MAP_INFORMATION_KEY);
+        if (information == null || !information.has(MongoManager.MAP_INFORMATION_IMAGE_DISPLAY_KEY)) {
+            return false;
+        }
+        information.remove(MongoManager.MAP_INFORMATION_IMAGE_DISPLAY_KEY);
+        return true;
     }
 
     private JsonArray getOrCreateArray(JsonObject parent, String key) {
@@ -1821,7 +1881,7 @@ public class BuildMapConfigService {
             boolean matchedWorldDirectory = target.equalsIgnoreCase(worldDirectory);
             boolean matchedDisplayName = target.equalsIgnoreCase(candidate);
             if (matchedWorldDirectory || matchedDisplayName) {
-                getOrCreateArray(map, MAP_SPAWNS_KEY);
+                getOrCreateArray(map, MongoManager.MAP_SPAWNS_KEY);
                 getOrCreateDropItemArray(map);
                 if (!map.has("nightTime")) {
                     map.addProperty("nightTime", false);
@@ -1871,8 +1931,8 @@ public class BuildMapConfigService {
         map.addProperty("worldDirectory", resolvedWorldDirectory);
         map.addProperty("name", MapConfigStore.displayNameFromWorldDirectory(resolvedWorldDirectory));
         map.addProperty("nightTime", false);
-        map.add(MAP_SPAWNS_KEY, new JsonArray());
-        map.add(MAP_DROP_ITEMS_KEY, new JsonArray());
+        map.add(MongoManager.MAP_SPAWNS_KEY, new JsonArray());
+        map.add(MongoManager.MAP_DROP_ITEMS_KEY, new JsonArray());
         maps.add(map);
         return map;
     }
@@ -1919,7 +1979,7 @@ public class BuildMapConfigService {
                     (float) safeDouble(location, "pitch"),
                     locationItemName(location, type),
                     safeInt(location, "itemData"),
-                    safeLong(location, MAP_CREATED_AT_KEY)
+                    safeLong(location, MongoManager.MAP_CREATED_AT_KEY)
             ));
         }
     }
@@ -1932,14 +1992,17 @@ public class BuildMapConfigService {
             return safeString(location, "item");
         }
         if (type == MapLocationType.HUB_NPC) {
-            return safeString(location, MAP_SKIN_OWNER_KEY);
+            return safeString(location, MongoManager.MAP_SKIN_OWNER_KEY);
         }
         if (type == MapLocationType.PROFILE_NPC) {
-            String ownerName = safeString(location, MAP_OWNER_NAME_KEY);
-            return ownerName.isEmpty() ? safeString(location, MAP_OWNER_UUID_KEY) : ownerName;
+            String ownerName = safeString(location, MongoManager.MAP_OWNER_NAME_KEY);
+            return ownerName.isEmpty() ? safeString(location, MongoManager.MAP_OWNER_UUID_KEY) : ownerName;
         }
         if (type == MapLocationType.LEADERBOARD) {
-            return normalizeLeaderboardMetric(safeString(location, MAP_METRIC_KEY));
+            return normalizeLeaderboardMetric(safeString(location, MongoManager.MAP_METRIC_KEY));
+        }
+        if (type == MapLocationType.HUB_IMAGE_DISPLAY) {
+            return "image";
         }
         return "";
     }
@@ -1959,7 +2022,7 @@ public class BuildMapConfigService {
                 (float) safeDouble(location, "pitch"),
                 locationItemName(location, type),
                 0,
-                safeLong(location, MAP_CREATED_AT_KEY)
+                safeLong(location, MongoManager.MAP_CREATED_AT_KEY)
         ));
     }
 
@@ -1973,11 +2036,11 @@ public class BuildMapConfigService {
                 continue;
             }
             JsonObject parkour = raw.getAsJsonObject();
-            JsonObject start = child(parkour, MAP_START_KEY);
-            JsonObject end = child(parkour, MAP_END_KEY);
-            JsonArray points = existingArray(parkour, MAP_CHECKPOINTS_KEY);
+            JsonObject start = child(parkour, MongoManager.MAP_START_KEY);
+            JsonObject end = child(parkour, MongoManager.MAP_END_KEY);
+            JsonArray points = existingArray(parkour, MongoManager.MAP_CHECKPOINTS_KEY);
             int checkpoints = points == null ? 0 : points.size();
-            long routeCreatedAt = safeLong(parkour, MAP_CREATED_AT_KEY);
+            long routeCreatedAt = safeLong(parkour, MongoManager.MAP_CREATED_AT_KEY);
             if (start != null) {
                 target.add(new MapLocationEntry(
                         MapLocationType.PARKOUR_START,
@@ -1990,7 +2053,7 @@ public class BuildMapConfigService {
                         (float) safeDouble(start, "pitch"),
                         String.valueOf(Math.max(0, checkpoints)),
                         -1,
-                        safeLong(start, MAP_CREATED_AT_KEY) > 0L ? safeLong(start, MAP_CREATED_AT_KEY) : routeCreatedAt
+                        safeLong(start, MongoManager.MAP_CREATED_AT_KEY) > 0L ? safeLong(start, MongoManager.MAP_CREATED_AT_KEY) : routeCreatedAt
                 ));
             }
             if (end != null) {
@@ -2005,7 +2068,7 @@ public class BuildMapConfigService {
                         (float) safeDouble(end, "pitch"),
                         "",
                         -1,
-                        safeLong(end, MAP_CREATED_AT_KEY) > 0L ? safeLong(end, MAP_CREATED_AT_KEY) : routeCreatedAt
+                        safeLong(end, MongoManager.MAP_CREATED_AT_KEY) > 0L ? safeLong(end, MongoManager.MAP_CREATED_AT_KEY) : routeCreatedAt
                 ));
             }
             if (points == null || points.size() == 0) {
@@ -2028,7 +2091,7 @@ public class BuildMapConfigService {
                         (float) safeDouble(checkpoint, "pitch"),
                         String.valueOf(checkpointIndex + 1),
                         checkpointIndex,
-                        safeLong(checkpoint, MAP_CREATED_AT_KEY) > 0L ? safeLong(checkpoint, MAP_CREATED_AT_KEY) : routeCreatedAt
+                        safeLong(checkpoint, MongoManager.MAP_CREATED_AT_KEY) > 0L ? safeLong(checkpoint, MongoManager.MAP_CREATED_AT_KEY) : routeCreatedAt
                 ));
             }
         }
@@ -2049,13 +2112,13 @@ public class BuildMapConfigService {
             }
             JsonObject parkour = raw.getAsJsonObject();
             if (entry.getType() == MapLocationType.PARKOUR_END) {
-                if (matchesLocation(child(parkour, MAP_END_KEY), entry)) {
+                if (matchesLocation(child(parkour, MongoManager.MAP_END_KEY), entry)) {
                     return i;
                 }
                 continue;
             }
             if (entry.getType() == MapLocationType.PARKOUR_CHECKPOINT) {
-                JsonArray checkpoints = existingArray(parkour, MAP_CHECKPOINTS_KEY);
+                JsonArray checkpoints = existingArray(parkour, MongoManager.MAP_CHECKPOINTS_KEY);
                 if (checkpoints == null) {
                     continue;
                 }
@@ -2070,7 +2133,7 @@ public class BuildMapConfigService {
                 }
                 continue;
             }
-            if (matchesLocation(child(parkour, MAP_START_KEY), entry)) {
+            if (matchesLocation(child(parkour, MongoManager.MAP_START_KEY), entry)) {
                 return i;
             }
         }
@@ -2121,27 +2184,27 @@ public class BuildMapConfigService {
             return null;
         }
         if (type == MapLocationType.PLAYER_SPAWN) {
-            return existingArray(map, MAP_SPAWNS_KEY);
+            return existingArray(map, MongoManager.MAP_SPAWNS_KEY);
         }
         if (type == MapLocationType.ITEM_DROP) {
-            return existingArray(map, MAP_DROP_ITEMS_KEY);
+            return existingArray(map, MongoManager.MAP_DROP_ITEMS_KEY);
         }
         if (type == MapLocationType.HUB_NPC) {
-            return existingArray(map, MAP_NPCS_KEY);
+            return existingArray(map, MongoManager.MAP_NPCS_KEY);
         }
         if (type == MapLocationType.PROFILE_NPC) {
-            return existingArray(map, MAP_PROFILE_NPCS_KEY);
+            return existingArray(map, MongoManager.MAP_PROFILE_NPCS_KEY);
         }
         if (type == MapLocationType.LEADERBOARD) {
-            return existingArray(map, MAP_LEADERBOARDS_KEY);
+            return existingArray(map, MongoManager.MAP_LEADERBOARDS_KEY);
         }
         if (type == MapLocationType.PARKOUR_ROUTE) {
-            return existingArray(map, MAP_PARKOURS_KEY);
+            return existingArray(map, MongoManager.MAP_PARKOURS_KEY);
         }
         if (type == MapLocationType.PARKOUR_START
                 || type == MapLocationType.PARKOUR_END
                 || type == MapLocationType.PARKOUR_CHECKPOINT) {
-            return existingArray(map, MAP_PARKOURS_KEY);
+            return existingArray(map, MongoManager.MAP_PARKOURS_KEY);
         }
         return null;
     }
@@ -2162,27 +2225,27 @@ public class BuildMapConfigService {
             rebuilt.add(current);
         }
         if (type == MapLocationType.PLAYER_SPAWN) {
-            map.add(MAP_SPAWNS_KEY, rebuilt);
+            map.add(MongoManager.MAP_SPAWNS_KEY, rebuilt);
             return;
         }
         if (type == MapLocationType.ITEM_DROP) {
-            map.add(MAP_DROP_ITEMS_KEY, rebuilt);
+            map.add(MongoManager.MAP_DROP_ITEMS_KEY, rebuilt);
             return;
         }
         if (type == MapLocationType.HUB_NPC) {
-            map.add(MAP_NPCS_KEY, rebuilt);
+            map.add(MongoManager.MAP_NPCS_KEY, rebuilt);
             return;
         }
         if (type == MapLocationType.PROFILE_NPC) {
-            map.add(MAP_PROFILE_NPCS_KEY, rebuilt);
+            map.add(MongoManager.MAP_PROFILE_NPCS_KEY, rebuilt);
             return;
         }
         if (type == MapLocationType.LEADERBOARD) {
-            map.add(MAP_LEADERBOARDS_KEY, rebuilt);
+            map.add(MongoManager.MAP_LEADERBOARDS_KEY, rebuilt);
             return;
         }
         if (type == MapLocationType.PARKOUR_ROUTE) {
-            map.add(MAP_PARKOURS_KEY, rebuilt);
+            map.add(MongoManager.MAP_PARKOURS_KEY, rebuilt);
         }
     }
 
@@ -2190,12 +2253,12 @@ public class BuildMapConfigService {
         if (map == null) {
             return new JsonArray();
         }
-        JsonArray dropItems = existingArray(map, MAP_DROP_ITEMS_KEY);
+        JsonArray dropItems = existingArray(map, MongoManager.MAP_DROP_ITEMS_KEY);
         if (dropItems != null) {
             return dropItems;
         }
         JsonArray created = new JsonArray();
-        map.add(MAP_DROP_ITEMS_KEY, created);
+        map.add(MongoManager.MAP_DROP_ITEMS_KEY, created);
         return created;
     }
 
@@ -2371,7 +2434,7 @@ public class BuildMapConfigService {
         json.addProperty("z", z);
         json.addProperty("yaw", yaw);
         json.addProperty("pitch", pitch);
-        json.addProperty(MAP_CREATED_AT_KEY, createdAt <= 0L ? System.currentTimeMillis() : createdAt);
+        json.addProperty(MongoManager.MAP_CREATED_AT_KEY, createdAt <= 0L ? System.currentTimeMillis() : createdAt);
         return json;
     }
 
@@ -2421,7 +2484,7 @@ public class BuildMapConfigService {
         if (raw == null || !raw.isJsonObject()) {
             return "";
         }
-        return safeString(raw.getAsJsonObject(), MAP_ENTITY_ID_KEY);
+        return safeString(raw.getAsJsonObject(), MongoManager.MAP_ENTITY_ID_KEY);
     }
 
     private void cleanupRuntimeAfterDelete(MapLocationType type, String runtimeId, MapLocationEntry entry) {
@@ -2472,7 +2535,7 @@ public class BuildMapConfigService {
             return markers;
         }
         List<MapLocationEntry> routeEntries = new ArrayList<MapLocationEntry>();
-        appendParkourEntries(routeEntries, existingArray(map, MAP_PARKOURS_KEY));
+        appendParkourEntries(routeEntries, existingArray(map, MongoManager.MAP_PARKOURS_KEY));
         for (MapLocationEntry candidate : routeEntries) {
             if (candidate == null || !isParkourMarkerType(candidate.getType())) {
                 continue;
@@ -3032,7 +3095,7 @@ public class BuildMapConfigService {
         if (profile == null || profile.getStats() == null) {
             return 0;
         }
-        int wins = profile.getStats().getCustomCounter(MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
+        int wins = profile.getStats().getCustomCounter(MongoManager.MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
         if (wins > 0) {
             return wins;
         }
@@ -3196,18 +3259,18 @@ public class BuildMapConfigService {
             if (map == null) {
                 return;
             }
-            JsonArray npcs = getOrCreateArray(map, profileNpc ? MAP_PROFILE_NPCS_KEY : MAP_NPCS_KEY);
+            JsonArray npcs = getOrCreateArray(map, profileNpc ? MongoManager.MAP_PROFILE_NPCS_KEY : MongoManager.MAP_NPCS_KEY);
             for (JsonElement raw : npcs) {
                 if (raw == null || !raw.isJsonObject()) {
                     continue;
                 }
                 JsonObject npc = raw.getAsJsonObject();
-                if (!safeString(runtime.entityId).equalsIgnoreCase(safeString(npc, MAP_ENTITY_ID_KEY))) {
+                if (!safeString(runtime.entityId).equalsIgnoreCase(safeString(npc, MongoManager.MAP_ENTITY_ID_KEY))) {
                     continue;
                 }
-                npc.addProperty(MAP_HOLOGRAM_COLOR_KEY, safeString(runtime.hologramColor));
+                npc.addProperty(MongoManager.MAP_HOLOGRAM_COLOR_KEY, safeString(runtime.hologramColor));
                 if (!profileNpc) {
-                    npc.addProperty(MAP_SKIN_OWNER_KEY, safeString(runtime.skinOwner));
+                    npc.addProperty(MongoManager.MAP_SKIN_OWNER_KEY, safeString(runtime.skinOwner));
                 }
                 break;
             }
@@ -3377,39 +3440,39 @@ public class BuildMapConfigService {
 
     private String normalizeLeaderboardMetric(String metric) {
         String normalized = safeString(metric).toLowerCase(Locale.ROOT);
-        if (LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(normalized)
-                || LEGACY_LEADERBOARD_METRIC_KILLS_AS_MURDERER.equals(normalized)
+        if (MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(normalized)
+                || "kills_as_murderer".equals(normalized)
                 || "murdererwins".equals(normalized)
                 || "winsasmurderer".equals(normalized)
                 || "murderer_wins".equals(normalized)
                 || "murdererkills".equals(normalized)
                 || "killsasmurderer".equals(normalized)
                 || "murderer_kills".equals(normalized)) {
-            return LEADERBOARD_METRIC_WINS_AS_MURDERER;
+            return MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER;
         }
-        if (LEADERBOARD_METRIC_WINS.equals(normalized)) {
-            return LEADERBOARD_METRIC_WINS;
+        if (MongoManager.LEADERBOARD_METRIC_WINS.equals(normalized)) {
+            return MongoManager.LEADERBOARD_METRIC_WINS;
         }
-        return LEADERBOARD_METRIC_KILLS;
+        return MongoManager.LEADERBOARD_METRIC_KILLS;
     }
 
     private String nextLeaderboardMetric(String metric) {
         String current = normalizeLeaderboardMetric(metric);
-        if (LEADERBOARD_METRIC_KILLS.equals(current)) {
-            return LEADERBOARD_METRIC_WINS;
+        if (MongoManager.LEADERBOARD_METRIC_KILLS.equals(current)) {
+            return MongoManager.LEADERBOARD_METRIC_WINS;
         }
-        if (LEADERBOARD_METRIC_WINS.equals(current)) {
-            return LEADERBOARD_METRIC_WINS_AS_MURDERER;
+        if (MongoManager.LEADERBOARD_METRIC_WINS.equals(current)) {
+            return MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER;
         }
-        return LEADERBOARD_METRIC_KILLS;
+        return MongoManager.LEADERBOARD_METRIC_KILLS;
     }
 
     private String leaderboardMetricLabel(String metric) {
         String resolved = normalizeLeaderboardMetric(metric);
-        if (LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(resolved)) {
+        if (MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(resolved)) {
             return "Lifetime Wins as Murderer";
         }
-        if (LEADERBOARD_METRIC_WINS.equals(resolved)) {
+        if (MongoManager.LEADERBOARD_METRIC_WINS.equals(resolved)) {
             return "Lifetime Wins";
         }
         return "Lifetime Kills";
@@ -3425,8 +3488,8 @@ public class BuildMapConfigService {
             return Collections.emptyList();
         }
         String resolvedMetric = normalizeLeaderboardMetric(metric);
-        boolean winsMetric = LEADERBOARD_METRIC_WINS.equals(resolvedMetric);
-        boolean murdererWinsMetric = LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(resolvedMetric);
+        boolean winsMetric = MongoManager.LEADERBOARD_METRIC_WINS.equals(resolvedMetric);
+        boolean murdererWinsMetric = MongoManager.LEADERBOARD_METRIC_WINS_AS_MURDERER.equals(resolvedMetric);
         String statKey = winsMetric ? winsStatKeyForType(gameType) : killsStatKeyForType(gameType);
         List<LeaderboardEntry> entries = new ArrayList<LeaderboardEntry>();
         for (Document doc : profiles.find()) {
@@ -3569,7 +3632,7 @@ public class BuildMapConfigService {
         if (stats == null) {
             return 0;
         }
-        Object modern = stats.get(MURDER_MYSTERY_KILLS_AS_MURDERER_KEY);
+        Object modern = stats.get(MongoManager.MURDER_MYSTERY_KILLS_AS_MURDERER_KEY);
         if (modern instanceof Number) {
             return Math.max(0, ((Number) modern).intValue());
         }
@@ -3581,7 +3644,7 @@ public class BuildMapConfigService {
         if (custom == null) {
             return 0;
         }
-        Object customModern = custom.get(MURDER_MYSTERY_KILLS_AS_MURDERER_KEY);
+        Object customModern = custom.get(MongoManager.MURDER_MYSTERY_KILLS_AS_MURDERER_KEY);
         if (customModern instanceof Number) {
             return Math.max(0, ((Number) customModern).intValue());
         }
@@ -3596,7 +3659,7 @@ public class BuildMapConfigService {
         if (stats == null) {
             return 0;
         }
-        Object modern = stats.get(MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
+        Object modern = stats.get(MongoManager.MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
         if (modern instanceof Number) {
             return Math.max(0, ((Number) modern).intValue());
         }
@@ -3608,7 +3671,7 @@ public class BuildMapConfigService {
         if (custom == null) {
             return 0;
         }
-        Object customModern = custom.get(MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
+        Object customModern = custom.get(MongoManager.MURDER_MYSTERY_WINS_AS_MURDERER_KEY);
         if (customModern instanceof Number) {
             return Math.max(0, ((Number) customModern).intValue());
         }
@@ -4288,6 +4351,8 @@ public class BuildMapConfigService {
                     return "Click to Play NPC";
                 case PROFILE_NPC:
                     return "Profile NPC";
+                case HUB_IMAGE_DISPLAY:
+                    return "Hub Image Display";
                 case LEADERBOARD:
                     return "Leaderboard Hologram";
                 case PARKOUR_START:
@@ -4359,6 +4424,7 @@ public class BuildMapConfigService {
         HUB_SPAWN,
         HUB_NPC,
         PROFILE_NPC,
+        HUB_IMAGE_DISPLAY,
         LEADERBOARD,
         PARKOUR_START,
         PARKOUR_END,

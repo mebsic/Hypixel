@@ -3,6 +3,7 @@ package io.github.mebsic.proxy.service;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import io.github.mebsic.proxy.manager.MongoManager;
 import org.bson.Document;
 
 import java.util.Map;
@@ -15,7 +16,7 @@ public class ChatRestrictionService {
     private final Map<UUID, CachedMuteState> muteCache = new ConcurrentHashMap<>();
 
     public ChatRestrictionService(MongoDatabase database) {
-        this.punishments = database == null ? null : database.getCollection("punishments");
+        this.punishments = database == null ? null : database.getCollection(MongoManager.PUNISHMENTS_COLLECTION);
     }
 
     public boolean isMuted(UUID playerId) {

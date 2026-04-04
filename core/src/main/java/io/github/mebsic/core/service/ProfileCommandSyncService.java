@@ -2,6 +2,7 @@ package io.github.mebsic.core.service;
 
 import com.google.gson.Gson;
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import org.bukkit.Bukkit;
@@ -200,15 +201,53 @@ public class ProfileCommandSyncService {
         }
         String normalizedKey = key.trim();
         int desired = Math.max(0, value);
-        int current = profile.getStats().getCustomCounter(normalizedKey);
-        if (current != desired) {
-            profile.getStats().addCustomCounter(normalizedKey, desired - current);
+        if (MongoManager.PROFILE_RANKS_GIFTED_KEY.equals(normalizedKey)) {
+            profile.setRanksGifted(desired);
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY.equals(normalizedKey)) {
+            int current = Math.max(0, profile.getStats().getWins());
+            if (current != desired) {
+                profile.getStats().addWins(desired - current);
+            }
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY.equals(normalizedKey)) {
+            int current = Math.max(0, profile.getStats().getKills());
+            if (current != desired) {
+                profile.getStats().addKills(desired - current);
+            }
+        } else if (MongoManager.MURDER_MYSTERY_LIFETIME_GAMES_KEY.equals(normalizedKey)) {
+            int current = Math.max(0, profile.getStats().getGames());
+            if (current != desired) {
+                profile.getStats().addGames(desired - current);
+            }
+        } else {
+            int current = profile.getStats().getCustomCounter(normalizedKey);
+            if (current != desired) {
+                profile.getStats().addCustomCounter(normalizedKey, desired - current);
+            }
         }
         if (clearKey != null && !clearKey.trim().isEmpty()) {
             String normalizedLegacy = clearKey.trim();
-            int legacy = profile.getStats().getCustomCounter(normalizedLegacy);
-            if (legacy > 0) {
-                profile.getStats().addCustomCounter(normalizedLegacy, -legacy);
+            if (MongoManager.PROFILE_RANKS_GIFTED_KEY.equals(normalizedLegacy)) {
+                profile.setRanksGifted(0);
+            } else if (MongoManager.MURDER_MYSTERY_LIFETIME_WINS_KEY.equals(normalizedLegacy)) {
+                int current = Math.max(0, profile.getStats().getWins());
+                if (current > 0) {
+                    profile.getStats().addWins(-current);
+                }
+            } else if (MongoManager.MURDER_MYSTERY_LIFETIME_KILLS_KEY.equals(normalizedLegacy)) {
+                int current = Math.max(0, profile.getStats().getKills());
+                if (current > 0) {
+                    profile.getStats().addKills(-current);
+                }
+            } else if (MongoManager.MURDER_MYSTERY_LIFETIME_GAMES_KEY.equals(normalizedLegacy)) {
+                int current = Math.max(0, profile.getStats().getGames());
+                if (current > 0) {
+                    profile.getStats().addGames(-current);
+                }
+            } else {
+                int legacy = profile.getStats().getCustomCounter(normalizedLegacy);
+                if (legacy > 0) {
+                    profile.getStats().addCustomCounter(normalizedLegacy, -legacy);
+                }
             }
         }
         plugin.saveProfile(profile);

@@ -40,7 +40,7 @@ public class NetworkLevelCommand implements CommandExecutor {
         UUID uuid = target != null ? target.getUniqueId() : MojangApi.lookupUuid(args[0]);
         String name = target != null ? target.getName() : args[0];
         if (uuid == null) {
-            sender.sendMessage(ChatColor.RED + "Player not found!");
+            sender.sendMessage(ChatColor.RED + CommonMessages.PLAYER_NOT_FOUND_COMMAND);
             return true;
         }
         int level;

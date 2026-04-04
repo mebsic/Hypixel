@@ -2,13 +2,10 @@ package io.github.mebsic.core.util;
 
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.UpdateOptions;
+import io.github.mebsic.core.manager.MongoManager;
 import org.bson.Document;
 
 public final class DomainSettingsStore {
-    public static final String COLLECTION_NAME = "proxy_settings";
-    public static final String DOMAIN_DOCUMENT_ID = "domain";
-    public static final String DOMAIN_FIELD = "domain";
-
     private DomainSettingsStore() {
     }
 
@@ -16,9 +13,9 @@ public final class DomainSettingsStore {
         if (collection == null) {
             return;
         }
-        Document defaults = new Document(DOMAIN_FIELD, NetworkConstants.DEFAULT_DOMAIN);
+        Document defaults = new Document(MongoManager.PROXY_SETTINGS_DOMAIN_FIELD, NetworkConstants.DEFAULT_DOMAIN);
         collection.updateOne(
-                new Document("_id", DOMAIN_DOCUMENT_ID),
+                new Document("_id", MongoManager.PROXY_SETTINGS_DOMAIN_DOCUMENT_ID),
                 new Document("$setOnInsert", defaults),
                 new UpdateOptions().upsert(true)
         );
@@ -28,8 +25,8 @@ public final class DomainSettingsStore {
         if (collection == null) {
             return false;
         }
-        Document domainDoc = collection.find(new Document("_id", DOMAIN_DOCUMENT_ID))
-                .projection(new Document(DOMAIN_FIELD, 1))
+        Document domainDoc = collection.find(new Document("_id", MongoManager.PROXY_SETTINGS_DOMAIN_DOCUMENT_ID))
+                .projection(new Document(MongoManager.PROXY_SETTINGS_DOMAIN_FIELD, 1))
                 .first();
         String resolved = readDomain(domainDoc);
         return NetworkConstants.setDomain(resolved);
@@ -39,7 +36,7 @@ public final class DomainSettingsStore {
         if (domainDoc == null) {
             return NetworkConstants.DEFAULT_DOMAIN;
         }
-        Object raw = domainDoc.get(DOMAIN_FIELD);
+        Object raw = domainDoc.get(MongoManager.PROXY_SETTINGS_DOMAIN_FIELD);
         if (raw == null) {
             return NetworkConstants.DEFAULT_DOMAIN;
         }

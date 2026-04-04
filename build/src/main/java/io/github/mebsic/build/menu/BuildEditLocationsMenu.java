@@ -92,6 +92,8 @@ public class BuildEditLocationsMenu extends Menu {
                 if (!metric.isEmpty()) {
                     lore.add(ChatColor.GOLD + "Leaderboard Type: " + leaderboardTypeLabel(metric));
                 }
+            } else if (entry.getType() == BuildMapConfigService.MapLocationType.HUB_IMAGE_DISPLAY) {
+                lore.add(ChatColor.GOLD + "Server Type Information");
             }
             lore.add("");
             lore.add(ChatColor.YELLOW + "Click to teleport!");
@@ -242,6 +244,9 @@ public class BuildEditLocationsMenu extends Menu {
             if (head != null) {
                 return head;
             }
+        }
+        if (entry.getType() == BuildMapConfigService.MapLocationType.HUB_IMAGE_DISPLAY) {
+            return Material.MAP;
         }
         if (entry.getType() == BuildMapConfigService.MapLocationType.LEADERBOARD) {
             Material sign = Material.matchMaterial("SIGN");

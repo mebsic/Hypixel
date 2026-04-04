@@ -1,20 +1,22 @@
 package io.github.mebsic.proxy.config;
 
+import io.github.mebsic.proxy.manager.MongoManager;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class ProxyConfig {
     private String mongoUri = "mongodb://mongo:27017";
     private String mongoDatabase = "hypixel";
-    private String motdCollection = "proxy_settings";
-    private String motdDocumentId = "motd";
-    private String motdField = "text";
+    private String motdCollection = MongoManager.PROXY_SETTINGS_COLLECTION;
+    private String motdDocumentId = MongoManager.PROXY_SETTINGS_MOTD_DOCUMENT_ID;
+    private String motdField = MongoManager.PROXY_SETTINGS_MOTD_TEXT_FIELD;
     private int cacheTtlSeconds = 5;
     private String iconFile = "server-icon.png";
     private String hubServer = "";
-    private String registryCollection = "server_registry";
+    private String registryCollection = MongoManager.SERVER_REGISTRY_COLLECTION;
     private String registryGroup = "";
-    private String friendsCollection = "friends";
+    private String friendsCollection = MongoManager.FRIENDS_COLLECTION;
     private int registryRefreshSeconds = 1;
     private int registryStaleSeconds = 20;
     private String redisHost = "redis";

@@ -1,6 +1,7 @@
 package io.github.mebsic.core.command;
 
 import io.github.mebsic.core.CorePlugin;
+import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.service.ProfileCommandSyncService;
@@ -13,7 +14,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 public class Reset100RanksGiftedCommand implements CommandExecutor {
-    private static final String GIFTED_COUNTER_KEY = "ranksGifted";
     private static final int TARGET_GIFTED_AMOUNT = 0;
 
     private final CorePlugin plugin;
@@ -36,18 +36,18 @@ public class Reset100RanksGiftedCommand implements CommandExecutor {
         }
 
         Profile profile = plugin.getProfile(player.getUniqueId());
-        if (profile == null || profile.getStats() == null) {
+        if (profile == null) {
             player.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
             return true;
         }
 
-        int current = Math.max(0, profile.getStats().getCustomCounter(GIFTED_COUNTER_KEY));
+        int current = Math.max(0, profile.getRanksGifted());
         if (current != TARGET_GIFTED_AMOUNT) {
-            profile.getStats().addCustomCounter(GIFTED_COUNTER_KEY, TARGET_GIFTED_AMOUNT - current);
+            profile.setRanksGifted(TARGET_GIFTED_AMOUNT);
             plugin.saveProfile(profile);
             ProfileCommandSyncService sync = plugin.getProfileCommandSyncService();
             if (sync != null) {
-                sync.dispatchCounterSet(player.getUniqueId(), GIFTED_COUNTER_KEY, TARGET_GIFTED_AMOUNT, null, null);
+                sync.dispatchCounterSet(player.getUniqueId(), MongoManager.PROFILE_RANKS_GIFTED_KEY, TARGET_GIFTED_AMOUNT, null, null);
             }
         }
 

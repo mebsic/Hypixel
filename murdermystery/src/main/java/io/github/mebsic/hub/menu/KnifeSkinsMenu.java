@@ -7,6 +7,7 @@ import io.github.mebsic.core.model.KnifeSkinDefinition;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.service.CoreApi;
 import io.github.mebsic.core.service.CosmeticService;
+import io.github.mebsic.core.store.KnifeSkinStore;
 import io.github.mebsic.core.util.CommonMessages;
 import io.github.mebsic.core.util.NetworkConstants;
 import io.github.mebsic.hub.service.KnifeMenuStateService;
@@ -32,12 +33,6 @@ import java.util.UUID;
 public class KnifeSkinsMenu extends Menu {
     public static final String TITLE = "Knife Skins";
     private static final String SHIFT_FAVORITE_TEXT = ChatColor.YELLOW + "Shift-click to toggle favorite!";
-    private static final String JUNGLE_SAPLING_KNIFE_ID = "mm_skin_44_sapling";
-    private static final String CHARCOAL_KNIFE_ID = "mm_skin_19_coal";
-    private static final String ROSE_BUSH_KNIFE_ID = "mm_skin_26_rose";
-    private static final String ROSE_RED_KNIFE_ID = "mm_skin_39_nether_wart";
-    private static final String LAPIS_LAZULI_KNIFE_ID = "mm_skin_33_prismarine_shard";
-    private static final String RAW_SALMON_KNIFE_ID = "mm_skin_38_raw_fish";
     private static final int SIZE = 54;
     private static final int BACK_SLOT = 48;
     private static final int TOKENS_SLOT = 49;
@@ -449,16 +444,9 @@ public class KnifeSkinsMenu extends Menu {
         if (normalized.isEmpty()) {
             return Integer.MAX_VALUE;
         }
-        if (normalized.startsWith("mm_skin_")) {
-            int first = "mm_skin_".length();
-            int second = normalized.indexOf('_', first);
-            if (second > first) {
-                try {
-                    return Integer.parseInt(normalized.substring(first, second));
-                } catch (NumberFormatException ignored) {
-                    return Integer.MAX_VALUE;
-                }
-            }
+        int skinNumber = KnifeSkinStore.skinNumber(normalized);
+        if (skinNumber > 0) {
+            return skinNumber;
         }
         if (CosmeticService.DEFAULT_KNIFE_ID.equals(normalized)) {
             return 1;
@@ -717,15 +705,19 @@ public class KnifeSkinsMenu extends Menu {
         if (trimmed.isEmpty()) {
             return "";
         }
-        return trimmed.toLowerCase(Locale.ROOT);
+        String normalized = trimmed.toLowerCase(Locale.ROOT);
+        if (KnifeSkinStore.skinNumber(normalized) > 0) {
+            return KnifeSkinStore.normalizeKnifeSkinId(normalized);
+        }
+        return normalized;
     }
 
     private String normalizeSelectedKnifeId(String value) {
         String normalized = normalizeId(value);
-        if ("mm_skin_02_chest".equals(normalized)) {
+        if (KnifeSkinStore.SKIN_02_CHEST_ID.equals(normalized)) {
             return CosmeticService.RANDOM_KNIFE_ID;
         }
-        if ("mm_skin_03_ender_chest".equals(normalized)) {
+        if (KnifeSkinStore.SKIN_03_ENDER_CHEST_ID.equals(normalized)) {
             return CosmeticService.RANDOM_FAVORITE_KNIFE_ID;
         }
         return normalized;
@@ -780,8 +772,8 @@ public class KnifeSkinsMenu extends Menu {
         String normalized = normalizeId(option);
         return CosmeticService.RANDOM_KNIFE_ID.equals(normalized)
                 || CosmeticService.RANDOM_FAVORITE_KNIFE_ID.equals(normalized)
-                || "mm_skin_02_chest".equals(normalized)
-                || "mm_skin_03_ender_chest".equals(normalized);
+                || KnifeSkinStore.SKIN_02_CHEST_ID.equals(normalized)
+                || KnifeSkinStore.SKIN_03_ENDER_CHEST_ID.equals(normalized);
     }
 
     private String displayName(KnifeEntry entry) {
@@ -868,27 +860,27 @@ public class KnifeSkinsMenu extends Menu {
             return;
         }
         String normalizedId = normalizeId(knifeId);
-        if (JUNGLE_SAPLING_KNIFE_ID.equals(normalizedId) && item.getType() == Material.SAPLING) {
+        if (KnifeSkinStore.SKIN_44_SAPLING_ID.equals(normalizedId) && item.getType() == Material.SAPLING) {
             item.setDurability((short) 3);
             return;
         }
-        if (CHARCOAL_KNIFE_ID.equals(normalizedId) && item.getType() == Material.COAL) {
+        if (KnifeSkinStore.SKIN_19_COAL_ID.equals(normalizedId) && item.getType() == Material.COAL) {
             item.setDurability((short) 1);
             return;
         }
-        if (ROSE_BUSH_KNIFE_ID.equals(normalizedId) && item.getType() == Material.DOUBLE_PLANT) {
+        if (KnifeSkinStore.SKIN_26_ROSE_ID.equals(normalizedId) && item.getType() == Material.DOUBLE_PLANT) {
             item.setDurability((short) 4);
             return;
         }
-        if (ROSE_RED_KNIFE_ID.equals(normalizedId) && item.getType() == Material.INK_SACK) {
+        if (KnifeSkinStore.SKIN_39_NETHER_WART_ID.equals(normalizedId) && item.getType() == Material.INK_SACK) {
             item.setDurability((short) 1);
             return;
         }
-        if (LAPIS_LAZULI_KNIFE_ID.equals(normalizedId) && item.getType() == Material.INK_SACK) {
+        if (KnifeSkinStore.SKIN_33_PRISMARINE_SHARD_ID.equals(normalizedId) && item.getType() == Material.INK_SACK) {
             item.setDurability((short) 4);
             return;
         }
-        if (RAW_SALMON_KNIFE_ID.equals(normalizedId) && item.getType() == Material.RAW_FISH) {
+        if (KnifeSkinStore.SKIN_38_RAW_FISH_ID.equals(normalizedId) && item.getType() == Material.RAW_FISH) {
             item.setDurability((short) 1);
         }
     }
