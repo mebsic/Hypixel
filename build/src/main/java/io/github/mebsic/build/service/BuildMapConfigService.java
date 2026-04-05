@@ -585,6 +585,7 @@ public class BuildMapConfigService {
                     JsonObject serverTypeSection = getOrCreateServerTypeSection(gameSection, gameType);
                     JsonObject information = getOrCreateObject(serverTypeSection, MongoManager.MAP_INFORMATION_KEY);
                     JsonObject imageDisplay = toLocationJson(location, System.currentTimeMillis());
+                    imageDisplay.addProperty("pitch", 0.0f);
                     imageDisplay.addProperty(
                             "imageFacing",
                             oppositeCardinalFacing(cardinalFacingFromYaw(location == null ? 0.0f : location.getYaw()))

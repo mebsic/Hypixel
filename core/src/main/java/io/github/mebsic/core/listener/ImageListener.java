@@ -312,6 +312,8 @@ public class ImageListener implements Listener {
         List<UUID> previous = runtimeImage == null || runtimeImage.frameUuids == null
                 ? new ArrayList<UUID>()
                 : new ArrayList<UUID>(runtimeImage.frameUuids);
+        Set<UUID> previousSet = new HashSet<UUID>(previous);
+        removeConflictingFramesNearGrid(world, location, facing, previousSet);
         List<UUID> next = new ArrayList<UUID>(IMAGE_TOTAL_TILES);
 
         for (int rowTop = 0; rowTop < IMAGE_GRID_HEIGHT; rowTop++) {
@@ -376,6 +378,46 @@ public class ImageListener implements Listener {
         runtime.frameUuids = next;
         runtimeImage = runtime;
         pendingRuntimeFrameUuids.clear();
+    }
+
+    private void removeConflictingFramesNearGrid(World world,
+                                                 ImageLocation location,
+                                                 BlockFace facing,
+                                                 Set<UUID> preserve) {
+        if (world == null || location == null || facing == null) {
+            return;
+        }
+        Set<UUID> scanned = new HashSet<UUID>();
+        for (int rowTop = 0; rowTop < IMAGE_GRID_HEIGHT; rowTop++) {
+            for (int col = 0; col < IMAGE_GRID_WIDTH; col++) {
+                Location tile = tileLocation(world, location, facing, col, rowTop);
+                if (tile == null) {
+                    continue;
+                }
+                for (Entity nearby : world.getNearbyEntities(tile, 0.75d, 0.75d, 0.75d)) {
+                    if (!(nearby instanceof ItemFrame) || nearby.getUniqueId() == null) {
+                        continue;
+                    }
+                    UUID id = nearby.getUniqueId();
+                    if (!scanned.add(id)) {
+                        continue;
+                    }
+                    if (preserve != null && preserve.contains(id)) {
+                        continue;
+                    }
+                    ItemFrame frame = (ItemFrame) nearby;
+                    ItemStack item = frame.getItem();
+                    if (item == null || item.getType() != Material.MAP) {
+                        continue;
+                    }
+                    try {
+                        frame.remove();
+                    } catch (Exception ignored) {
+                        // Best effort cleanup.
+                    }
+                }
+            }
+        }
     }
 
     private Location tileLocation(World world, ImageLocation anchor, BlockFace facing, int col, int rowTop) {
@@ -578,12 +620,9 @@ public class ImageListener implements Listener {
                 && configuredFacing != BlockFace.DOWN) {
             return configuredFacing;
         }
-        float yaw = location == null ? 0.0f : location.yaw;
-        BlockFace derivedFacing = yawToBlockFace(yaw);
-        if (derivedFacing == null) {
-            return BlockFace.SOUTH;
-        }
-        return derivedFacing;
+        // Ignore stored yaw for wall orientation to avoid diagonal/partial-camera
+        // saves producing twisted placement. Use explicit imageFacing or default.
+        return BlockFace.SOUTH;
     }
 
     private BlockFace parseFacing(String raw) {
@@ -596,26 +635,6 @@ public class ImageListener implements Listener {
         } catch (Exception ignored) {
             return null;
         }
-    }
-
-    private BlockFace yawToBlockFace(float yaw) {
-        float normalized = yaw % 360.0f;
-        if (normalized < -180.0f) {
-            normalized += 360.0f;
-        }
-        if (normalized > 180.0f) {
-            normalized -= 360.0f;
-        }
-        if (normalized >= 45.0f && normalized < 135.0f) {
-            return BlockFace.WEST;
-        }
-        if (normalized >= -135.0f && normalized < -45.0f) {
-            return BlockFace.EAST;
-        }
-        if (normalized >= 135.0f || normalized < -135.0f) {
-            return BlockFace.NORTH;
-        }
-        return BlockFace.SOUTH;
     }
 
     private boolean supportsImageDisplayServerType() {
