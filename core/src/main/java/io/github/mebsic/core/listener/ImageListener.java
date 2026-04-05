@@ -173,7 +173,7 @@ public class ImageListener implements Listener {
         if (facing == null || facing == BlockFace.SELF || facing == BlockFace.UP || facing == BlockFace.DOWN) {
             facing = BlockFace.SOUTH;
         }
-        facing = resolveBestSupportedFacing(world, config.location, facing);
+        facing = resolveFacingWithOppositeFallback(world, config.location, facing);
 
         ensureMapTiles(world);
         if (mapTiles.size() != IMAGE_TOTAL_TILES) {
@@ -185,42 +185,30 @@ public class ImageListener implements Listener {
         ensureRuntimeFrames(world, config.location, facing);
     }
 
-    private BlockFace resolveBestSupportedFacing(World world, ImageLocation location, BlockFace preferred) {
-        if (world == null || location == null) {
-            return preferred == null ? BlockFace.SOUTH : preferred;
+    private BlockFace resolveFacingWithOppositeFallback(World world, ImageLocation location, BlockFace preferred) {
+        BlockFace normalized = normalizeCardinalFace(preferred);
+        if (normalized == null) {
+            normalized = BlockFace.SOUTH;
         }
-        List<BlockFace> candidates = new ArrayList<BlockFace>(4);
-        addFacingCandidate(candidates, preferred);
-        addFacingCandidate(candidates, BlockFace.NORTH);
-        addFacingCandidate(candidates, BlockFace.SOUTH);
-        addFacingCandidate(candidates, BlockFace.EAST);
-        addFacingCandidate(candidates, BlockFace.WEST);
-        if (candidates.isEmpty()) {
-            return preferred == null ? BlockFace.SOUTH : preferred;
+        if (world == null || location == null) {
+            return normalized;
+        }
+        BlockFace opposite = normalizeCardinalFace(normalized.getOppositeFace());
+        if (opposite == null) {
+            return normalized;
         }
 
-        BlockFace best = candidates.get(0);
-        int bestScore = -1;
-        for (BlockFace candidate : candidates) {
-            int score = countSupportedTiles(world, location, candidate);
-            if (score > bestScore) {
-                bestScore = score;
-                best = candidate;
-            }
-        }
-        return best;
+        int preferredScore = countSupportedTiles(world, location, normalized);
+        int oppositeScore = countSupportedTiles(world, location, opposite);
+        return oppositeScore > preferredScore ? opposite : normalized;
     }
 
-    private void addFacingCandidate(List<BlockFace> candidates, BlockFace face) {
-        if (candidates == null || face == null
-                || face == BlockFace.UP
-                || face == BlockFace.DOWN
-                || face == BlockFace.SELF) {
-            return;
+    private BlockFace normalizeCardinalFace(BlockFace face) {
+        if (face == BlockFace.NORTH || face == BlockFace.SOUTH
+                || face == BlockFace.EAST || face == BlockFace.WEST) {
+            return face;
         }
-        if (!candidates.contains(face)) {
-            candidates.add(face);
-        }
+        return null;
     }
 
     private int countSupportedTiles(World world, ImageLocation location, BlockFace facing) {
