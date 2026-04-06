@@ -9,7 +9,7 @@ import org.bukkit.scoreboard.ScoreboardManager;
 import org.bukkit.scoreboard.Team;
 
 import java.time.format.DateTimeFormatter;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public class ScoreboardService {
-    public static final ZoneOffset SCOREBOARD_DATE_ZONE = ZoneOffset.ofHours(-5); // EST
+    public static final ZoneId SCOREBOARD_DATE_ZONE = ZoneId.of("America/New_York");
     public static final DateTimeFormatter SCOREBOARD_DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yy");
     private static final String OBJECTIVE_NAME = "game";
     private static final String TEAM_PREFIX = "game_line_";

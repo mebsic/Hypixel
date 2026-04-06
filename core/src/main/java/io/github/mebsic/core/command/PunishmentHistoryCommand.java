@@ -16,7 +16,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -24,8 +24,8 @@ import java.util.UUID;
 
 public class PunishmentHistoryCommand implements CommandExecutor {
     private static final int PAGE_SIZE = 10;
-    private static final ZoneOffset EST_OFFSET = ZoneOffset.ofHours(-5);
-    private static final DateTimeFormatter EST_DATE_FORMAT = DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a 'EST'", Locale.US);
+    private static final ZoneId EASTERN_TIME_ZONE = ZoneId.of("America/New_York");
+    private static final DateTimeFormatter EASTERN_DATE_FORMAT = DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a z", Locale.US);
 
     private final CorePlugin plugin;
     private final PunishmentService punishments;
@@ -147,14 +147,14 @@ public class PunishmentHistoryCommand implements CommandExecutor {
         long createdAt = punishment == null ? 0L : punishment.getCreatedAt();
 
         return ChatColor.GOLD + Integer.toString(index) + ". "
-                + ChatColor.YELLOW + label + " - " + formatEstDate(createdAt)
+                + ChatColor.YELLOW + label + " - " + formatEasternDate(createdAt)
                 + ChatColor.WHITE + ChatColor.ITALIC + " " + reason
                 + ChatColor.YELLOW + " by " + actorName + statusSuffix;
     }
 
-    private String formatEstDate(long epochMillis) {
+    private String formatEasternDate(long epochMillis) {
         long safeEpochMillis = Math.max(0L, epochMillis);
-        return EST_DATE_FORMAT.format(Instant.ofEpochMilli(safeEpochMillis).atOffset(EST_OFFSET));
+        return EASTERN_DATE_FORMAT.format(Instant.ofEpochMilli(safeEpochMillis).atZone(EASTERN_TIME_ZONE));
     }
 
     private boolean isTemporary(Punishment punishment) {
