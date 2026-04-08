@@ -3,7 +3,7 @@ package io.github.mebsic.murdermystery.command;
 import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.util.CommonMessages;
-import io.github.mebsic.murdermystery.service.TipService;
+import io.github.mebsic.murdermystery.service.ActionBarService;
 import io.github.mebsic.murdermystery.stats.MurderMysteryStats;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
@@ -13,11 +13,11 @@ import org.bukkit.entity.Player;
 
 public class ToggleHintsCommand implements CommandExecutor {
     private final CorePlugin corePlugin;
-    private final TipService tipService;
+    private final ActionBarService actionBarService;
 
-    public ToggleHintsCommand(CorePlugin corePlugin, TipService tipService) {
+    public ToggleHintsCommand(CorePlugin corePlugin, ActionBarService actionBarService) {
         this.corePlugin = corePlugin;
-        this.tipService = tipService;
+        this.actionBarService = actionBarService;
     }
 
     @Override
@@ -48,8 +48,8 @@ public class ToggleHintsCommand implements CommandExecutor {
             player.sendMessage(ChatColor.RED + "Disabled game hints!");
         }
 
-        if (tipService != null) {
-            tipService.handleHintsToggled(player, nextEnabled);
+        if (actionBarService != null) {
+            actionBarService.handleHintsToggled(player, nextEnabled);
         }
         return true;
     }

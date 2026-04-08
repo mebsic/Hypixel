@@ -324,9 +324,15 @@ public class PartyCommand implements SimpleCommand {
             sendNotInParty(player);
             return;
         }
-        boolean isLeader = parties.isLeader(player.getUniqueId());
-        LeaveResult result = parties.leave(player.getUniqueId());
-        if (result == LeaveResult.DISBANDED || isLeader) {
+        UUID playerId = player.getUniqueId();
+        boolean isLeader = parties.isLeader(playerId);
+        UUID partyLeaderId = party.getLeader();
+        LeaveResult result = parties.leave(playerId);
+        if (result == LeaveResult.NOT_IN_PARTY) {
+            sendNotInParty(player);
+            return;
+        }
+        if (isLeader) {
             Component disbandedMessage = LEGACY.deserialize(formatNameWithRank(player.getUniqueId(), player.getUsername()))
                     .append(Component.text(" has disbanded the party!", NamedTextColor.YELLOW));
             sendFramed(player, disbandedMessage);
@@ -340,6 +346,17 @@ public class PartyCommand implements SimpleCommand {
             return;
         }
         sendFramed(player, Component.text("You left the party.", NamedTextColor.YELLOW));
+        if (result == LeaveResult.DISBANDED) {
+            if (partyLeaderId != null && !partyLeaderId.equals(playerId)) {
+                proxy.getPlayer(partyLeaderId).ifPresent(target ->
+                        sendFramedWithShort(
+                                target,
+                                singleLine(Component.text("The party was disbanded because it was empty!", NamedTextColor.RED))
+                        )
+                );
+            }
+            return;
+        }
         for (UUID member : party.getMembers()) {
             proxy.getPlayer(member).ifPresent(target ->
                     sendFramedWithShort(target,
@@ -694,6 +711,7 @@ public class PartyCommand implements SimpleCommand {
                         .orElse(false);
             }
         }
+        List<Player> partyMembersToNotify = onlinePartyMembers(player.getUniqueId());
         List<Player> toMove = onlinePartyMembersNotOnTarget(player.getUniqueId(), targetName);
         if (!serverHasCapacity(targetName, toMove.size())) {
             sendFramed(player, Component.text(
@@ -708,7 +726,7 @@ public class PartyCommand implements SimpleCommand {
             }
             partyMember.createConnectionRequest(target).fireAndForget();
         }
-        int summonedCount = toMove.size();
+        int summonedCount = partyMembersToNotify.size();
         if (summonedCount <= 0) {
             sendFramed(player, Component.text("The party is currently empty!", NamedTextColor.RED));
             return;
@@ -716,11 +734,11 @@ public class PartyCommand implements SimpleCommand {
         Component summonedNotice = Component.text("Party Leader, ", NamedTextColor.YELLOW)
                 .append(LEGACY.deserialize(formatNameWithRank(player.getUniqueId(), player.getUsername())))
                 .append(Component.text(", summoned you to their server.", NamedTextColor.YELLOW));
-        for (Player partyMember : toMove) {
+        for (Player partyMember : partyMembersToNotify) {
             sendFramedWithShort(partyMember, singleLine(summonedNotice));
         }
         if (summonedCount == 1) {
-            Player summoned = toMove.get(0);
+            Player summoned = partyMembersToNotify.get(0);
             sendFramed(player, Component.text("You summoned ", NamedTextColor.YELLOW)
                     .append(LEGACY.deserialize(formatNameWithRank(
                             summoned.getUniqueId(),

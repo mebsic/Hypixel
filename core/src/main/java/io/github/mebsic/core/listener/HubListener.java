@@ -38,7 +38,7 @@ public class HubListener implements Listener {
     private static final long JOIN_MESSAGE_RETRY_INTERVAL_TICKS = 2L;
     private static final int JOIN_MESSAGE_MAX_RETRIES = 40;
     private static final long JOIN_PROFILE_REFRESH_DELAY_TICKS = 1L;
-    private static final long JOIN_FLIGHT_REAPPLY_DELAY_TICKS = 1L;
+    private static final long JOIN_FLIGHT_REAPPLY_DELAY_TICKS = 50L;
     private static final double JOIN_FLIGHT_MIN_UPWARD_VELOCITY = 0.1D;
     private static final int HUB_SPAWN_HORIZONTAL_RADIUS_BLOCKS = 2;
     private static final int HUB_SPAWN_OFFSET_ATTEMPTS = 24;
@@ -47,6 +47,7 @@ public class HubListener implements Listener {
     private final CoreApi coreApi;
     private final TitleService titleService;
     private final Set<UUID> pendingJoinAnnouncements;
+    private final Set<UUID> sentJoinAnnouncements;
     private final Map<UUID, BukkitTask> pendingJoinAnnouncementTasks;
 
     public HubListener(HubContext plugin) {
@@ -54,6 +55,7 @@ public class HubListener implements Listener {
         this.coreApi = Objects.requireNonNull(plugin.getCoreApi(), "coreApi");
         this.titleService = new TitleService();
         this.pendingJoinAnnouncements = ConcurrentHashMap.newKeySet();
+        this.sentJoinAnnouncements = ConcurrentHashMap.newKeySet();
         this.pendingJoinAnnouncementTasks = new ConcurrentHashMap<>();
     }
 
@@ -65,21 +67,30 @@ public class HubListener implements Listener {
         ActionBarUtil.send(player, " ");
         resetHubInventory(player);
         UUID uuid = player.getUniqueId();
+        cancelJoinAnnouncementRetry(uuid);
+        pendingJoinAnnouncements.remove(uuid);
+        sentJoinAnnouncements.remove(uuid);
         Rank rank = coreApi.getRank(uuid);
         if (rank == null) {
             rank = Rank.DEFAULT;
         }
         int networkLevel = coreApi.getNetworkLevel(uuid);
         Profile profile = coreApi.getProfile(uuid);
+        if (profile != null && profile.getRank() != null) {
+            rank = profile.getRank();
+        }
         String plusColor = profile == null ? null : profile.getPlusColor();
         String mvpPlusPlusPrefixColor = profile == null ? null : profile.getMvpPlusPlusPrefixColor();
         teleportToHubSpawn(player, true);
         plugin.handleHubJoin(player);
-        applyJoinFlightAndVelocity(player, rank);
-        scheduleJoinFlightAndVelocityApply(uuid, JOIN_FLIGHT_REAPPLY_DELAY_TICKS);
+        boolean flightEnabled = applyJoinFlight(player, rank);
+        boolean immediateVelocityApplied = !flightEnabled || applyJoinVelocityIfFlightEnabled(player);
+        if (flightEnabled && !immediateVelocityApplied) {
+            scheduleJoinFlightAndVelocityApply(uuid, JOIN_FLIGHT_REAPPLY_DELAY_TICKS);
+        }
         applySpeed(player, rank);
         applySpeedAfterProfileLoad(player);
-        boolean announced = broadcastRankJoinMessage(player, rank, networkLevel, plusColor, mvpPlusPlusPrefixColor);
+        boolean announced = tryBroadcastRankJoinMessage(player, rank, networkLevel, plusColor, mvpPlusPlusPrefixColor);
         if (!announced && profile == null) {
             pendingJoinAnnouncements.add(uuid);
         }
@@ -90,6 +101,7 @@ public class HubListener implements Listener {
         event.setQuitMessage(null);
         UUID uuid = event.getPlayer().getUniqueId();
         pendingJoinAnnouncements.remove(uuid);
+        sentJoinAnnouncements.remove(uuid);
         cancelJoinAnnouncementRetry(uuid);
         plugin.handleHubQuit(event.getPlayer());
     }
@@ -145,7 +157,7 @@ public class HubListener implements Listener {
             if (refreshed == null) {
                 refreshed = Rank.DEFAULT;
             }
-            applyJoinFlightAndVelocity(online, refreshed);
+            applyJoinFlight(online, refreshed);
             applySpeed(online, refreshed);
             if (!pendingJoinAnnouncements.remove(uuid)) {
                 return;
@@ -153,7 +165,7 @@ public class HubListener implements Listener {
             int networkLevel = refreshedProfile == null ? coreApi.getNetworkLevel(uuid) : refreshedProfile.getNetworkLevel();
             String plusColor = refreshedProfile == null ? null : refreshedProfile.getPlusColor();
             String mvpPlusPlusPrefixColor = refreshedProfile == null ? null : refreshedProfile.getMvpPlusPlusPrefixColor();
-            boolean announced = broadcastRankJoinMessage(
+            boolean announced = tryBroadcastRankJoinMessage(
                     online,
                     refreshed,
                     networkLevel,
@@ -166,26 +178,37 @@ public class HubListener implements Listener {
         }, JOIN_PROFILE_REFRESH_DELAY_TICKS);
     }
 
-    private void applyJoinFlightAndVelocity(Player player, Rank rank) {
+    private boolean applyJoinFlight(Player player, Rank rank) {
         if (player == null) {
-            return;
+            return false;
         }
         Rank effectiveRank = rank == null ? Rank.DEFAULT : rank;
         boolean enabled = effectiveRank.isAtLeast(Rank.VIP);
         player.setAllowFlight(enabled);
         if (!enabled) {
             player.setFlying(false);
-            return;
+            return false;
         }
         if (!player.isFlying()) {
             player.setFlying(true);
         }
+        return true;
+    }
+
+    private boolean applyJoinVelocityIfFlightEnabled(Player player) {
+        if (player == null) {
+            return false;
+        }
+        if (!player.getAllowFlight()) {
+            return true;
+        }
         Vector velocity = player.getVelocity();
         if (velocity == null) {
-            return;
+            return false;
         }
         double y = Math.max(JOIN_FLIGHT_MIN_UPWARD_VELOCITY, velocity.getY());
         player.setVelocity(new Vector(velocity.getX(), y, velocity.getZ()));
+        return true;
     }
 
     private void scheduleJoinFlightAndVelocityApply(UUID uuid, long delayTicks) {
@@ -198,11 +221,7 @@ public class HubListener implements Listener {
             if (player == null || !player.isOnline()) {
                 return;
             }
-            Rank rank = coreApi.getRank(uuid);
-            if (rank == null) {
-                rank = Rank.DEFAULT;
-            }
-            applyJoinFlightAndVelocity(player, rank);
+            applyJoinVelocityIfFlightEnabled(player);
         }, safeDelay);
     }
 
@@ -248,13 +267,42 @@ public class HubListener implements Listener {
         return false;
     }
 
+    private boolean tryBroadcastRankJoinMessage(Player player,
+                                                Rank rank,
+                                                int networkLevel,
+                                                String plusColor,
+                                                String mvpPlusPlusPrefixColor) {
+        if (player == null) {
+            return false;
+        }
+        UUID uuid = player.getUniqueId();
+        if (uuid != null && sentJoinAnnouncements.contains(uuid)) {
+            return true;
+        }
+        boolean announced = broadcastRankJoinMessage(player, rank, networkLevel, plusColor, mvpPlusPlusPrefixColor);
+        if (announced && uuid != null) {
+            sentJoinAnnouncements.add(uuid);
+            pendingJoinAnnouncements.remove(uuid);
+            cancelJoinAnnouncementRetry(uuid);
+        }
+        return announced;
+    }
+
     private void scheduleJoinAnnouncementRetries(UUID uuid) {
-        if (uuid == null || !(plugin instanceof Plugin) || !pendingJoinAnnouncements.add(uuid)) {
+        if (uuid == null
+                || !(plugin instanceof Plugin)
+                || sentJoinAnnouncements.contains(uuid)
+                || !pendingJoinAnnouncements.add(uuid)) {
             return;
         }
         cancelJoinAnnouncementRetry(uuid);
         final int[] attemptsRemaining = {JOIN_MESSAGE_MAX_RETRIES};
         BukkitTask task = Bukkit.getScheduler().runTaskTimer((Plugin) plugin, () -> {
+            if (sentJoinAnnouncements.contains(uuid)) {
+                pendingJoinAnnouncements.remove(uuid);
+                cancelJoinAnnouncementRetry(uuid);
+                return;
+            }
             if (!pendingJoinAnnouncements.contains(uuid)) {
                 cancelJoinAnnouncementRetry(uuid);
                 return;
@@ -273,7 +321,7 @@ public class HubListener implements Listener {
             int networkLevel = profile == null ? coreApi.getNetworkLevel(uuid) : profile.getNetworkLevel();
             String plusColor = profile == null ? null : profile.getPlusColor();
             String mvpPlusPlusPrefixColor = profile == null ? null : profile.getMvpPlusPlusPrefixColor();
-            boolean announced = broadcastRankJoinMessage(online, rank, networkLevel, plusColor, mvpPlusPlusPrefixColor);
+            boolean announced = tryBroadcastRankJoinMessage(online, rank, networkLevel, plusColor, mvpPlusPlusPrefixColor);
             attemptsRemaining[0]--;
             if (announced || profile != null || attemptsRemaining[0] <= 0) {
                 pendingJoinAnnouncements.remove(uuid);

@@ -4,7 +4,6 @@ import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.util.CommonMessages;
 import io.github.mebsic.proxy.service.ServerRegistryService;
 import io.github.mebsic.proxy.service.PartyService;
-import io.github.mebsic.proxy.config.ProxyConfig;
 import io.github.mebsic.proxy.util.Components;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
@@ -25,17 +24,11 @@ public class PlayCommand implements SimpleCommand {
     private static final String MURDER_CLASSIC_TOKEN = "murder_classic";
 
     private final ProxyServer proxy;
-    private final ProxyConfig config;
     private final ServerRegistryService registry;
     private final PartyService parties;
 
-    public PlayCommand(ProxyServer proxy, ProxyConfig config, ServerRegistryService registry) {
-        this(proxy, config, registry, null);
-    }
-
-    public PlayCommand(ProxyServer proxy, ProxyConfig config, ServerRegistryService registry, PartyService parties) {
+    public PlayCommand(ProxyServer proxy, ServerRegistryService registry, PartyService parties) {
         this.proxy = proxy;
-        this.config = config;
         this.registry = registry;
         this.parties = parties;
     }
@@ -70,7 +63,7 @@ public class PlayCommand implements SimpleCommand {
         if (!target.isPresent()) {
             if (requiredOpenSlots > 1) {
                 player.sendMessage(Component.text(
-                        "No game servers are available with enough space for your party right now.",
+                        "There are no games available to join with your party! Please try again later.",
                         NamedTextColor.RED
                 ));
             } else {
@@ -260,20 +253,5 @@ public class PlayCommand implements SimpleCommand {
             }
         }
         return 1 + additionalOnlineMembers;
-    }
-
-    private void sendToHub(Player player) {
-        if (registry != null) {
-            List<RegisteredServer> hubs = registry.getHubServers();
-            if (!hubs.isEmpty()) {
-                player.createConnectionRequest(hubs.get(0)).fireAndForget();
-                return;
-            }
-        }
-        String hubServer = config == null ? null : config.getHubServer();
-        if (hubServer != null && !hubServer.trim().isEmpty()) {
-            proxy.getServer(config.getHubServer()).ifPresent(server ->
-                    player.createConnectionRequest(server).fireAndForget());
-        }
     }
 }

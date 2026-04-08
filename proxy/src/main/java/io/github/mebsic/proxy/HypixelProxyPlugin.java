@@ -180,7 +180,7 @@ public class HypixelProxyPlugin {
                     chatChannelService.setChannel(memberId, ChatChannelService.ChatChannel.ALL);
                 }
             });
-            this.staffChatService = new StaffChatService(proxy, rankResolver);
+            this.staffChatService = new StaffChatService(proxy, rankResolver, chatMessageService);
             CommandManager commands = proxy.getCommandManager();
             commands.unregister(DISABLED_PROXY_COMMAND);
             commands.unregister("msg");
@@ -188,7 +188,7 @@ public class HypixelProxyPlugin {
             commands.unregister("message");
             commands.unregister("w");
             commands.unregister("whisper");
-            commands.register("play", new PlayCommand(proxy, config, registryService, partyService));
+            commands.register("play", new PlayCommand(proxy, registryService, partyService));
             commands.register("build", new BuildCommand(registryService, rankResolver, partyService));
             HubCommand hubCommand = new HubCommand(proxy, config, registryService);
             commands.register("hub", hubCommand);
@@ -369,7 +369,6 @@ public class HypixelProxyPlugin {
                 UUID playerId = event.getPlayer().getUniqueId();
                 if (shouldRedirectPostGamePartyMemberToLobby(playerId, sourceServerName)) {
                     deferredPostGameQueueRequests.remove(playerId);
-                    sendPartyLeaderWarpOnlyMessage(event.getPlayer());
                     java.util.Optional<RegisteredServer> hub =
                             registryService.findHubServerFor(sourceType, sourceServerName);
                     if (hub.isPresent()) {
@@ -566,7 +565,7 @@ public class HypixelProxyPlugin {
             if (partyService.isInParty(playerId)
                     && !partyService.isLeader(playerId)
                     && !partyService.consumeAuthorizedGameJoin(playerId, targetName)) {
-                if (redirectUnauthorizedPostGamePartyMemberToHub(event, targetType, targetName)) {
+                if (redirectUnauthorizedPostGamePartyMemberToHub(event)) {
                     deferredPostGameQueueRequests.remove(playerId);
                     return;
                 }
@@ -1112,9 +1111,7 @@ public class HypixelProxyPlugin {
         return Component.text(CommonMessages.NO_SERVERS_AVAILABLE, NamedTextColor.RED);
     }
 
-    private boolean redirectUnauthorizedPostGamePartyMemberToHub(ServerPreConnectEvent event,
-                                                                 ServerType targetType,
-                                                                 String targetName) {
+    private boolean redirectUnauthorizedPostGamePartyMemberToHub(ServerPreConnectEvent event) {
         if (event == null || registryService == null) {
             return false;
         }
@@ -1133,74 +1130,11 @@ public class HypixelProxyPlugin {
         if (sourceDetails == null || !sourceDetails.getType().isGame() || !isPostGameQueueState(sourceDetails.getState())) {
             return false;
         }
-        boolean suppressLeaderOnlyMessage = isLeaderWithPartyOnSameSourceServer(player, sourceServerName);
-        if (!suppressLeaderOnlyMessage) {
+        UUID playerId = player.getUniqueId();
+        if (playerId != null && shouldRedirectPostGamePartyMemberToLobby(playerId, sourceServerName)) {
             sendPartyLeaderWarpOnlyMessage(player);
         }
-        ServerType sourceType = sourceDetails.getType();
-        java.util.Optional<RegisteredServer> hub = registryService.findHubServerFor(sourceType, sourceServerName);
-        if (!hub.isPresent()) {
-            ServerType fallbackType = sourceType != null && sourceType.isGame() ? sourceType : targetType;
-            hub = registryService.findHubServerFor(fallbackType, targetName);
-        }
-        if (!hub.isPresent() && hasFallbackHub()) {
-            java.util.Optional<RegisteredServer> fallback = proxy.getServer(config.getHubServer());
-            if (fallback.isPresent() && !isSameServer(sourceServerName, fallback.get())) {
-                hub = fallback;
-            }
-        }
-        if (hub.isPresent()) {
-            event.setResult(ServerPreConnectEvent.ServerResult.allowed(hub.get()));
-            return true;
-        }
-        String hubName = HubMessageUtil.hubDisplayName(targetType);
-        player.sendMessage(Component.text(
-                "No available servers were found. " + hubName + " is currently unavailable.",
-                NamedTextColor.RED
-        ));
         event.setResult(ServerPreConnectEvent.ServerResult.denied());
-        return true;
-    }
-
-    private boolean isLeaderWithPartyOnSameSourceServer(Player player, String sourceServerName) {
-        if (player == null || sourceServerName == null || sourceServerName.trim().isEmpty() || partyService == null) {
-            return false;
-        }
-        UUID playerId = player.getUniqueId();
-        if (playerId == null || !partyService.isInParty(playerId) || partyService.isLeader(playerId)) {
-            return false;
-        }
-        UUID leaderId = partyService.getLeader(playerId);
-        if (leaderId == null) {
-            return false;
-        }
-        Player leader = proxy.getPlayer(leaderId).orElse(null);
-        if (leader == null) {
-            return false;
-        }
-        String safeSource = sourceServerName.trim();
-        String leaderServer = leader.getCurrentServer()
-                .map(connection -> connection.getServerInfo().getName())
-                .orElse("");
-        if (leaderServer == null || !safeSource.equalsIgnoreCase(leaderServer.trim())) {
-            return false;
-        }
-        Set<UUID> partyMembers = partyService.getMembers(playerId);
-        for (UUID partyMemberId : partyMembers) {
-            if (partyMemberId == null) {
-                continue;
-            }
-            Player partyMember = proxy.getPlayer(partyMemberId).orElse(null);
-            if (partyMember == null) {
-                continue;
-            }
-            String memberServer = partyMember.getCurrentServer()
-                    .map(connection -> connection.getServerInfo().getName())
-                    .orElse("");
-            if (memberServer == null || !safeSource.equalsIgnoreCase(memberServer.trim())) {
-                return false;
-            }
-        }
         return true;
     }
 

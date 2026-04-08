@@ -35,7 +35,9 @@ public class ChatMessageService {
         if (chatMessages == null || playerId == null || chatType == null || message == null) {
             return;
         }
-        if (chatType != ChatChannelService.ChatChannel.ALL && chatType != ChatChannelService.ChatChannel.PARTY) {
+        if (chatType != ChatChannelService.ChatChannel.ALL
+                && chatType != ChatChannelService.ChatChannel.PARTY
+                && chatType != ChatChannelService.ChatChannel.STAFF) {
             return;
         }
         if (message.trim().isEmpty()) {

@@ -22,7 +22,8 @@ import io.github.mebsic.murdermystery.game.MurderMysteryGamePlayer;
 import io.github.mebsic.murdermystery.game.MurderMysteryGameResult;
 import io.github.mebsic.murdermystery.game.MurderMysteryRole;
 import io.github.mebsic.murdermystery.registry.KnifeSkinRegistry;
-import io.github.mebsic.murdermystery.service.TipService;
+import io.github.mebsic.murdermystery.service.ActionBarService;
+import io.github.mebsic.murdermystery.service.CitizensBodyService;
 import io.github.mebsic.murdermystery.stats.MurderMysteryStats;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -146,21 +147,23 @@ public class MurderMysteryGameManager extends GameManager {
     private float droppedBowYaw;
     private final Set<Item> activeMapDropItems = new HashSet<>();
     private final Set<Arrow> activeRoundArrows = new HashSet<>();
+    private final CitizensBodyService citizensBodyService;
     private final Set<OpenableBlockRef> trackedOpenables = new HashSet<>();
     private UUID originalDetectiveUuid;
     private boolean originalDetectiveEliminated;
     private UUID summaryMurdererUuid;
     private boolean summaryMurdererEliminated;
-    private TipService tipService;
+    private ActionBarService actionBarService;
 
     public MurderMysteryGameManager(CorePlugin plugin, BossBarService bossBarService) {
         super(plugin, bossBarService);
         this.innocentsWon = false;
         this.elapsedGameSeconds = 0;
+        this.citizensBodyService = new CitizensBodyService(plugin);
     }
 
-    public void setTipService(TipService tipService) {
-        this.tipService = tipService;
+    public void setActionBarService(ActionBarService actionBarService) {
+        this.actionBarService = actionBarService;
     }
 
     @Override
@@ -192,6 +195,7 @@ public class MurderMysteryGameManager extends GameManager {
         clearActiveRoundArrows();
         clearActiveMapDropItems();
         clearDroppedBowDisplay();
+        clearCorpseDisplays();
         getTablistService().setNameTagsHidden(true);
         getTablistService().setForcedNameColor(ChatColor.WHITE);
         assignRoles();
@@ -201,6 +205,19 @@ public class MurderMysteryGameManager extends GameManager {
         summaryMurdererEliminated = false;
         giveLoadouts();
         startGoldSpawner();
+    }
+
+    @Override
+    protected void cleanupPregameWorldState() {
+        GameState state = getState();
+        // Keep corpses visible during ENDING; clear once the round fully resets.
+        if (state == GameState.ENDING) {
+            return;
+        }
+        if (state != GameState.IN_GAME) {
+            clearCorpseDisplays();
+        }
+        super.cleanupPregameWorldState();
     }
 
     @Override
@@ -298,6 +315,12 @@ public class MurderMysteryGameManager extends GameManager {
         int roundDurationSeconds = Math.max(0, elapsedGameSeconds);
         publishResults(roundDurationSeconds);
         elapsedGameSeconds = 0;
+    }
+
+    @Override
+    protected void restartServerAndRequeuePlayers() {
+        cleanupTransientRoundEntitiesForShutdown();
+        super.restartServerAndRequeuePlayers();
     }
 
     @Override
@@ -573,9 +596,14 @@ public class MurderMysteryGameManager extends GameManager {
             dropBowAt(victim.getLocation());
         }
         victimData.setHasDetectiveBow(false);
+        spawnCorpseDisplay(victim);
         victim.getInventory().setArmorContents(null);
         victim.getInventory().clear();
         applyDeadSpectatorState(victim);
+        double maxHealth = victim.getMaxHealth();
+        if (maxHealth > 0.0D && victim.getHealth() < maxHealth) {
+            victim.setHealth(maxHealth);
+        }
         victim.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 60, 1, false, false), true);
         sendDeathChatMessage(victim, victimData, killerData, killer, customMessage);
         sendSpectatorChatHint(victim);
@@ -1055,8 +1083,8 @@ public class MurderMysteryGameManager extends GameManager {
         if (!normalizedReason.isEmpty()) {
             player.sendMessage(ChatColor.DARK_GREEN + "+" + amount + " tokens! " + normalizedReason);
         }
-        if (tipService != null) {
-            tipService.showTokenReward(player, amount);
+        if (actionBarService != null) {
+            actionBarService.showTokenReward(player, amount);
         }
     }
 
@@ -1600,6 +1628,7 @@ public class MurderMysteryGameManager extends GameManager {
         if (player == null || mmPlayer == null || !mmPlayer.isAlive()) {
             return;
         }
+        clearStrayInventoryGold(player);
         int gold = Math.max(0, mmPlayer.getGold());
         if (gold <= 0) {
             player.getInventory().setItem(GOLD_HOTBAR_SLOT, null);
@@ -1607,6 +1636,23 @@ public class MurderMysteryGameManager extends GameManager {
         }
         int shownAmount = Math.min(64, gold);
         player.getInventory().setItem(GOLD_HOTBAR_SLOT, new ItemStack(Material.GOLD_INGOT, shownAmount));
+    }
+
+    private void clearStrayInventoryGold(Player player) {
+        if (player == null) {
+            return;
+        }
+        ItemStack[] contents = player.getInventory().getContents();
+        for (int slot = 0; slot < contents.length; slot++) {
+            if (slot == GOLD_HOTBAR_SLOT) {
+                continue;
+            }
+            ItemStack stack = contents[slot];
+            if (stack == null || stack.getType() != Material.GOLD_INGOT) {
+                continue;
+            }
+            player.getInventory().setItem(slot, null);
+        }
     }
 
     private void syncGoldHotbarItem(Player player, MurderMysteryGamePlayer mmPlayer) {
@@ -1649,6 +1695,13 @@ public class MurderMysteryGameManager extends GameManager {
                 1L,
                 1L
         );
+    }
+
+    private void spawnCorpseDisplay(Player victim) {
+        if (citizensBodyService == null || victim == null || getState() != GameState.IN_GAME) {
+            return;
+        }
+        citizensBodyService.spawnCorpse(victim);
     }
 
     private void tickDroppedBowDisplay() {
@@ -1734,11 +1787,33 @@ public class MurderMysteryGameManager extends GameManager {
         droppedBowYaw = 0.0f;
     }
 
+    private void clearCorpseDisplays() {
+        if (citizensBodyService == null) {
+            return;
+        }
+        citizensBodyService.clear();
+    }
+
+    public void cleanupTransientRoundEntitiesForShutdown() {
+        closeTrackedOpenables();
+        clearActiveRoundArrows();
+        clearActiveMapDropItems();
+        clearDroppedBowDisplay();
+        clearCorpseDisplays();
+    }
+
     public boolean isDroppedBowDisplay(Entity entity) {
         if (entity == null || droppedBowDisplay == null) {
             return false;
         }
         return entity.getUniqueId().equals(droppedBowDisplay.getUniqueId());
+    }
+
+    public boolean isCorpseDisplay(Entity entity) {
+        if (citizensBodyService == null || entity == null) {
+            return false;
+        }
+        return citizensBodyService.isCorpseEntity(entity);
     }
 
     private int getAliveCount(MurderMysteryRole role) {

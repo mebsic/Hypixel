@@ -37,7 +37,7 @@ import io.github.mebsic.murdermystery.command.GetRoleCommand;
 import io.github.mebsic.murdermystery.listener.MurderMysteryListener;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Stats;
-import io.github.mebsic.murdermystery.service.TipService;
+import io.github.mebsic.murdermystery.service.ActionBarService;
 import io.github.mebsic.murdermystery.manager.MurderMysteryGameManager;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -83,7 +83,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
 
     private MurderMysteryGameManager gameManager;
     private QueueService queueService;
-    private TipService tipService;
+    private ActionBarService actionBarService;
     private BossBarService bossBarService;
     private BukkitTask tablistTask;
     private io.github.mebsic.game.service.ServerRegistryService registryService;
@@ -143,8 +143,8 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         return coreApi;
     }
 
-    public TipService getTipService() {
-        return tipService;
+    public ActionBarService getActionBarService() {
+        return actionBarService;
     }
 
     public Location getHubSpawn() {
@@ -308,12 +308,13 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
             queueService = null;
         }
         if (gameManager != null) {
+            gameManager.cleanupTransientRoundEntitiesForShutdown();
             gameManager.stopGame();
             gameManager = null;
         }
-        if (tipService != null) {
-            tipService.stop();
-            tipService = null;
+        if (actionBarService != null) {
+            actionBarService.stop();
+            actionBarService = null;
         }
     }
 
@@ -340,7 +341,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         getServer().getPluginManager().registerEvents(new SpectatorListener(corePlugin, gameManager), this);
         this.itemFrameListener = new ItemFrameListener(serverType, null);
         getServer().getPluginManager().registerEvents(itemFrameListener, this);
-        this.tipService = new TipService(
+        this.actionBarService = new ActionBarService(
                 this,
                 gameManager,
                 corePlugin,
@@ -348,11 +349,11 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
                 DEFAULT_MURDERER_CHANCE,
                 DEFAULT_DETECTIVE_CHANCE
         );
-        this.gameManager.setTipService(tipService);
-        this.tipService.start();
-        getServer().getOnlinePlayers().forEach(tipService::handlePlayerJoin);
+        this.gameManager.setActionBarService(actionBarService);
+        this.actionBarService.start();
+        getServer().getOnlinePlayers().forEach(actionBarService::handlePlayerJoin);
         registerCommand("start", new StartCommand(gameManager, coreApi));
-        registerCommand("togglehints", new ToggleHintsCommand(corePlugin, tipService));
+        registerCommand("togglehints", new ToggleHintsCommand(corePlugin, actionBarService));
         registerCommand("whoismurderer", new WhoIsRoleCommand(corePlugin, gameManager, WhoIsRoleCommand.QueryType.MURDERER));
         registerCommand("whoisdetective", new WhoIsRoleCommand(corePlugin, gameManager, WhoIsRoleCommand.QueryType.DETECTIVE));
         registerCommand("getrole", new GetRoleCommand(corePlugin, gameManager));

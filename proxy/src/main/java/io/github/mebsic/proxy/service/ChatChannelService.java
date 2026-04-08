@@ -18,7 +18,8 @@ import static com.mongodb.client.model.Filters.eq;
 public class ChatChannelService {
     public enum ChatChannel {
         ALL,
-        PARTY;
+        PARTY,
+        STAFF;
 
         public static ChatChannel fromInput(String input) {
             if (input == null) {

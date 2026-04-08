@@ -638,8 +638,13 @@ resolve_citizens_url() {
 ensure_citizens_plugin() {
   local kind="${SERVER_KIND,,}"
   local type="${SERVER_TYPE^^}"
+  local game_type="${GAME_TYPE,,}"
   local citizens_url=""
-  if [[ "${kind}" != "hub" && "${kind}" != "game" && "${type}" != *"HUB"* && "${type}" != *"MURDER_MYSTERY"* ]]; then
+  local murder_mystery_server="false"
+  if [[ ( "${kind}" == "game" || "${kind}" == "hub" ) && ( "${game_type}" == "murdermystery" || "${type}" == "MURDER_MYSTERY" || "${type}" == "MURDER_MYSTERY_HUB" ) ]]; then
+    murder_mystery_server="true"
+  fi
+  if [[ "${murder_mystery_server}" != "true" ]]; then
     return 0
   fi
   citizens_url="$(resolve_citizens_url)"

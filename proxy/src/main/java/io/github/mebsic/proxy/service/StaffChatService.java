@@ -9,10 +9,16 @@ import java.util.UUID;
 public class StaffChatService {
     private final ProxyServer proxy;
     private final RankResolver rankResolver;
+    private final ChatMessageService chatMessages;
 
     public StaffChatService(ProxyServer proxy, RankResolver rankResolver) {
+        this(proxy, rankResolver, null);
+    }
+
+    public StaffChatService(ProxyServer proxy, RankResolver rankResolver, ChatMessageService chatMessages) {
         this.proxy = proxy;
         this.rankResolver = rankResolver;
+        this.chatMessages = chatMessages;
     }
 
     public boolean isStaff(UUID uuid) {
@@ -31,12 +37,30 @@ public class StaffChatService {
         if (sender == null || message == null) {
             return;
         }
+        storeStaffChatMessage(sender, message);
         String formattedSender = formatStatusName(sender);
         proxy.getAllPlayers().forEach(target -> {
             if (isStaff(target.getUniqueId())) {
                 target.sendMessage(Components.staffChat(formattedSender, message));
             }
         });
+    }
+
+    private void storeStaffChatMessage(Player sender, String message) {
+        if (sender == null || message == null || chatMessages == null) {
+            return;
+        }
+        String serverId = sender.getCurrentServer()
+                .map(connection -> connection.getServerInfo().getName())
+                .filter(name -> name != null && !name.trim().isEmpty())
+                .orElse("proxy");
+        chatMessages.storeMessage(
+                sender.getUniqueId(),
+                sender.getUsername(),
+                serverId,
+                ChatChannelService.ChatChannel.STAFF,
+                message
+        );
     }
 
     private void broadcastStatus(Player player, boolean joined) {

@@ -4,6 +4,7 @@ import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.store.RoleChanceStore;
 import io.github.mebsic.game.manager.GameManager;
+import io.github.mebsic.game.model.GamePlayer;
 import io.github.mebsic.game.model.GameState;
 import io.github.mebsic.game.model.RoleChance;
 import io.github.mebsic.murdermystery.stats.MurderMysteryStats;
@@ -19,16 +20,20 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class TipService {
+public class ActionBarService {
     private static final int TIP_VISIBLE_SECONDS = 3;
     private static final int TIP_HIDDEN_SECONDS = 5;
     private static final int TOKEN_ACTION_BAR_SECONDS = 3;
+    private static final int BOW_CHARGE_ACTION_BAR_SECONDS = 5;
+    private static final int BOW_CHARGE_BAR_SEGMENTS = 10;
+    private static final long BOW_CHARGE_UPDATE_TICKS = 2L;
     private static final int HINTS_PROFILE_INIT_MAX_ATTEMPTS = 20;
     private static final long HINTS_PROFILE_INIT_RETRY_TICKS = 10L;
     private static final long ACTION_BAR_MIN_RESEND_MILLIS = 250L;
@@ -43,6 +48,7 @@ public class TipService {
     private final List<String> tips;
     private final Map<UUID, RoleChance> chanceCache;
     private final Map<UUID, TemporaryActionBar> temporaryActionBars;
+    private final Map<UUID, ChargingActionBar> chargingActionBars;
     private final Map<UUID, ActionBarDispatchState> actionBarDispatchStates;
     private final AtomicBoolean cacheRefreshInProgress;
     private Set<UUID> lastSnapshot;
@@ -53,7 +59,7 @@ public class TipService {
     private int inGameTipOrderIndex;
     private BukkitTask task;
 
-    public TipService(Plugin plugin,
+    public ActionBarService(Plugin plugin,
                       GameManager gameManager,
                       CorePlugin corePlugin,
                       RoleChanceStore roleChanceStore,
@@ -79,6 +85,7 @@ public class TipService {
         );
         this.chanceCache = new ConcurrentHashMap<>();
         this.temporaryActionBars = new ConcurrentHashMap<>();
+        this.chargingActionBars = new ConcurrentHashMap<>();
         this.actionBarDispatchStates = new ConcurrentHashMap<>();
         this.cacheRefreshInProgress = new AtomicBoolean(false);
         this.lastSnapshot = new HashSet<>();
@@ -103,6 +110,12 @@ public class TipService {
         }
         chanceCache.clear();
         temporaryActionBars.clear();
+        for (ChargingActionBar charging : new ArrayList<>(chargingActionBars.values())) {
+            if (charging != null) {
+                charging.cancelTask();
+            }
+        }
+        chargingActionBars.clear();
         actionBarDispatchStates.clear();
         lastSnapshot = new HashSet<>();
         cacheRefreshInProgress.set(false);
@@ -116,6 +129,32 @@ public class TipService {
         String message = ChatColor.DARK_GREEN + "+" + amount + " tokens";
         setTemporaryActionBar(player.getUniqueId(), message, TOKEN_ACTION_BAR_SECONDS);
         sendActionBar(player, message, ActionBarPriority.HIGH, (TOKEN_ACTION_BAR_SECONDS * 1000L) + ACTION_BAR_LOCK_BUFFER_MILLIS);
+    }
+
+    public void showBowChargeActionBar(Player player) {
+        if (player == null || gameManager == null) {
+            return;
+        }
+        if (!isInGameAndAlive(player)) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        ChargingActionBar previous = chargingActionBars.remove(uuid);
+        if (previous != null) {
+            previous.cancelTask();
+        }
+        long startedAtMillis = System.currentTimeMillis();
+        long durationMillis = BOW_CHARGE_ACTION_BAR_SECONDS * 1000L;
+        ChargingActionBar charging = new ChargingActionBar(startedAtMillis, durationMillis);
+        chargingActionBars.put(uuid, charging);
+        sendChargingActionBar(player, charging, startedAtMillis);
+        BukkitTask updateTask = plugin.getServer().getScheduler().runTaskTimer(
+                plugin,
+                () -> tickBowChargeActionBar(uuid),
+                BOW_CHARGE_UPDATE_TICKS,
+                BOW_CHARGE_UPDATE_TICKS
+        );
+        charging.setTask(updateTask);
     }
 
     public void handlePlayerJoin(Player player) {
@@ -317,6 +356,92 @@ public class TipService {
         temporaryActionBars.put(uuid, new TemporaryActionBar(message, expiresAtMillis));
     }
 
+    private void tickBowChargeActionBar(UUID uuid) {
+        if (uuid == null) {
+            return;
+        }
+        ChargingActionBar charging = chargingActionBars.get(uuid);
+        if (charging == null) {
+            return;
+        }
+        Player player = plugin.getServer().getPlayer(uuid);
+        if (!isInGameAndAlive(player)) {
+            removeChargingActionBar(uuid, true, player);
+            return;
+        }
+        long now = System.currentTimeMillis();
+        long remainingMillis = charging.getRemainingMillis(now);
+        if (remainingMillis <= 0L) {
+            removeChargingActionBar(uuid, true, player);
+            return;
+        }
+        sendChargingActionBar(player, charging, now);
+    }
+
+    private void removeChargingActionBar(UUID uuid, boolean clearActionBar, Player player) {
+        if (uuid == null) {
+            return;
+        }
+        ChargingActionBar removed = chargingActionBars.remove(uuid);
+        if (removed != null) {
+            removed.cancelTask();
+        }
+        if (!clearActionBar || player == null || !player.isOnline()) {
+            return;
+        }
+        sendActionBar(player, "", ActionBarPriority.CRITICAL, 0L);
+    }
+
+    private boolean isInGameAndAlive(Player player) {
+        if (player == null || gameManager == null || !player.isOnline()) {
+            return false;
+        }
+        if (gameManager.getState() != GameState.IN_GAME || !gameManager.isInGame(player)) {
+            return false;
+        }
+        GamePlayer gamePlayer = gameManager.getPlayer(player);
+        return gamePlayer != null && gamePlayer.isAlive();
+    }
+
+    private void sendChargingActionBar(Player player, ChargingActionBar charging, long nowMillis) {
+        if (player == null || charging == null) {
+            return;
+        }
+        long remainingMillis = charging.getRemainingMillis(nowMillis);
+        if (remainingMillis <= 0L) {
+            return;
+        }
+        String message = buildBowChargingActionBar(remainingMillis, charging.durationMillis);
+        sendActionBar(player, message, ActionBarPriority.CRITICAL, remainingMillis + ACTION_BAR_LOCK_BUFFER_MILLIS);
+    }
+
+    private String buildBowChargingActionBar(long remainingMillis, long durationMillis) {
+        long safeDuration = Math.max(1L, durationMillis);
+        long clampedRemaining = Math.max(0L, Math.min(remainingMillis, safeDuration));
+        double progress = (safeDuration - clampedRemaining) / (double) safeDuration;
+        int filledSegments = (int) Math.round(progress * BOW_CHARGE_BAR_SEGMENTS);
+        if (filledSegments < 0) {
+            filledSegments = 0;
+        }
+        if (filledSegments > BOW_CHARGE_BAR_SEGMENTS) {
+            filledSegments = BOW_CHARGE_BAR_SEGMENTS;
+        }
+        StringBuilder progressBar = new StringBuilder();
+        for (int i = 0; i < BOW_CHARGE_BAR_SEGMENTS; i++) {
+            if (i < filledSegments) {
+                progressBar.append(ChatColor.GREEN).append('■');
+            } else {
+                progressBar.append(ChatColor.RED).append('■');
+            }
+        }
+        double remainingSeconds = Math.ceil(clampedRemaining / 100.0D) / 10.0D;
+        return ChatColor.GOLD + "CHARGING "
+                + ChatColor.DARK_GRAY + "["
+                + progressBar
+                + ChatColor.DARK_GRAY + "] "
+                + ChatColor.GOLD + String.format(Locale.US, "%.1fs", remainingSeconds);
+    }
+
     private void ensureHintsPreferenceInitialized(UUID uuid, int attempt) {
         if (uuid == null || corePlugin == null) {
             return;
@@ -435,9 +560,37 @@ public class TipService {
         }
     }
 
+    private static class ChargingActionBar {
+        private final long startedAtMillis;
+        private final long durationMillis;
+        private BukkitTask task;
+
+        private ChargingActionBar(long startedAtMillis, long durationMillis) {
+            this.startedAtMillis = startedAtMillis;
+            this.durationMillis = Math.max(1L, durationMillis);
+        }
+
+        private long getRemainingMillis(long nowMillis) {
+            long endMillis = startedAtMillis + durationMillis;
+            return Math.max(0L, endMillis - nowMillis);
+        }
+
+        private void setTask(BukkitTask task) {
+            this.task = task;
+        }
+
+        private void cancelTask() {
+            if (task != null) {
+                task.cancel();
+                task = null;
+            }
+        }
+    }
+
     private enum ActionBarPriority {
         LOW(0),
-        HIGH(1);
+        HIGH(1),
+        CRITICAL(2);
 
         private final int weight;
 

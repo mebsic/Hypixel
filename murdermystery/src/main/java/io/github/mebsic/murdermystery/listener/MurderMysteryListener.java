@@ -14,6 +14,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Snowball;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -40,6 +41,9 @@ public class MurderMysteryListener implements Listener {
     private static final String PROJECTILE_LAUNCH_Y_META = "murdermystery-launch-y";
     private static final String PROJECTILE_LAUNCH_Z_META = "murdermystery-launch-z";
     private static final int ARROW_HOTBAR_SLOT = 2;
+    private static final long DETECTIVE_HERO_ARROW_COOLDOWN_MILLIS = 5000L;
+    private static final long DETECTIVE_HERO_ARROW_RECHARGE_TICKS = 100L;
+    private static final double ELIMINATED_PLAYER_HEALTH = 0.01D;
 
     private final MurderMysteryPlugin plugin;
     private final MurderMysteryGameManager gameManager;
@@ -58,8 +62,8 @@ public class MurderMysteryListener implements Listener {
         } else {
             gameManager.handleJoin(event.getPlayer());
         }
-        if (plugin.getTipService() != null) {
-            plugin.getTipService().handlePlayerJoin(event.getPlayer());
+        if (plugin.getActionBarService() != null) {
+            plugin.getActionBarService().handlePlayerJoin(event.getPlayer());
         }
     }
 
@@ -136,15 +140,26 @@ public class MurderMysteryListener implements Listener {
         }
         ItemStack item = event.getItem().getItemStack();
         if (item.getType() == Material.GOLD_INGOT && gameManager.isTrackedMapDropItem(event.getItem())) {
-            gameManager.untrackMapDropItem(event.getItem());
+            final org.bukkit.entity.Item pickedItemEntity = event.getItem();
+            int stackedAmount = Math.max(1, item.getAmount());
+            int pickedAmount = stackedAmount;
+            try {
+                pickedAmount = Math.max(0, stackedAmount - event.getRemaining());
+            } catch (Throwable ignored) {
+                // Legacy API safety: default to the visible stack amount.
+            }
+            if (pickedAmount <= 0) {
+                return;
+            }
+            final int creditedGold = pickedAmount;
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 if (!gameManager.isInGame(player) || gameManager.getState() != GameState.IN_GAME) {
                     return;
                 }
-                if (!consumeSingleMaterial(player, Material.GOLD_INGOT)) {
-                    return;
+                gameManager.addGold(player, creditedGold);
+                if (pickedItemEntity == null || pickedItemEntity.isDead() || !pickedItemEntity.isValid()) {
+                    gameManager.untrackMapDropItem(pickedItemEntity);
                 }
-                gameManager.addGold(player, 1);
             });
             return;
         }
@@ -200,6 +215,7 @@ public class MurderMysteryListener implements Listener {
                 }
                 event.setCancelled(true);
                 attackerData.addKill();
+                setEliminatedHealth(victim);
                 gameManager.handleDeath(victim, attacker, null, MurderMysteryGameManager.KillType.KNIFE);
                 return;
             }
@@ -221,23 +237,27 @@ public class MurderMysteryListener implements Listener {
             if (shooterData.getRole() == MurderMysteryRole.DETECTIVE || shooterData.getRole() == MurderMysteryRole.HERO) {
                 cancelArrowHit(event, arrow);
                 if (shooter.getUniqueId().equals(victim.getUniqueId())) {
+                    setEliminatedHealth(victim);
                     gameManager.handleDeath(victim, shooter, "You successfully shot yourself!");
                     return;
                 }
                 if (victimData.getRole() == MurderMysteryRole.MURDERER) {
                     shooterData.addKill();
                 }
+                setEliminatedHealth(victim);
                 gameManager.handleDeath(victim, shooter, "A player killed you! " + distanceSuffix, MurderMysteryGameManager.KillType.BOW);
                 return;
             }
             if (shooterData.getRole() == MurderMysteryRole.MURDERER) {
                 cancelArrowHit(event, arrow);
                 if (shooter.getUniqueId().equals(victim.getUniqueId())) {
+                    setEliminatedHealth(victim);
                     gameManager.handleDeath(victim, null, "You successfully shot yourself!", MurderMysteryGameManager.KillType.BOW);
                     return;
                 }
                 if (victimData.getRole() != MurderMysteryRole.MURDERER) {
                     shooterData.addKill();
+                    setEliminatedHealth(victim);
                     gameManager.handleDeath(victim, shooter, "The Murderer shot you! " + distanceSuffix, MurderMysteryGameManager.KillType.BOW);
                     return;
                 }
@@ -263,13 +283,14 @@ public class MurderMysteryListener implements Listener {
             double distanceMeters = projectileDistanceMeters(snowball, shooterPlayer, victim);
             String distanceSuffix = formatDistanceSuffix(distanceMeters);
             gameManager.sendMurdererKnifeKillMessage(shooterPlayer, victim, distanceMeters);
+            setEliminatedHealth(victim);
             gameManager.handleDeath(victim, shooterPlayer, "The Murderer threw their Knife at you! " + distanceSuffix, MurderMysteryGameManager.KillType.THROWN_KNIFE);
         }
     }
 
     @EventHandler
     public void onAnyDamage(EntityDamageEvent event) {
-        if (gameManager.isDroppedBowDisplay(event.getEntity())) {
+        if (gameManager.isDroppedBowDisplay(event.getEntity()) || gameManager.isCorpseDisplay(event.getEntity())) {
             event.setCancelled(true);
             if (event instanceof EntityDamageByEntityEvent) {
                 EntityDamageByEntityEvent byEntityEvent = (EntityDamageByEntityEvent) event;
@@ -298,17 +319,42 @@ public class MurderMysteryListener implements Listener {
         event.setCancelled(true);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onShoot(EntityShootBowEvent event) {
         if (!(event.getEntity() instanceof Player)) {
             return;
         }
         Player player = (Player) event.getEntity();
+        Entity projectileEntity = event.getProjectile() instanceof Entity ? (Entity) event.getProjectile() : null;
+        if (event.isCancelled()) {
+            removeProjectileEntity(projectileEntity);
+            return;
+        }
         if (!gameManager.isInGame(player)) {
+            event.setCancelled(true);
+            removeProjectileEntity(projectileEntity);
+            player.updateInventory();
             return;
         }
         if (gameManager.getState() != GameState.IN_GAME) {
+            event.setCancelled(true);
+            removeProjectileEntity(projectileEntity);
             return;
+        }
+        MurderMysteryGamePlayer gp = gameManager.getMurderMysteryPlayer(player);
+        if (gp == null || !gp.isAlive()) {
+            event.setCancelled(true);
+            removeProjectileEntity(projectileEntity);
+            return;
+        }
+        if (isDetectiveLikeCooldownRole(gp.getRole(), gp)) {
+            long now = System.currentTimeMillis();
+            if (now - gp.getLastArrowShot() < DETECTIVE_HERO_ARROW_COOLDOWN_MILLIS) {
+                event.setCancelled(true);
+                removeProjectileEntity(projectileEntity);
+                player.updateInventory();
+                return;
+            }
         }
         Object projectile = event.getProjectile();
         if (projectile instanceof Arrow) {
@@ -316,25 +362,47 @@ public class MurderMysteryListener implements Listener {
             setProjectileLaunchMetadata(launchedArrow, player);
             gameManager.trackRoundArrow(launchedArrow);
         }
-        MurderMysteryGamePlayer gp = gameManager.getMurderMysteryPlayer(player);
-        if (gp == null || !gp.isAlive()) {
-            return;
-        }
-        if (gp.getRole() != MurderMysteryRole.DETECTIVE) {
+        if (!isDetectiveLikeCooldownRole(gp.getRole(), gp)) {
             return;
         }
         long now = System.currentTimeMillis();
-        if (now - gp.getLastArrowShot() < 5000L) {
-            event.setCancelled(true);
-            return;
-        }
         gp.setLastArrowShot(now);
         player.getInventory().remove(Material.ARROW);
+        if (plugin.getActionBarService() != null) {
+            plugin.getActionBarService().showBowChargeActionBar(player);
+        }
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (gameManager.isInGame(player) && gameManager.getState() == GameState.IN_GAME) {
                 player.getInventory().setItem(ARROW_HOTBAR_SLOT, new ItemStack(Material.ARROW, 1));
             }
-        }, 100L);
+        }, DETECTIVE_HERO_ARROW_RECHARGE_TICKS);
+    }
+
+    private void setEliminatedHealth(Player victim) {
+        if (victim == null || victim.isDead()) {
+            return;
+        }
+        double maxHealth = victim.getMaxHealth();
+        if (maxHealth <= 0.0D) {
+            return;
+        }
+        double targetHealth = Math.min(maxHealth, ELIMINATED_PLAYER_HEALTH);
+        if (targetHealth <= 0.0D) {
+            return;
+        }
+        if (victim.getHealth() > targetHealth) {
+            victim.setHealth(targetHealth);
+        }
+    }
+
+    private boolean isDetectiveLikeCooldownRole(MurderMysteryRole role, MurderMysteryGamePlayer gp) {
+        if (gp == null) {
+            return false;
+        }
+        if (role != MurderMysteryRole.DETECTIVE && role != MurderMysteryRole.HERO) {
+            return false;
+        }
+        return role != MurderMysteryRole.HERO || !gp.isHeroFromGold();
     }
 
     private void setProjectileLaunchMetadata(Entity projectile, Player shooter) {
@@ -389,27 +457,6 @@ public class MurderMysteryListener implements Listener {
             return value.asDouble();
         }
         return Double.NaN;
-    }
-
-    private boolean consumeSingleMaterial(Player player, Material material) {
-        if (player == null || material == null) {
-            return false;
-        }
-        ItemStack[] contents = player.getInventory().getContents();
-        for (int slot = 0; slot < contents.length; slot++) {
-            ItemStack stack = contents[slot];
-            if (stack == null || stack.getType() != material) {
-                continue;
-            }
-            if (stack.getAmount() <= 1) {
-                player.getInventory().setItem(slot, null);
-            } else {
-                stack.setAmount(stack.getAmount() - 1);
-                player.getInventory().setItem(slot, stack);
-            }
-            return true;
-        }
-        return false;
     }
 
     private void cancelArrowHit(EntityDamageByEntityEvent event, Arrow arrow) {
