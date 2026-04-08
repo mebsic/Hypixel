@@ -32,6 +32,9 @@ public class ActionBarService {
     private static final int TIP_HIDDEN_SECONDS = 5;
     private static final int TOKEN_ACTION_BAR_SECONDS = 3;
     private static final int BOW_CHARGE_ACTION_BAR_SECONDS = 5;
+    private static final double KNIFE_THROWING_SECONDS = 0.5D;
+    private static final int KNIFE_CHARGING_SECONDS = 5;
+    private static final int KNIFE_STOPPED_CHARGING_ACTION_BAR_SECONDS = 1;
     private static final int BOW_CHARGE_BAR_SEGMENTS = 10;
     private static final long BOW_CHARGE_UPDATE_TICKS = 2L;
     private static final int HINTS_PROFILE_INIT_MAX_ATTEMPTS = 20;
@@ -132,20 +135,54 @@ public class ActionBarService {
     }
 
     public void showBowChargeActionBar(Player player) {
+        startChargingActionBar(player, "CHARGING", BOW_CHARGE_ACTION_BAR_SECONDS * 1000L, null, 0L);
+    }
+
+    public void showKnifeThrowActionBar(Player player) {
+        startChargingActionBar(
+                player,
+                "THROWING",
+                Math.max(1L, Math.round(KNIFE_THROWING_SECONDS * 1000.0D)),
+                "CHARGING",
+                KNIFE_CHARGING_SECONDS * 1000L
+        );
+    }
+
+    public void showKnifeStoppedChargingActionBar(Player player) {
+        if (player == null) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        removeChargingActionBar(uuid, false, player);
+        String message = ChatColor.RED + "Stopped charging!";
+        setTemporaryActionBar(uuid, message, KNIFE_STOPPED_CHARGING_ACTION_BAR_SECONDS);
+        sendActionBar(
+                player,
+                message,
+                ActionBarPriority.CRITICAL,
+                (KNIFE_STOPPED_CHARGING_ACTION_BAR_SECONDS * 1000L) + ACTION_BAR_LOCK_BUFFER_MILLIS
+        );
+    }
+
+    private void startChargingActionBar(Player player,
+                                        String label,
+                                        long durationMillis,
+                                        String nextLabel,
+                                        long nextDurationMillis) {
         if (player == null || gameManager == null) {
             return;
         }
         if (!isInGameAndAlive(player)) {
             return;
         }
+        long safeDurationMillis = Math.max(1L, durationMillis);
         UUID uuid = player.getUniqueId();
         ChargingActionBar previous = chargingActionBars.remove(uuid);
         if (previous != null) {
             previous.cancelTask();
         }
         long startedAtMillis = System.currentTimeMillis();
-        long durationMillis = BOW_CHARGE_ACTION_BAR_SECONDS * 1000L;
-        ChargingActionBar charging = new ChargingActionBar(startedAtMillis, durationMillis);
+        ChargingActionBar charging = new ChargingActionBar(label, startedAtMillis, safeDurationMillis, nextLabel, nextDurationMillis);
         chargingActionBars.put(uuid, charging);
         sendChargingActionBar(player, charging, startedAtMillis);
         BukkitTask updateTask = plugin.getServer().getScheduler().runTaskTimer(
@@ -372,6 +409,10 @@ public class ActionBarService {
         long now = System.currentTimeMillis();
         long remainingMillis = charging.getRemainingMillis(now);
         if (remainingMillis <= 0L) {
+            if (charging.hasNextPhase()) {
+                startChargingActionBar(player, charging.nextLabel, charging.nextDurationMillis, null, 0L);
+                return;
+            }
             removeChargingActionBar(uuid, true, player);
             return;
         }
@@ -411,11 +452,11 @@ public class ActionBarService {
         if (remainingMillis <= 0L) {
             return;
         }
-        String message = buildBowChargingActionBar(remainingMillis, charging.durationMillis);
+        String message = buildChargingActionBar(charging.label, remainingMillis, charging.durationMillis);
         sendActionBar(player, message, ActionBarPriority.CRITICAL, remainingMillis + ACTION_BAR_LOCK_BUFFER_MILLIS);
     }
 
-    private String buildBowChargingActionBar(long remainingMillis, long durationMillis) {
+    private String buildChargingActionBar(String label, long remainingMillis, long durationMillis) {
         long safeDuration = Math.max(1L, durationMillis);
         long clampedRemaining = Math.max(0L, Math.min(remainingMillis, safeDuration));
         double progress = (safeDuration - clampedRemaining) / (double) safeDuration;
@@ -435,11 +476,22 @@ public class ActionBarService {
             }
         }
         double remainingSeconds = Math.ceil(clampedRemaining / 100.0D) / 10.0D;
-        return ChatColor.GOLD + "CHARGING "
+        return ChatColor.GOLD + normalizeActionBarLabel(label) + " "
                 + ChatColor.DARK_GRAY + "["
                 + progressBar
                 + ChatColor.DARK_GRAY + "] "
                 + ChatColor.GOLD + String.format(Locale.US, "%.1fs", remainingSeconds);
+    }
+
+    private static String normalizeActionBarLabel(String label) {
+        if (label == null) {
+            return "CHARGING";
+        }
+        String trimmed = label.trim();
+        if (trimmed.isEmpty()) {
+            return "CHARGING";
+        }
+        return trimmed.toUpperCase(Locale.US);
     }
 
     private void ensureHintsPreferenceInitialized(UUID uuid, int attempt) {
@@ -561,18 +613,37 @@ public class ActionBarService {
     }
 
     private static class ChargingActionBar {
+        private final String label;
         private final long startedAtMillis;
         private final long durationMillis;
+        private final String nextLabel;
+        private final long nextDurationMillis;
         private BukkitTask task;
 
-        private ChargingActionBar(long startedAtMillis, long durationMillis) {
+        private ChargingActionBar(String label,
+                                  long startedAtMillis,
+                                  long durationMillis,
+                                  String nextLabel,
+                                  long nextDurationMillis) {
+            this.label = normalizeActionBarLabel(label);
             this.startedAtMillis = startedAtMillis;
             this.durationMillis = Math.max(1L, durationMillis);
+            if (nextDurationMillis > 0L && nextLabel != null && !nextLabel.trim().isEmpty()) {
+                this.nextLabel = normalizeActionBarLabel(nextLabel);
+                this.nextDurationMillis = nextDurationMillis;
+            } else {
+                this.nextLabel = null;
+                this.nextDurationMillis = 0L;
+            }
         }
 
         private long getRemainingMillis(long nowMillis) {
             long endMillis = startedAtMillis + durationMillis;
             return Math.max(0L, endMillis - nowMillis);
+        }
+
+        private boolean hasNextPhase() {
+            return nextLabel != null && nextDurationMillis > 0L;
         }
 
         private void setTask(BukkitTask task) {

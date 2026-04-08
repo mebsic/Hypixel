@@ -7,12 +7,16 @@ import io.github.mebsic.murdermystery.game.MurderMysteryRole;
 import io.github.mebsic.murdermystery.manager.MurderMysteryGameManager;
 import io.github.mebsic.murdermystery.MurderMysteryPlugin;
 import org.bukkit.ChatColor;
+import org.bukkit.Effect;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
+import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Snowball;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -25,6 +29,7 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
@@ -32,29 +37,57 @@ import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.metadata.MetadataValue;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Vector;
 
+import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 public class MurderMysteryListener implements Listener {
-    private static final String KNIFE_META = "murdermystery-knife";
     private static final String KNIFE_NAME = "Knife";
     private static final String KNIFE_LORE = "Use your Knife to kill players.";
     private static final String PROJECTILE_LAUNCH_X_META = "murdermystery-launch-x";
     private static final String PROJECTILE_LAUNCH_Y_META = "murdermystery-launch-y";
     private static final String PROJECTILE_LAUNCH_Z_META = "murdermystery-launch-z";
     private static final int ARROW_HOTBAR_SLOT = 2;
-    private static final long DETECTIVE_HERO_ARROW_COOLDOWN_MILLIS = 5000L;
-    private static final long DETECTIVE_HERO_ARROW_RECHARGE_TICKS = 100L;
+    private static final double DETECTIVE_HERO_ARROW_COOLDOWN_SECONDS = 5.0D;
+    private static final double DETECTIVE_HERO_ARROW_RECHARGE_SECONDS = 5.0D;
+    private static final double MURDERER_KNIFE_THROW_COOLDOWN_SECONDS = 5.5D;
+    private static final double MURDERER_KNIFE_THROWING_SECONDS = 0.5D;
+    private static final double THROWN_KNIFE_LIFETIME_SECONDS = 5.0D;
+    private static final double MURDERER_THROW_SLOWNESS_SECONDS = MURDERER_KNIFE_THROWING_SECONDS;
+    private static final int MURDERER_THROW_SLOWNESS_AMPLIFIER = 1; // Slowness II
+    private static final double THROWN_KNIFE_SPEED_BLOCKS_PER_TICK = 0.55D;
+    private static final double THROWN_KNIFE_LAUNCH_HEIGHT = 0.9D;
+    private static final double THROWN_KNIFE_SPAWN_FORWARD_OFFSET = 0.7D;
+    private static final double THROWN_KNIFE_HIT_RADIUS = 0.9D;
+    private static final double THROWN_KNIFE_BLOCK_SAMPLE_STEP = 0.2D;
+    private static final int GLASS_PANE_BREAK_ANIMATION_STAGE = 4;
+    private static final long GLASS_PANE_BREAK_RESET_SECONDS = 5L;
+    private static final Sound GLASS_SHATTER_SOUND = resolveCompatibleSound("GLASS", "BLOCK_GLASS_BREAK");
     private static final double ELIMINATED_PLAYER_HEALTH = 0.01D;
 
     private final MurderMysteryPlugin plugin;
     private final MurderMysteryGameManager gameManager;
     private final QueueService queueService;
+    private final Map<UUID, ThrownKnife> activeThrownKnives;
+    private final Map<UUID, BukkitTask> pendingKnifeLaunches;
+    private final Map<String, BukkitTask> paneBreakResetTasks;
 
     public MurderMysteryListener(MurderMysteryPlugin plugin, MurderMysteryGameManager gameManager, QueueService queueService) {
         this.plugin = plugin;
         this.gameManager = gameManager;
         this.queueService = queueService;
+        this.activeThrownKnives = new HashMap<>();
+        this.pendingKnifeLaunches = new HashMap<>();
+        this.paneBreakResetTasks = new HashMap<>();
     }
 
     @EventHandler
@@ -71,6 +104,8 @@ public class MurderMysteryListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        cancelPendingKnifeLaunch(event.getPlayer().getUniqueId());
+        despawnThrownKnife(event.getPlayer().getUniqueId());
         if (queueService != null) {
             queueService.handleQuit(event.getPlayer());
         } else {
@@ -80,6 +115,8 @@ public class MurderMysteryListener implements Listener {
 
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
+        cancelPendingKnifeLaunch(event.getEntity().getUniqueId());
+        despawnThrownKnife(event.getEntity().getUniqueId());
         event.setDeathMessage(null);
         event.getDrops().clear();
         event.setDroppedExp(0);
@@ -121,27 +158,72 @@ public class MurderMysteryListener implements Listener {
         if (action == Action.RIGHT_CLICK_BLOCK) {
             gameManager.trackOpenableInteraction(event.getClickedBlock());
         }
+        if (attemptMurdererKnifeThrow(player, event.getItem())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onInteractEntity(PlayerInteractEntityEvent event) {
+        Player player = event.getPlayer();
+        if (attemptMurdererKnifeThrow(player, player == null ? null : player.getItemInHand())) {
+            event.setCancelled(true);
+        }
+    }
+
+    private boolean attemptMurdererKnifeThrow(Player player, ItemStack interactionItem) {
+        if (player == null || !gameManager.isInGame(player)) {
+            return false;
+        }
         if (gameManager.getState() != GameState.IN_GAME) {
-            return;
+            return false;
         }
         MurderMysteryGamePlayer gp = gameManager.getMurderMysteryPlayer(player);
-        if (gp == null || gp.getRole() != MurderMysteryRole.MURDERER) {
-            return;
+        if (gp == null || gp.getRole() != MurderMysteryRole.MURDERER || !gp.isAlive()) {
+            return false;
         }
-        ItemStack item = player.getItemInHand();
+        ItemStack item = interactionItem;
+        if (item == null || item.getType() == Material.AIR) {
+            item = player.getItemInHand();
+        }
         if (!isMurdererKnife(item)) {
-            return;
+            return false;
         }
         long now = System.currentTimeMillis();
-        if (now - gp.getLastKnifeThrow() < 2000L) {
-            player.sendMessage(ChatColor.RED + "Knife cooldown!");
-            return;
+        long lastKnifeThrow = gp.getLastKnifeThrow();
+        if (lastKnifeThrow > now) {
+            lastKnifeThrow = 0L;
+            gp.setLastKnifeThrow(0L);
+        }
+        if (now - lastKnifeThrow < secondsToMillis(MURDERER_KNIFE_THROW_COOLDOWN_SECONDS)) {
+            boolean canceledPendingThrow = cancelPendingKnifeLaunch(player.getUniqueId());
+            if (canceledPendingThrow) {
+                gp.setLastKnifeThrow(0L);
+                player.removePotionEffect(PotionEffectType.SLOW);
+                if (plugin.getActionBarService() != null) {
+                    plugin.getActionBarService().showKnifeStoppedChargingActionBar(player);
+                }
+            }
+            return false;
+        }
+        if (!scheduleKnifeLaunch(player, item, THROWN_KNIFE_LIFETIME_SECONDS)) {
+            return false;
         }
         gp.setLastKnifeThrow(now);
-        Snowball snowball = player.launchProjectile(Snowball.class);
-        snowball.setMetadata(KNIFE_META, new FixedMetadataValue(plugin, player.getUniqueId().toString()));
-        setProjectileLaunchMetadata(snowball, player);
-        event.setCancelled(true);
+        if (plugin.getActionBarService() != null) {
+            plugin.getActionBarService().showKnifeThrowActionBar(player);
+        }
+        player.addPotionEffect(
+                new PotionEffect(
+                        PotionEffectType.SLOW,
+                        (int) Math.max(1L, secondsToTicks(MURDERER_THROW_SLOWNESS_SECONDS) - 1L),
+                        MURDERER_THROW_SLOWNESS_AMPLIFIER,
+                        false,
+                        false
+                ),
+                true
+        );
+        return true;
     }
 
     @EventHandler
@@ -208,7 +290,7 @@ public class MurderMysteryListener implements Listener {
         if (victimData == null || !victimData.isAlive()) {
             event.setCancelled(true);
             Entity damager = event.getDamager();
-            if (damager instanceof Arrow || damager instanceof Snowball) {
+            if (damager instanceof Arrow) {
                 removeProjectileEntity(damager);
             }
             return;
@@ -281,36 +363,16 @@ public class MurderMysteryListener implements Listener {
             cancelArrowHit(event, arrow);
             return;
         }
-        if (damager instanceof Snowball) {
-            Snowball snowball = (Snowball) damager;
-            if (!snowball.hasMetadata(KNIFE_META)) {
-                return;
-            }
-            event.setCancelled(true);
-            Player shooterPlayer = null;
-            if (snowball.getShooter() instanceof Player) {
-                shooterPlayer = (Player) snowball.getShooter();
-                MurderMysteryGamePlayer shooterData = gameManager.getMurderMysteryPlayer(shooterPlayer);
-                if (shooterData != null) {
-                    shooterData.addKill();
-                }
-            }
-            double distanceMeters = projectileDistanceMeters(snowball, shooterPlayer, victim);
-            String distanceSuffix = formatDistanceSuffix(distanceMeters);
-            gameManager.sendMurdererKnifeKillMessage(shooterPlayer, victim, distanceMeters);
-            setEliminatedHealth(victim);
-            gameManager.handleDeath(victim, shooterPlayer, "The Murderer threw their Knife at you! " + distanceSuffix, MurderMysteryGameManager.KillType.THROWN_KNIFE);
-        }
     }
 
     @EventHandler
     public void onAnyDamage(EntityDamageEvent event) {
-        if (gameManager.isDroppedBowDisplay(event.getEntity())) {
+        if (gameManager.isDroppedBowDisplay(event.getEntity()) || isThrownKnifeDisplay(event.getEntity())) {
             event.setCancelled(true);
             if (event instanceof EntityDamageByEntityEvent) {
                 EntityDamageByEntityEvent byEntityEvent = (EntityDamageByEntityEvent) event;
                 Entity damager = byEntityEvent.getDamager();
-                if (damager instanceof Arrow || damager instanceof Snowball) {
+                if (damager instanceof Arrow) {
                     removeProjectileEntity(damager);
                 }
             }
@@ -366,7 +428,7 @@ public class MurderMysteryListener implements Listener {
         }
         if (isDetectiveLikeCooldownRole(gp.getRole(), gp)) {
             long now = System.currentTimeMillis();
-            if (now - gp.getLastArrowShot() < DETECTIVE_HERO_ARROW_COOLDOWN_MILLIS) {
+            if (now - gp.getLastArrowShot() < secondsToMillis(DETECTIVE_HERO_ARROW_COOLDOWN_SECONDS)) {
                 event.setCancelled(true);
                 removeProjectileEntity(projectileEntity);
                 player.updateInventory();
@@ -402,7 +464,7 @@ public class MurderMysteryListener implements Listener {
             if (gameManager.isInGame(player) && gameManager.getState() == GameState.IN_GAME) {
                 player.getInventory().setItem(ARROW_HOTBAR_SLOT, new ItemStack(Material.ARROW, 1));
             }
-        }, DETECTIVE_HERO_ARROW_RECHARGE_TICKS);
+        }, secondsToTicks(DETECTIVE_HERO_ARROW_RECHARGE_SECONDS));
     }
 
     private void setEliminatedHealth(Player victim) {
@@ -498,6 +560,471 @@ public class MurderMysteryListener implements Listener {
             return;
         }
         projectile.remove();
+    }
+
+    private boolean scheduleKnifeLaunch(Player shooter, ItemStack sourceKnife, double lifetimeSeconds) {
+        if (shooter == null || lifetimeSeconds <= 0.0D) {
+            return false;
+        }
+        UUID shooterUuid = shooter.getUniqueId();
+        cancelPendingKnifeLaunch(shooterUuid);
+        ItemStack knifeSnapshot = sourceKnife == null ? null : sourceKnife.clone();
+        BukkitTask launchTask;
+        try {
+            launchTask = plugin.getServer().getScheduler().runTaskLater(
+                    plugin,
+                    () -> {
+                        pendingKnifeLaunches.remove(shooterUuid);
+                        Player liveShooter = plugin.getServer().getPlayer(shooterUuid);
+                        if (!isValidKnifeShooter(liveShooter)) {
+                            return;
+                        }
+                        launchThrownKnife(liveShooter, knifeSnapshot, lifetimeSeconds);
+                    },
+                    secondsToTicks(MURDERER_KNIFE_THROWING_SECONDS)
+            );
+        } catch (Throwable ignored) {
+            return false;
+        }
+        pendingKnifeLaunches.put(shooterUuid, launchTask);
+        return true;
+    }
+
+    private boolean cancelPendingKnifeLaunch(UUID shooterUuid) {
+        if (shooterUuid == null) {
+            return false;
+        }
+        BukkitTask pending = pendingKnifeLaunches.remove(shooterUuid);
+        if (pending != null) {
+            pending.cancel();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean launchThrownKnife(Player shooter, ItemStack sourceKnife, double lifetimeSeconds) {
+        if (shooter == null || lifetimeSeconds <= 0.0D) {
+            return false;
+        }
+        if (shooter.getWorld() == null) {
+            return false;
+        }
+        UUID shooterUuid = shooter.getUniqueId();
+        despawnThrownKnife(shooterUuid);
+        Vector direction = shooter.getEyeLocation().getDirection();
+        if (direction == null || direction.lengthSquared() <= 0.000001D) {
+            direction = shooter.getLocation().getDirection();
+        }
+        if (direction == null || direction.lengthSquared() <= 0.000001D) {
+            direction = new Vector(0.0D, 0.0D, 1.0D);
+        }
+        direction = direction.normalize();
+        Vector velocity = direction.clone().multiply(THROWN_KNIFE_SPEED_BLOCKS_PER_TICK);
+        Location launchLocation = shooter.getLocation().clone().add(0.0D, THROWN_KNIFE_LAUNCH_HEIGHT, 0.0D);
+        Location spawnLocation = launchLocation.clone().add(direction.clone().multiply(THROWN_KNIFE_SPAWN_FORWARD_OFFSET));
+        ArmorStand display;
+        try {
+            display = spawnLocation.getWorld().spawn(spawnLocation, ArmorStand.class);
+        } catch (Throwable ignored) {
+            return false;
+        }
+        configureThrownKnifeDisplay(display, sourceKnife);
+        ThrownKnife thrownKnife = new ThrownKnife(
+                display,
+                velocity,
+                launchLocation.clone(),
+                System.currentTimeMillis() + secondsToMillis(lifetimeSeconds)
+        );
+        BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(
+                plugin,
+                () -> tickThrownKnife(shooterUuid),
+                1L,
+                1L
+        );
+        thrownKnife.setTask(task);
+        activeThrownKnives.put(shooterUuid, thrownKnife);
+        return true;
+    }
+
+    private void configureThrownKnifeDisplay(ArmorStand display, ItemStack sourceKnife) {
+        if (display == null) {
+            return;
+        }
+        display.setVisible(false);
+        display.setGravity(false);
+        display.setArms(true);
+        display.setBasePlate(false);
+        display.setSmall(true);
+        trySetArmorStandMarker(display);
+        ItemStack knifeDisplay = sourceKnife == null ? new ItemStack(Material.IRON_SWORD, 1) : sourceKnife.clone();
+        if (knifeDisplay.getType() == Material.AIR) {
+            knifeDisplay = new ItemStack(Material.IRON_SWORD, 1);
+        }
+        knifeDisplay.setAmount(1);
+        display.setItemInHand(knifeDisplay);
+    }
+
+    private void tickThrownKnife(UUID shooterUuid) {
+        if (shooterUuid == null) {
+            return;
+        }
+        ThrownKnife knife = activeThrownKnives.get(shooterUuid);
+        if (knife == null) {
+            return;
+        }
+        if (System.currentTimeMillis() >= knife.expiresAtMillis) {
+            despawnThrownKnife(shooterUuid);
+            return;
+        }
+        ArmorStand display = knife.display;
+        if (display == null || !display.isValid() || display.isDead()) {
+            despawnThrownKnife(shooterUuid);
+            return;
+        }
+        Player shooter = plugin.getServer().getPlayer(shooterUuid);
+        if (!isValidKnifeShooter(shooter)) {
+            despawnThrownKnife(shooterUuid);
+            return;
+        }
+        Location from = display.getLocation();
+        Location to = from.clone().add(knife.velocity);
+        if (to.getWorld() == null || !to.getWorld().equals(from.getWorld())) {
+            despawnThrownKnife(shooterUuid);
+            return;
+        }
+        shatterGlassPanesAlongPath(from, to, knife);
+        Player victim = findKnifeVictim(shooter, from, to);
+        if (victim != null) {
+            handleThrownKnifeHit(knife, shooter, victim);
+            despawnThrownKnife(shooterUuid);
+            return;
+        }
+        display.teleport(to);
+    }
+
+    private boolean isValidKnifeShooter(Player shooter) {
+        if (shooter == null || !shooter.isOnline()) {
+            return false;
+        }
+        if (!gameManager.isInGame(shooter) || gameManager.getState() != GameState.IN_GAME) {
+            return false;
+        }
+        MurderMysteryGamePlayer shooterData = gameManager.getMurderMysteryPlayer(shooter);
+        return shooterData != null && shooterData.isAlive() && shooterData.getRole() == MurderMysteryRole.MURDERER;
+    }
+
+    private Player findKnifeVictim(Player shooter, Location from, Location to) {
+        if (shooter == null || from == null || to == null || from.getWorld() == null || to.getWorld() == null) {
+            return null;
+        }
+        if (!from.getWorld().equals(to.getWorld())) {
+            return null;
+        }
+        Vector start = from.toVector();
+        Vector end = to.toVector();
+        double hitRadiusSquared = THROWN_KNIFE_HIT_RADIUS * THROWN_KNIFE_HIT_RADIUS;
+        for (Player candidate : plugin.getServer().getOnlinePlayers()) {
+            if (candidate == null || !candidate.isOnline()) {
+                continue;
+            }
+            if (candidate.getUniqueId().equals(shooter.getUniqueId())) {
+                continue;
+            }
+            if (!candidate.getWorld().equals(from.getWorld())) {
+                continue;
+            }
+            if (!gameManager.isInGame(candidate)) {
+                continue;
+            }
+            MurderMysteryGamePlayer victimData = gameManager.getMurderMysteryPlayer(candidate);
+            if (victimData == null || !victimData.isAlive()) {
+                continue;
+            }
+            if (victimData.getRole() == MurderMysteryRole.MURDERER) {
+                continue;
+            }
+            Vector victimCenter = candidate.getLocation().add(0.0D, 1.0D, 0.0D).toVector();
+            if (distanceSquaredPointToSegment(victimCenter, start, end) <= hitRadiusSquared) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private void handleThrownKnifeHit(ThrownKnife knife, Player shooter, Player victim) {
+        if (knife == null || shooter == null || victim == null) {
+            return;
+        }
+        MurderMysteryGamePlayer shooterData = gameManager.getMurderMysteryPlayer(shooter);
+        MurderMysteryGamePlayer victimData = gameManager.getMurderMysteryPlayer(victim);
+        if (shooterData == null || victimData == null || !victimData.isAlive()) {
+            return;
+        }
+        if (shooterData.getRole() != MurderMysteryRole.MURDERER || victimData.getRole() == MurderMysteryRole.MURDERER) {
+            return;
+        }
+        shooterData.addKill();
+        double distanceMeters = distanceFromLaunch(knife.launchLocation, victim.getLocation());
+        String distanceSuffix = formatDistanceSuffix(distanceMeters);
+        gameManager.sendMurdererKnifeKillMessage(shooter, victim, distanceMeters);
+        setEliminatedHealth(victim);
+        gameManager.handleDeath(
+                victim,
+                shooter,
+                "The Murderer threw their Knife at you! " + distanceSuffix,
+                MurderMysteryGameManager.KillType.THROWN_KNIFE
+        );
+    }
+
+    private double distanceFromLaunch(Location launchLocation, Location victimLocation) {
+        if (launchLocation == null || victimLocation == null) {
+            return 0.0D;
+        }
+        if (launchLocation.getWorld() == null || victimLocation.getWorld() == null || !launchLocation.getWorld().equals(victimLocation.getWorld())) {
+            return 0.0D;
+        }
+        return Math.max(0.0D, launchLocation.distance(victimLocation));
+    }
+
+    private void shatterGlassPanesAlongPath(Location from, Location to, ThrownKnife knife) {
+        if (from == null || to == null || knife == null || from.getWorld() == null || !from.getWorld().equals(to.getWorld())) {
+            return;
+        }
+        World world = from.getWorld();
+        double dx = to.getX() - from.getX();
+        double dy = to.getY() - from.getY();
+        double dz = to.getZ() - from.getZ();
+        double length = Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
+        int samples = Math.max(1, (int) Math.ceil(length / THROWN_KNIFE_BLOCK_SAMPLE_STEP));
+        for (int i = 0; i <= samples; i++) {
+            double progress = i / (double) samples;
+            double x = from.getX() + (dx * progress);
+            double y = from.getY() + (dy * progress);
+            double z = from.getZ() + (dz * progress);
+            Block block = world.getBlockAt((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+            if (!isGlassPane(block.getType())) {
+                continue;
+            }
+            String blockKey = paneBlockKey(block);
+            if (!knife.shatteredPaneKeys.add(blockKey)) {
+                continue;
+            }
+            playGlassPaneShatterEffect(block);
+        }
+    }
+
+    private String paneBlockKey(Block block) {
+        if (block == null || block.getWorld() == null) {
+            return "";
+        }
+        return block.getWorld().getName()
+                + ":"
+                + block.getX()
+                + ":"
+                + block.getY()
+                + ":"
+                + block.getZ();
+    }
+
+    private boolean isGlassPane(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.contains("GLASS") && name.contains("PANE");
+    }
+
+    private void playGlassPaneShatterEffect(Block block) {
+        if (block == null || block.getWorld() == null) {
+            return;
+        }
+        Location center = block.getLocation().add(0.5D, 0.5D, 0.5D);
+        block.getWorld().playEffect(center, Effect.STEP_SOUND, block.getType());
+        if (GLASS_SHATTER_SOUND != null) {
+            try {
+                block.getWorld().playSound(center, GLASS_SHATTER_SOUND, 1.0F, 1.0F);
+            } catch (IllegalArgumentException ignored) {
+                // Sound enum mismatch on legacy/newer API variants.
+            }
+        }
+        showTemporaryGlassPaneBreakAnimation(block);
+    }
+
+    private void showTemporaryGlassPaneBreakAnimation(Block block) {
+        if (block == null || block.getWorld() == null) {
+            return;
+        }
+        int animationId = paneBreakAnimationId(block);
+        Location blockLocation = block.getLocation();
+        sendBlockBreakAnimation(blockLocation, animationId, GLASS_PANE_BREAK_ANIMATION_STAGE);
+
+        String blockKey = paneBlockKey(block);
+        BukkitTask existingResetTask = paneBreakResetTasks.remove(blockKey);
+        if (existingResetTask != null) {
+            existingResetTask.cancel();
+        }
+        BukkitTask resetTask = plugin.getServer().getScheduler().runTaskLater(
+                plugin,
+                () -> {
+                    paneBreakResetTasks.remove(blockKey);
+                    sendBlockBreakAnimation(blockLocation, animationId, -1);
+                },
+                GLASS_PANE_BREAK_RESET_SECONDS * 20L
+        );
+        paneBreakResetTasks.put(blockKey, resetTask);
+    }
+
+    private int paneBreakAnimationId(Block block) {
+        if (block == null || block.getWorld() == null) {
+            return 0;
+        }
+        int hash = 17;
+        hash = (31 * hash) + block.getWorld().getUID().hashCode();
+        hash = (31 * hash) + block.getX();
+        hash = (31 * hash) + block.getY();
+        hash = (31 * hash) + block.getZ();
+        return hash;
+    }
+
+    private void sendBlockBreakAnimation(Location blockLocation, int animationId, int stage) {
+        if (blockLocation == null || blockLocation.getWorld() == null) {
+            return;
+        }
+        int safeStage = Math.max(-1, Math.min(9, stage));
+        for (Player viewer : plugin.getServer().getOnlinePlayers()) {
+            if (viewer == null || !viewer.isOnline()) {
+                continue;
+            }
+            if (viewer.getWorld() == null || !viewer.getWorld().equals(blockLocation.getWorld())) {
+                continue;
+            }
+            sendBlockBreakAnimationPacket(viewer, blockLocation, animationId, safeStage);
+        }
+    }
+
+    private void sendBlockBreakAnimationPacket(Player viewer, Location blockLocation, int animationId, int stage) {
+        if (viewer == null || blockLocation == null) {
+            return;
+        }
+        try {
+            String version = viewer.getServer().getClass().getPackage().getName().split("\\.")[3];
+            Class<?> craftPlayerClass = Class.forName("org.bukkit.craftbukkit." + version + ".entity.CraftPlayer");
+            Object handle = craftPlayerClass.getMethod("getHandle").invoke(viewer);
+            Object connection = handle.getClass().getField("playerConnection").get(handle);
+            Class<?> packetClass = Class.forName("net.minecraft.server." + version + ".Packet");
+            Class<?> blockBreakPacketClass = Class.forName("net.minecraft.server." + version + ".PacketPlayOutBlockBreakAnimation");
+            Object packet = createBlockBreakPacket(blockBreakPacketClass, version, animationId, blockLocation, stage);
+            if (packet == null) {
+                return;
+            }
+            connection.getClass().getMethod("sendPacket", packetClass).invoke(connection, packet);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private Object createBlockBreakPacket(Class<?> blockBreakPacketClass,
+                                          String version,
+                                          int animationId,
+                                          Location blockLocation,
+                                          int stage) throws Exception {
+        int x = blockLocation.getBlockX();
+        int y = blockLocation.getBlockY();
+        int z = blockLocation.getBlockZ();
+        try {
+            Class<?> blockPositionClass = Class.forName("net.minecraft.server." + version + ".BlockPosition");
+            Object blockPosition = blockPositionClass.getConstructor(int.class, int.class, int.class).newInstance(x, y, z);
+            return blockBreakPacketClass.getConstructor(int.class, blockPositionClass, int.class)
+                    .newInstance(animationId, blockPosition, stage);
+        } catch (ClassNotFoundException | NoSuchMethodException ignored) {
+            return blockBreakPacketClass.getConstructor(int.class, int.class, int.class, int.class, int.class)
+                    .newInstance(animationId, x, y, z, stage);
+        }
+    }
+
+    private boolean isThrownKnifeDisplay(Entity entity) {
+        if (entity == null || activeThrownKnives.isEmpty()) {
+            return false;
+        }
+        UUID entityUuid = entity.getUniqueId();
+        for (ThrownKnife knife : activeThrownKnives.values()) {
+            if (knife == null || knife.display == null) {
+                continue;
+            }
+            if (entityUuid.equals(knife.display.getUniqueId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void despawnThrownKnife(UUID shooterUuid) {
+        if (shooterUuid == null) {
+            return;
+        }
+        ThrownKnife knife = activeThrownKnives.remove(shooterUuid);
+        if (knife == null) {
+            return;
+        }
+        knife.cancelTask();
+        if (knife.display != null && knife.display.isValid()) {
+            knife.display.remove();
+        }
+    }
+
+    private double distanceSquaredPointToSegment(Vector point, Vector start, Vector end) {
+        if (point == null || start == null || end == null) {
+            return Double.MAX_VALUE;
+        }
+        Vector segment = end.clone().subtract(start);
+        double lengthSquared = segment.lengthSquared();
+        if (lengthSquared <= 0.000001D) {
+            return point.distanceSquared(start);
+        }
+        double projection = point.clone().subtract(start).dot(segment) / lengthSquared;
+        if (projection < 0.0D) {
+            projection = 0.0D;
+        } else if (projection > 1.0D) {
+            projection = 1.0D;
+        }
+        Vector closest = start.clone().add(segment.multiply(projection));
+        return point.distanceSquared(closest);
+    }
+
+    private long secondsToMillis(double seconds) {
+        return Math.max(1L, Math.round(seconds * 1000.0D));
+    }
+
+    private long secondsToTicks(double seconds) {
+        return Math.max(1L, Math.round(seconds * 20.0D));
+    }
+
+    private void trySetArmorStandMarker(ArmorStand armorStand) {
+        if (armorStand == null) {
+            return;
+        }
+        try {
+            Method setMarker = armorStand.getClass().getMethod("setMarker", boolean.class);
+            setMarker.invoke(armorStand, true);
+        } catch (Throwable ignored) {
+            // Legacy API does not support marker armor stands.
+        }
+    }
+
+    private static Sound resolveCompatibleSound(String... soundNames) {
+        if (soundNames == null) {
+            return null;
+        }
+        for (String soundName : soundNames) {
+            if (soundName == null || soundName.trim().isEmpty()) {
+                continue;
+            }
+            try {
+                return Sound.valueOf(soundName.trim());
+            } catch (IllegalArgumentException ignored) {
+                // Try next sound key candidate.
+            }
+        }
+        return null;
     }
 
     private void resyncDamagedItemSlots(Player player, ItemStack damagedItem) {
@@ -600,5 +1127,36 @@ public class MurderMysteryListener implements Listener {
             }
         }
         return item.getType() == Material.IRON_SWORD;
+    }
+
+    private static class ThrownKnife {
+        private final ArmorStand display;
+        private final Vector velocity;
+        private final Location launchLocation;
+        private final long expiresAtMillis;
+        private final Set<String> shatteredPaneKeys;
+        private BukkitTask task;
+
+        private ThrownKnife(ArmorStand display,
+                            Vector velocity,
+                            Location launchLocation,
+                            long expiresAtMillis) {
+            this.display = display;
+            this.velocity = velocity == null ? new Vector(0.0D, 0.0D, 0.0D) : velocity.clone();
+            this.launchLocation = launchLocation == null ? null : launchLocation.clone();
+            this.expiresAtMillis = expiresAtMillis;
+            this.shatteredPaneKeys = new HashSet<>();
+        }
+
+        private void setTask(BukkitTask task) {
+            this.task = task;
+        }
+
+        private void cancelTask() {
+            if (task != null) {
+                task.cancel();
+                task = null;
+            }
+        }
     }
 }

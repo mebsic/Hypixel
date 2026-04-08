@@ -25,9 +25,6 @@ public class ProxyConfig {
     private int redisDatabase = 0;
     private List<String> gameServers = new ArrayList<>();
 
-    public ProxyConfig() {
-    }
-
     public String getMongoUri() {
         return mongoUri;
     }

@@ -105,6 +105,7 @@ public class MurderMysteryGameManager extends GameManager {
     private static final double DROPPED_BOW_PICKUP_RADIUS_SQUARED = 2.25D;
     private static final float DROPPED_BOW_ROTATION_DEGREES_PER_TICK = 8.0f;
     private static final double DROPPED_BOW_HEIGHT_OFFSET = 0.35D;
+    private static final long DROPPED_BOW_DEATH_DELAY_TICKS = 2L;
     private static final int POST_GAME_RESULT_TEXT_WIDTH = 75;
     private static final int POST_GAME_REWARD_SUMMARY_TEXT_WIDTH = 80;
     private static final Sound INNOCENT_ROLE_IDLE_SOUND = resolveCompatibleSound("VILLAGER_IDLE", "ENTITY_VILLAGER_AMBIENT");
@@ -576,7 +577,17 @@ public class MurderMysteryGameManager extends GameManager {
         }
         boolean droppedBow = victimData.hasDetectiveBow() && victim.getInventory().contains(Material.BOW);
         if (droppedBow) {
-            dropBowAt(victim.getLocation());
+            final Location bowDropLocation = victim.getLocation() == null ? null : victim.getLocation().clone();
+            getPlugin().getServer().getScheduler().runTaskLater(
+                    getPlugin(),
+                    () -> {
+                        if (getState() != GameState.IN_GAME) {
+                            return;
+                        }
+                        dropBowAt(bowDropLocation);
+                    },
+                    DROPPED_BOW_DEATH_DELAY_TICKS
+            );
         }
         victimData.setHasDetectiveBow(false);
         victim.getInventory().setArmorContents(null);
