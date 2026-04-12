@@ -13,6 +13,9 @@ public final class MongoManager {
     public static final String PROXY_SETTINGS_MOTD_DOCUMENT_ID = "motd";
     public static final String PROXY_SETTINGS_MOTD_TEXT_FIELD = "text";
     public static final String PROXY_SETTINGS_DOMAIN_FIELD = "domain";
+    public static final String PROXY_SETTINGS_DOMAIN_DOCUMENT_ID = PROXY_SETTINGS_DOMAIN_FIELD;
+    public static final String PROXY_SETTINGS_DOMAIN_TO_CONNECT_FIELD = "domainToConnect";
+    public static final String PROXY_SETTINGS_CONNECT_USING_DOMAIN_FIELD = "connectUsingDomain";
     public static final String PROFILE_CHAT_TYPE_FIELD = "chatType";
 
     private MongoManager() {

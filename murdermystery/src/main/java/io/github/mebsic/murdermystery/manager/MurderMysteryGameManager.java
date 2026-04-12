@@ -201,6 +201,7 @@ public class MurderMysteryGameManager extends GameManager {
         summaryMurdererUuid = findMurdererUuid();
         summaryMurdererEliminated = false;
         giveLoadouts();
+        refreshMurdererLastInnocentSpeed();
         startGoldSpawner();
     }
 
@@ -274,11 +275,14 @@ public class MurderMysteryGameManager extends GameManager {
         if (!hasAliveNonMurdererExcluding(player.getUniqueId())) {
             innocentsWon = false;
             endGame();
+            return;
         }
+        refreshMurdererLastInnocentSpeed();
     }
 
     @Override
     protected void onGameEnding() {
+        clearMurdererLastInnocentSpeed();
         if (goldTask != null) {
             goldTask.cancel();
             goldTask = null;
@@ -475,6 +479,7 @@ public class MurderMysteryGameManager extends GameManager {
         if (getState() != GameState.IN_GAME) {
             return;
         }
+        refreshMurdererLastInnocentSpeed();
         int aliveCount = 0;
         for (MurderMysteryGamePlayer mmPlayer : getMmPlayers()) {
             if (mmPlayer.isAlive()) {
@@ -616,6 +621,7 @@ public class MurderMysteryGameManager extends GameManager {
                 broadcastDetectiveStatusSubtitle(ChatColor.GOLD + "The Bow has been dropped!");
             }
         }
+        refreshMurdererLastInnocentSpeed();
         checkWinConditions();
         updateScoreboardAll();
     }
@@ -1547,6 +1553,7 @@ public class MurderMysteryGameManager extends GameManager {
             sendTeamingWarning(player, selected.getRole());
             player.sendMessage(ChatColor.GREEN + "The previous Murderer left, you are now taking their position!");
         }
+        refreshMurdererLastInnocentSpeed();
     }
 
     private void sendTeamingWarning(Player player, MurderMysteryRole role) {
@@ -1577,6 +1584,60 @@ public class MurderMysteryGameManager extends GameManager {
             }
         }
         return false;
+    }
+
+    private int getAliveNonMurdererCount() {
+        int aliveNonMurderers = 0;
+        for (MurderMysteryGamePlayer mmPlayer : getMmPlayers()) {
+            if (mmPlayer == null || !mmPlayer.isAlive()) {
+                continue;
+            }
+            if (mmPlayer.getRole() != MurderMysteryRole.MURDERER) {
+                aliveNonMurderers++;
+            }
+        }
+        return aliveNonMurderers;
+    }
+
+    private void refreshMurdererLastInnocentSpeed() {
+        if (getState() != GameState.IN_GAME) {
+            clearMurdererLastInnocentSpeed();
+            return;
+        }
+        if (getAliveNonMurdererCount() == 1) {
+            applyMurdererLastInnocentSpeed();
+            return;
+        }
+        clearMurdererLastInnocentSpeed();
+    }
+
+    private void applyMurdererLastInnocentSpeed() {
+        for (MurderMysteryGamePlayer mmPlayer : getMmPlayers()) {
+            if (mmPlayer == null || !mmPlayer.isAlive() || mmPlayer.getRole() != MurderMysteryRole.MURDERER) {
+                continue;
+            }
+            Player player = Bukkit.getPlayer(mmPlayer.getUuid());
+            if (player == null || !player.isOnline()) {
+                continue;
+            }
+            player.addPotionEffect(
+                    new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 0, false, false),
+                    true
+            );
+        }
+    }
+
+    private void clearMurdererLastInnocentSpeed() {
+        for (MurderMysteryGamePlayer mmPlayer : getMmPlayers()) {
+            if (mmPlayer == null || !mmPlayer.isAlive() || mmPlayer.getRole() != MurderMysteryRole.MURDERER) {
+                continue;
+            }
+            Player player = Bukkit.getPlayer(mmPlayer.getUuid());
+            if (player == null || !player.isOnline()) {
+                continue;
+            }
+            player.removePotionEffect(PotionEffectType.SPEED);
+        }
     }
 
     private ItemStack createMurdererKnife(CoreApi coreApi, Player player) {

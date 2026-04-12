@@ -1181,9 +1181,10 @@ public class HubNpcListener implements Listener {
     }
 
     private synchronized String resolveCitizensNpcName(NpcKind kind) {
-        String name = UUID.randomUUID().toString().replace("-", "");
-        if (name.length() > 10) {
-            name = name.substring(0, 10);
+        String uuidPart = UUID.randomUUID().toString().replace("-", "");
+        String name = ChatColor.DARK_GRAY + "[NPC] " + uuidPart;
+        if (name.length() > 16) {
+            name = name.substring(0, 16);
         }
         return name.isEmpty() ? CITIZENS_DEFAULT_NAME : name;
     }

@@ -117,7 +117,6 @@ public class HypixelProxyPlugin {
     private static final MinecraftChannelIdentifier PLAY_AGAIN_INTENT_CHANNEL =
             MinecraftChannelIdentifier.from("hypixel:playagain");
     private static final Pattern LEGACY_CODE = Pattern.compile("(?i)§[0-9A-FK-OR]");
-    private static final String DOMAIN_TO_CONNECT_FIELD = "domainToConnect";
     private final ProxyServer proxy;
     private final Logger logger;
     private final Path dataDir;
@@ -146,6 +145,7 @@ public class HypixelProxyPlugin {
     private final AtomicLong redisFirstFailureAtMillis = new AtomicLong(0L);
     private volatile long infraHealthChecksStartedAtMillis;
     private static volatile String domainToConnect = "";
+    private static volatile boolean connectUsingDomain = false;
     private final Map<UUID, DeferredQueueRequest> deferredPostGameQueueRequests = new ConcurrentHashMap<UUID, DeferredQueueRequest>();
     private final Map<UUID, Long> recentPlayAgainIntents = new ConcurrentHashMap<UUID, Long>();
 
@@ -454,10 +454,12 @@ public class HypixelProxyPlugin {
             return;
         }
 
-        String expectedConnectHost = domainToConnect;
-        if (shouldRejectJoinHost(event.getPlayer(), expectedConnectHost)) {
-            event.getPlayer().disconnect(domainJoinBlockedReason(expectedConnectHost));
-            return;
+        if (connectUsingDomain) {
+            String expectedConnectHost = domainToConnect;
+            if (shouldRejectJoinHost(event.getPlayer(), expectedConnectHost)) {
+                event.getPlayer().disconnect(domainJoinBlockedReason(expectedConnectHost));
+                return;
+            }
         }
 
         if (motdCache != null && motdCache.isMaintenanceEnabled()) {
@@ -848,6 +850,7 @@ public class HypixelProxyPlugin {
         MongoCollection<Document> collection = mongoDatabase.getCollection(collectionName);
         DomainSettingsStore.ensureDomainDocument(collection);
         ensureDomainToConnectField(collection);
+        ensureConnectUsingDomainField(collection);
     }
 
     private void ensureDomainToConnectField(MongoCollection<Document> collection) {
@@ -855,9 +858,20 @@ public class HypixelProxyPlugin {
             return;
         }
         collection.updateOne(
-                new Document("_id", MongoManager.PROXY_SETTINGS_DOMAIN_FIELD)
-                        .append(DOMAIN_TO_CONNECT_FIELD, new Document("$exists", false)),
-                new Document("$set", new Document(DOMAIN_TO_CONNECT_FIELD, NetworkConstants.DEFAULT_DOMAIN))
+                new Document("_id", MongoManager.PROXY_SETTINGS_DOMAIN_DOCUMENT_ID)
+                        .append(MongoManager.PROXY_SETTINGS_DOMAIN_TO_CONNECT_FIELD, new Document("$exists", false)),
+                new Document("$set", new Document(MongoManager.PROXY_SETTINGS_DOMAIN_TO_CONNECT_FIELD, NetworkConstants.DEFAULT_DOMAIN))
+        );
+    }
+
+    private void ensureConnectUsingDomainField(MongoCollection<Document> collection) {
+        if (collection == null) {
+            return;
+        }
+        collection.updateOne(
+                new Document("_id", MongoManager.PROXY_SETTINGS_DOMAIN_DOCUMENT_ID)
+                        .append(MongoManager.PROXY_SETTINGS_CONNECT_USING_DOMAIN_FIELD, new Document("$exists", false)),
+                new Document("$set", new Document(MongoManager.PROXY_SETTINGS_CONNECT_USING_DOMAIN_FIELD, Boolean.FALSE))
         );
     }
 
@@ -880,11 +894,15 @@ public class HypixelProxyPlugin {
         try {
             boolean domainChanged = DomainSettingsStore.refreshDomain(collection);
             boolean domainToConnectChanged = refreshDomainToConnect(collection);
+            boolean connectUsingDomainChanged = refreshConnectUsingDomain(collection);
             if (domainChanged && logChanges) {
                 logger.info("Updated network domain to {}", NetworkConstants.domain());
             }
             if (domainToConnectChanged && logChanges) {
                 logger.info("Updated domain-to-connect setting.");
+            }
+            if (connectUsingDomainChanged && logChanges) {
+                logger.info("Updated connect-using-domain setting.");
             }
         } catch (Exception ex) {
             logger.debug("Failed to refresh proxy settings domain: {}", ex.getMessage());
@@ -904,13 +922,36 @@ public class HypixelProxyPlugin {
         if (collection == null) {
             return "";
         }
-        Document settingsDoc = collection.find(new Document("_id", MongoManager.PROXY_SETTINGS_DOMAIN_FIELD))
-                .projection(new Document(DOMAIN_TO_CONNECT_FIELD, 1))
+        Document settingsDoc = collection.find(new Document("_id", MongoManager.PROXY_SETTINGS_DOMAIN_DOCUMENT_ID))
+                .projection(new Document(MongoManager.PROXY_SETTINGS_DOMAIN_TO_CONNECT_FIELD, 1))
                 .first();
         if (settingsDoc == null) {
             return "";
         }
-        return normalizeExpectedJoinHost(settingsDoc.get(DOMAIN_TO_CONNECT_FIELD));
+        return normalizeExpectedJoinHost(settingsDoc.get(MongoManager.PROXY_SETTINGS_DOMAIN_TO_CONNECT_FIELD));
+    }
+
+    private boolean refreshConnectUsingDomain(MongoCollection<Document> collection) {
+        boolean resolved = resolveConnectUsingDomain(collection);
+        if (resolved == connectUsingDomain) {
+            return false;
+        }
+        connectUsingDomain = resolved;
+        return true;
+    }
+
+    private boolean resolveConnectUsingDomain(MongoCollection<Document> collection) {
+        if (collection == null) {
+            return false;
+        }
+        Document settingsDoc = collection.find(new Document("_id", MongoManager.PROXY_SETTINGS_DOMAIN_DOCUMENT_ID))
+                .projection(new Document(MongoManager.PROXY_SETTINGS_CONNECT_USING_DOMAIN_FIELD, 1))
+                .first();
+        if (settingsDoc == null) {
+            return false;
+        }
+        Object raw = settingsDoc.get(MongoManager.PROXY_SETTINGS_CONNECT_USING_DOMAIN_FIELD);
+        return raw instanceof Boolean && ((Boolean) raw).booleanValue();
     }
 
     private boolean shouldRejectJoinHost(Player player, String requiredHost) {
