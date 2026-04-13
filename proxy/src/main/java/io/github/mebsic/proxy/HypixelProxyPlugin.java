@@ -61,6 +61,7 @@ import com.velocitypowered.api.event.player.KickedFromServerEvent;
 import com.velocitypowered.api.event.player.ServerPreConnectEvent;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
+import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
@@ -116,6 +117,11 @@ public class HypixelProxyPlugin {
     private static final long PLAY_AGAIN_INTENT_WINDOW_MILLIS = 7_500L;
     private static final MinecraftChannelIdentifier PLAY_AGAIN_INTENT_CHANNEL =
             MinecraftChannelIdentifier.from("hypixel:playagain");
+    private static final Component NON_1_8_DISCONNECT_REASON = Component.text(
+            "Please connect using Minecraft version ",
+            NamedTextColor.RED
+    ).append(Component.text("1.8", NamedTextColor.RED))
+            .append(Component.text("!", NamedTextColor.RED));
     private static final Pattern LEGACY_CODE = Pattern.compile("(?i)§[0-9A-FK-OR]");
     private final ProxyServer proxy;
     private final Logger logger;
@@ -679,6 +685,10 @@ public class HypixelProxyPlugin {
 
     @Subscribe
     public void onPostLogin(PostLoginEvent event) {
+        if (event.getPlayer().getProtocolVersion() != ProtocolVersion.MINECRAFT_1_8) {
+            event.getPlayer().disconnect(NON_1_8_DISCONNECT_REASON);
+            return;
+        }
         if (chatChannelService != null) {
             chatChannelService.track(event.getPlayer().getUniqueId());
         }

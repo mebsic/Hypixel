@@ -3,8 +3,31 @@ set -euo pipefail
 
 CONFIG_SOURCE="${CONFIG_SOURCE:-/bootstrap/config.json}"
 PLUGIN_SOURCE_DIR="${PLUGIN_SOURCE_DIR:-/bootstrap/plugins}"
+VELOCITY_INSTALL_SCRIPT="${VELOCITY_INSTALL_SCRIPT:-/usr/local/bin/install-velocity.sh}"
 
 mkdir -p /server/plugins/hypixelproxy
+
+download_velocity() {
+  local velocity_version="${VELOCITY_VERSION:-latest}"
+  local user_agent="${USER_AGENT:-hypixel-docker/2.0 (https://example.net)}"
+
+  if [[ ! -x "${VELOCITY_INSTALL_SCRIPT}" ]]; then
+    echo "[bootstrap] Velocity installer not found or not executable: ${VELOCITY_INSTALL_SCRIPT}" >&2
+    return 1
+  fi
+
+  echo "[bootstrap] Downloading Velocity (${velocity_version})..."
+  VELOCITY_VERSION="${velocity_version}" USER_AGENT="${user_agent}" "${VELOCITY_INSTALL_SCRIPT}"
+
+  if [[ ! -s /server/velocity.jar ]]; then
+    echo "[bootstrap] Velocity download did not produce /server/velocity.jar." >&2
+    return 1
+  fi
+
+  if [[ -f /server/velocity.version ]]; then
+    echo "[bootstrap] Using Velocity version $(cat /server/velocity.version)."
+  fi
+}
 
 stage_proxy_plugin() {
   local file_name="HypixelProxy.jar"
@@ -104,6 +127,7 @@ bungee-plugin-message-channel = true
 TOML
 fi
 
+download_velocity
 stage_proxy_plugin
 
 exec java ${JAVA_OPTS:-"-Xms256M -Xmx512M"} -jar /server/velocity.jar

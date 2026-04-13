@@ -14,16 +14,23 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ProfileService {
+    private static final long PRELOGIN_PRELOAD_EXPIRY_TICKS = 20L * 30L;
+    private static final long PRELOGIN_PRELOAD_EXPIRY_RETRY_TICKS = 20L * 5L;
 
     private final CorePlugin plugin;
     private final ProfileStore store;
     private final CosmeticService cosmetics;
     private final Map<UUID, Profile> cache;
+    private final Map<UUID, Boolean> activeSessions;
+    private final Map<UUID, Boolean> inFlightLoads;
+    private final Map<UUID, Long> pendingPreloads;
     private final Map<UUID, Rank> pendingRankOverrides;
     private final Map<UUID, Boolean> pendingVisibilityOverrides;
+    private final AtomicLong preloadTokenSequence;
     private final AtomicBoolean refreshRunning;
 
     public ProfileService(CorePlugin plugin, ProfileStore store, CosmeticService cosmetics) {
@@ -31,8 +38,12 @@ public class ProfileService {
         this.store = store;
         this.cosmetics = cosmetics;
         this.cache = new ConcurrentHashMap<>();
+        this.activeSessions = new ConcurrentHashMap<>();
+        this.inFlightLoads = new ConcurrentHashMap<>();
+        this.pendingPreloads = new ConcurrentHashMap<>();
         this.pendingRankOverrides = new ConcurrentHashMap<>();
         this.pendingVisibilityOverrides = new ConcurrentHashMap<>();
+        this.preloadTokenSequence = new AtomicLong(0L);
         this.refreshRunning = new AtomicBoolean(false);
     }
 
@@ -40,28 +51,107 @@ public class ProfileService {
         return cache.get(uuid);
     }
 
-    public void loadProfileAsync(UUID uuid, String name) {
-        if (store == null) {
-            Profile profile = new Profile(uuid, name);
-            cosmetics.grantDefaults(profile);
-            applyPendingRankOverride(uuid, profile);
-            applyPendingVisibilityOverride(uuid, profile);
-            cache.put(uuid, profile);
-            plugin.handleProfileLoaded(profile);
+    public void preloadDuringLogin(UUID uuid, String name) {
+        if (uuid == null) {
             return;
         }
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            ProfileStore.LoadResult loadResult = store.loadWithState(uuid, name);
-            Profile profile = loadResult.getProfile();
-            cosmetics.grantDefaults(profile);
-            applyPendingRankOverride(uuid, profile);
-            applyPendingVisibilityOverride(uuid, profile);
-            if (loadResult.isCreated()) {
-                store.save(profile);
+        long token = preloadTokenSequence.incrementAndGet();
+        pendingPreloads.put(uuid, token);
+        loadProfileAsync(uuid, name);
+        schedulePreloadExpiry(uuid, token, PRELOGIN_PRELOAD_EXPIRY_TICKS);
+    }
+
+    public void loadProfileAsync(UUID uuid, String name) {
+        if (uuid == null) {
+            return;
+        }
+        Profile cached = cache.get(uuid);
+        if (cached != null) {
+            applyLatestName(cached, name);
+            return;
+        }
+        if (inFlightLoads.putIfAbsent(uuid, Boolean.TRUE) != null) {
+            return;
+        }
+        Runnable loadTask = () -> {
+            try {
+                Profile profile;
+                boolean created = false;
+                if (store == null) {
+                    profile = new Profile(uuid, name);
+                } else {
+                    ProfileStore.LoadResult loadResult = store.loadWithState(uuid, name);
+                    profile = loadResult.getProfile();
+                    created = loadResult.isCreated();
+                }
+                applyLatestName(profile, name);
+                cosmetics.grantDefaults(profile);
+                applyPendingRankOverride(uuid, profile);
+                applyPendingVisibilityOverride(uuid, profile);
+                if (created && store != null) {
+                    store.save(profile);
+                }
+                cache.put(uuid, profile);
+                plugin.handleProfileLoaded(profile);
+            } finally {
+                inFlightLoads.remove(uuid);
             }
-            cache.put(uuid, profile);
-            plugin.handleProfileLoaded(profile);
-        });
+        };
+        if (store == null) {
+            loadTask.run();
+            return;
+        }
+        try {
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, loadTask);
+        } catch (Exception ignored) {
+            inFlightLoads.remove(uuid);
+        }
+    }
+
+    private void applyLatestName(Profile profile, String name) {
+        if (profile == null || name == null) {
+            return;
+        }
+        String trimmed = name.trim();
+        if (!trimmed.isEmpty()) {
+            profile.setName(trimmed);
+        }
+    }
+
+    private void schedulePreloadExpiry(UUID uuid, long token, long delayTicks) {
+        if (uuid == null || !plugin.isEnabled()) {
+            return;
+        }
+        long safeDelay = Math.max(1L, delayTicks);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> expirePreload(uuid, token), safeDelay);
+    }
+
+    private void expirePreload(UUID uuid, long token) {
+        Long currentToken = pendingPreloads.get(uuid);
+        if (currentToken == null || currentToken.longValue() != token) {
+            return;
+        }
+        if (activeSessions.containsKey(uuid)) {
+            pendingPreloads.remove(uuid, token);
+            return;
+        }
+        if (inFlightLoads.containsKey(uuid)) {
+            schedulePreloadExpiry(uuid, token, PRELOGIN_PRELOAD_EXPIRY_RETRY_TICKS);
+            return;
+        }
+        pendingPreloads.remove(uuid, token);
+        if (!activeSessions.containsKey(uuid)) {
+            evictWithoutSave(uuid);
+        }
+    }
+
+    private void evictWithoutSave(UUID uuid) {
+        if (uuid == null) {
+            return;
+        }
+        cache.remove(uuid);
+        pendingRankOverrides.remove(uuid);
+        pendingVisibilityOverrides.remove(uuid);
     }
 
     public void setRank(UUID uuid, Rank rank) {
@@ -118,6 +208,11 @@ public class ProfileService {
     }
 
     public void unload(UUID uuid) {
+        if (uuid == null) {
+            return;
+        }
+        activeSessions.remove(uuid);
+        pendingPreloads.remove(uuid);
         Profile profile = cache.remove(uuid);
         if (profile != null) {
             saveProfile(profile);
@@ -127,11 +222,29 @@ public class ProfileService {
     }
 
     public void handleJoin(Player player) {
-        loadProfileAsync(player.getUniqueId(), player.getName());
+        if (player == null) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        activeSessions.put(uuid, Boolean.TRUE);
+        pendingPreloads.remove(uuid);
+        Profile profile = cache.get(uuid);
+        if (profile != null) {
+            applyLatestName(profile, player.getName());
+            plugin.handleProfileLoaded(profile);
+            return;
+        }
+        loadProfileAsync(uuid, player.getName());
     }
 
     public void handleQuit(Player player) {
-        unload(player.getUniqueId());
+        if (player == null) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        activeSessions.remove(uuid);
+        pendingPreloads.remove(uuid);
+        unload(uuid);
     }
 
     public void refreshOnlineProfileMeta() {

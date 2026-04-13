@@ -29,6 +29,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.command.ConsoleCommandSender;
@@ -65,6 +66,7 @@ public class GameManager {
     private static final String MAP_CONFIG_UPDATE_CHANNEL = "map_config_update";
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
     private static final int DEFAULT_MAP_CONFIG_RELOAD_POLL_SECONDS = 5;
+    private static final double[] SPAWN_Y_CORRECTION_OFFSETS = {0.5D, 1.0D, 1.5D, 2.0D, 2.5D, 3.0D};
     private static final String POST_GAME_FRAME_BAR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
     private static final Sound COUNTDOWN_TICK_SOUND = Sound.CLICK;
 
@@ -672,7 +674,63 @@ public class GameManager {
         for (int i = 0; i < online.size(); i++) {
             Player player = online.get(i);
             Location spawn = spawnPoints.get(i % spawnPoints.size());
-            player.teleport(spawn);
+            Location target = resolveSpawnTeleportTarget(spawn);
+            if (target == null) {
+                continue;
+            }
+            World world = target.getWorld();
+            if (world != null) {
+                world.getChunkAt(target).load();
+            }
+            player.teleport(target);
+        }
+    }
+
+    private Location resolveSpawnTeleportTarget(Location configuredSpawn) {
+        if (configuredSpawn == null) {
+            return null;
+        }
+        Location spawn = configuredSpawn.clone();
+        World world = spawn.getWorld();
+        if (world == null) {
+            return spawn;
+        }
+        if (isClearForPlayer(spawn)) {
+            return spawn;
+        }
+
+        for (double offset : SPAWN_Y_CORRECTION_OFFSETS) {
+            Location shifted = spawn.clone().add(0.0D, offset, 0.0D);
+            if (isClearForPlayer(shifted)) {
+                return shifted;
+            }
+        }
+
+        int highestY = world.getHighestBlockYAt(spawn.getBlockX(), spawn.getBlockZ()) + 1;
+        Location highest = spawn.clone();
+        highest.setY(highestY);
+        if (isClearForPlayer(highest)) {
+            return highest;
+        }
+        return spawn;
+    }
+
+    private boolean isClearForPlayer(Location feet) {
+        if (feet == null || feet.getWorld() == null) {
+            return false;
+        }
+        Location head = feet.clone().add(0.0D, 1.0D, 0.0D);
+        return !isSolidMaterial(feet.getBlock().getType()) && !isSolidMaterial(head.getBlock().getType());
+    }
+
+    private boolean isSolidMaterial(Material material) {
+        if (material == null) {
+            return false;
+        }
+        try {
+            return material.isSolid();
+        } catch (NoSuchMethodError ignored) {
+            return material != Material.AIR;
         }
     }
 

@@ -74,10 +74,12 @@ import io.github.mebsic.game.model.GameState;
 import io.github.mebsic.game.service.TablistService;
 import org.bukkit.ChatColor;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.GameMode;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -530,6 +532,17 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         buildModeRestoreNoticeExpiresAt.clear();
         queuedPostGameNetworkLevelUps.clear();
         getServer().getMessenger().unregisterOutgoingPluginChannel(this);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPreLogin(AsyncPlayerPreLoginEvent event) {
+        if (event == null || profileService == null) {
+            return;
+        }
+        if (event.getLoginResult() != AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+            return;
+        }
+        profileService.preloadDuringLogin(event.getUniqueId(), event.getName());
     }
 
     @EventHandler

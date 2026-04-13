@@ -6,6 +6,7 @@ import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.server.GameTypePlayerCountProvider;
 import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.service.CoreApi;
+import io.github.mebsic.core.store.ProfileStore;
 import io.github.mebsic.core.util.RankFormatUtil;
 import io.github.mebsic.game.model.GameState;
 import org.bukkit.ChatColor;
@@ -44,7 +45,7 @@ public class GameJoinListener implements Listener {
         }
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
-        ChatColor nameColor = resolveNameColor(uuid);
+        ChatColor nameColor = resolveNameColor(uuid, player.getName());
         nameColors.put(uuid, nameColor);
         int currentPlayers = player.getServer().getOnlinePlayers().size();
         int maxPlayers = playerCountProvider.getMaxPlayers(serverType);
@@ -73,7 +74,7 @@ public class GameJoinListener implements Listener {
             event.setQuitMessage(null);
             return;
         }
-        ChatColor nameColor = resolveNameColor(uuid);
+        ChatColor nameColor = resolveNameColor(uuid, player.getName());
         ChatColor cached = nameColors.remove(uuid);
         if (cached != null) {
             nameColor = cached;
@@ -83,13 +84,31 @@ public class GameJoinListener implements Listener {
         event.setQuitMessage(message);
     }
 
-    private ChatColor resolveNameColor(UUID uuid) {
+    private ChatColor resolveNameColor(UUID uuid, String fallbackName) {
+        Profile profile = coreApi.getProfile(uuid);
+        if (profile != null) {
+            Rank profileRank = profile.getRank() == null ? Rank.DEFAULT : profile.getRank();
+            return RankFormatUtil.baseColor(profileRank, profile.getMvpPlusPlusPrefixColor());
+        }
+
         Rank rank = coreApi.getRank(uuid);
         if (rank == null) {
             rank = Rank.DEFAULT;
         }
-        Profile profile = coreApi.getProfile(uuid);
-        String mvpPlusPlusPrefixColor = profile == null ? null : profile.getMvpPlusPlusPrefixColor();
+        String mvpPlusPlusPrefixColor = null;
+
+        if (plugin instanceof CorePlugin) {
+            CorePlugin corePlugin = (CorePlugin) plugin;
+            ProfileStore profileStore = corePlugin.getProfileStore();
+            if (corePlugin.isMongoEnabled() && profileStore != null) {
+                ProfileStore.ProfileMeta meta = profileStore.loadProfileMeta(uuid, fallbackName);
+                if (meta != null) {
+                    rank = meta.getRank() == null ? Rank.DEFAULT : meta.getRank();
+                    mvpPlusPlusPrefixColor = meta.getMvpPlusPlusPrefixColor();
+                }
+            }
+        }
+
         return RankFormatUtil.baseColor(rank, mvpPlusPlusPrefixColor);
     }
 

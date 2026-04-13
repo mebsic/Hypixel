@@ -11,8 +11,7 @@ RUN apt-get update \
 WORKDIR /server
 
 COPY install-velocity.sh /usr/local/bin/install-velocity.sh
-RUN chmod +x /usr/local/bin/install-velocity.sh \
-    && VELOCITY_VERSION="${VELOCITY_VERSION}" USER_AGENT="${USER_AGENT}" /usr/local/bin/install-velocity.sh
+RUN chmod +x /usr/local/bin/install-velocity.sh
 
 COPY entrypoint.sh /usr/local/bin/velocity-entrypoint.sh
 RUN chmod +x /usr/local/bin/velocity-entrypoint.sh
