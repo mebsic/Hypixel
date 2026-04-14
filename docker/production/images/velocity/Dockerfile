@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21-jre
 
 ARG VELOCITY_VERSION=latest
 ARG USER_AGENT="hypixel-docker/2.0 (https://example.net)"
