@@ -68,6 +68,8 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
     private static final long HUB_SPAWN_STARTUP_REFRESH_DELAY_TICKS = 20L;
     private static final int PARKOUR_PROFILE_INIT_MAX_ATTEMPTS = 20;
     private static final long PARKOUR_PROFILE_INIT_RETRY_TICKS = 10L;
+    private static final int HUB_NETWORK_LEVEL_JOIN_REFRESH_MAX_ATTEMPTS = 60;
+    private static final long HUB_NETWORK_LEVEL_JOIN_REFRESH_RETRY_TICKS = 1L;
     private static final String MAP_CONFIG_UPDATE_CHANNEL = "map_config_update";
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
     private static final String CITIZENS_PLUGIN_NAME = "Citizens";
@@ -192,6 +194,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         if (player == null) {
             return;
         }
+        refreshNetworkLevelOnJoin(player, 0);
         if (hubScoreboardService != null) {
             hubScoreboardService.update(player);
             hubScoreboardService.restartTitleAnimation(player);
@@ -638,14 +641,43 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
             return;
         }
         getServer().getOnlinePlayers().forEach(player -> {
-            int level = coreApi.getNetworkLevel(player.getUniqueId());
-            long exp = coreApi.getHypixelExperience(player.getUniqueId());
-            player.setLevel(Math.max(0, level));
-            player.setExp(io.github.mebsic.core.util.HypixelExperienceUtil.getProgressToNext(exp));
+            applyNetworkLevelBar(player);
             if (cosmeticsListener != null && shouldRefreshHubMenuItem(player)) {
                 cosmeticsListener.giveMenuItem(player);
             }
         });
+    }
+
+    private void refreshNetworkLevelOnJoin(org.bukkit.entity.Player player, int attempt) {
+        if (player == null || !player.isOnline()) {
+            return;
+        }
+        applyNetworkLevelBar(player);
+        if (coreApi == null) {
+            return;
+        }
+        Profile profile = coreApi.getProfile(player.getUniqueId());
+        if (profile != null || attempt >= HUB_NETWORK_LEVEL_JOIN_REFRESH_MAX_ATTEMPTS) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        getServer().getScheduler().runTaskLater(this, () -> {
+            org.bukkit.entity.Player online = getServer().getPlayer(uuid);
+            if (online == null || !online.isOnline()) {
+                return;
+            }
+            refreshNetworkLevelOnJoin(online, attempt + 1);
+        }, HUB_NETWORK_LEVEL_JOIN_REFRESH_RETRY_TICKS);
+    }
+
+    private void applyNetworkLevelBar(org.bukkit.entity.Player player) {
+        if (player == null || coreApi == null) {
+            return;
+        }
+        int level = coreApi.getNetworkLevel(player.getUniqueId());
+        long exp = coreApi.getHypixelExperience(player.getUniqueId());
+        player.setLevel(Math.max(0, level));
+        player.setExp(io.github.mebsic.core.util.HypixelExperienceUtil.getProgressToNext(exp));
     }
 
     private boolean shouldRefreshHubMenuItem(org.bukkit.entity.Player player) {
