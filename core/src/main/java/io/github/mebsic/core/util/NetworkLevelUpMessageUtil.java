@@ -16,7 +16,6 @@ public final class NetworkLevelUpMessageUtil {
         List<String> lines = new ArrayList<>();
         lines.add("");
         lines.add(ChatColor.WHITE.toString() + ChatColor.BOLD + FRAME_LINE);
-        lines.add("");
         lines.add(spaces(LEVEL_UP_TITLE_LEFT_PADDING)
                 + ChatColor.GREEN + ChatColor.MAGIC + "z"
                 + ChatColor.GOLD + " LEVEL UP! "
@@ -34,7 +33,6 @@ public final class NetworkLevelUpMessageUtil {
             }
             String claimLine = ChatColor.YELLOW + "Claim your reward in the lobby!";
             lines.add(spaces(CLAIM_REWARD_LEFT_PADDING) + claimLine);
-            lines.add("");
         }
         lines.add(ChatColor.WHITE.toString() + ChatColor.BOLD + FRAME_LINE);
         lines.add("");
