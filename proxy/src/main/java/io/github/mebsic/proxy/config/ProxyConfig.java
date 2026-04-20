@@ -13,6 +13,7 @@ public class ProxyConfig {
     private String motdField = MongoManager.PROXY_SETTINGS_MOTD_TEXT_FIELD;
     private int cacheTtlSeconds = 5;
     private String iconFile = "server-icon.png";
+    private String maintenanceIconFile = "server-icon-maintenance.png";
     private String hubServer = "";
     private String registryCollection = MongoManager.SERVER_REGISTRY_COLLECTION;
     private String registryGroup = "";
@@ -51,6 +52,10 @@ public class ProxyConfig {
 
     public String getIconFile() {
         return iconFile;
+    }
+
+    public String getMaintenanceIconFile() {
+        return maintenanceIconFile;
     }
 
     public String getHubServer() {
@@ -136,6 +141,12 @@ public class ProxyConfig {
     public void setIconFile(String iconFile) {
         if (iconFile != null && !iconFile.trim().isEmpty()) {
             this.iconFile = iconFile.trim();
+        }
+    }
+
+    public void setMaintenanceIconFile(String maintenanceIconFile) {
+        if (maintenanceIconFile != null && !maintenanceIconFile.trim().isEmpty()) {
+            this.maintenanceIconFile = maintenanceIconFile.trim();
         }
     }
 

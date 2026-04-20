@@ -132,7 +132,8 @@ public class HypixelProxyPlugin {
     private MongoDatabase mongoDatabase;
     private RedisManager redis;
     private MotdCache motdCache;
-    private Favicon favicon;
+    private Favicon defaultFavicon;
+    private Favicon maintenanceFavicon;
     private ServerRegistryService registryService;
     private QueueOrchestrator queueOrchestrator;
     private RankResolver rankResolver;
@@ -178,7 +179,8 @@ public class HypixelProxyPlugin {
             } catch (Exception ex) {
                 logger.warn("Initial MOTD cache warmup failed: {}", ex.getMessage());
             }
-            this.favicon = loadFavicon();
+            this.defaultFavicon = config == null ? null : loadFavicon(config.getIconFile());
+            this.maintenanceFavicon = config == null ? null : loadFavicon(config.getMaintenanceIconFile());
             this.registryService = new ServerRegistryService(proxy, config, mongoDatabase);
             this.registryService.refresh();
             this.rankResolver = new RankResolver(mongoDatabase);
@@ -360,8 +362,9 @@ public class HypixelProxyPlugin {
                 }
             });
         }
-        if (favicon != null) {
-            builder.favicon(favicon);
+        Favicon activeFavicon = maintenance ? maintenanceFavicon : defaultFavicon;
+        if (activeFavicon != null) {
+            builder.favicon(activeFavicon);
         }
         event.setPing(builder.build());
     }
@@ -1007,13 +1010,33 @@ public class HypixelProxyPlugin {
         if (normalized.isEmpty()) {
             return "";
         }
-        String defaultDomain = NetworkConstants.DEFAULT_DOMAIN.toLowerCase(Locale.ROOT);
-        String defaultMcHost = "mc." + defaultDomain;
-        if (normalized.equals(defaultDomain) || normalized.equals(defaultMcHost)) {
-            return defaultMcHost;
+        if (normalized.startsWith("http://")) {
+            normalized = normalized.substring("http://".length());
+        } else if (normalized.startsWith("https://")) {
+            normalized = normalized.substring("https://".length());
         }
-        if (normalized.startsWith("mc.")) {
-            return normalized.substring("mc.".length());
+        int slash = normalized.indexOf('/');
+        if (slash >= 0) {
+            normalized = normalized.substring(0, slash);
+        }
+        int question = normalized.indexOf('?');
+        if (question >= 0) {
+            normalized = normalized.substring(0, question);
+        }
+        int hash = normalized.indexOf('#');
+        if (hash >= 0) {
+            normalized = normalized.substring(0, hash);
+        }
+        int colon = normalized.lastIndexOf(':');
+        if (colon > 0 && colon == normalized.indexOf(':')) {
+            normalized = normalized.substring(0, colon);
+        }
+        while (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        normalized = normalized.trim();
+        if (normalized.isEmpty()) {
+            return "";
         }
         return normalized;
     }
@@ -1058,11 +1081,7 @@ public class HypixelProxyPlugin {
                 config.getRedisDatabase());
     }
 
-    private Favicon loadFavicon() {
-        if (config == null) {
-            return null;
-        }
-        String iconFile = config.getIconFile();
+    private Favicon loadFavicon(String iconFile) {
         if (iconFile == null || iconFile.trim().isEmpty()) {
             return null;
         }

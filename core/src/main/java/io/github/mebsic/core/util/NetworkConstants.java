@@ -25,11 +25,14 @@ public final class NetworkConstants {
     }
 
     public static String displayJoinHost() {
-        String resolvedDomain = domain();
-        if (DEFAULT_DOMAIN.equalsIgnoreCase(resolvedDomain)) {
-            return "mc." + resolvedDomain;
+        String resolvedDomain = normalizeDomain(domain());
+        if (resolvedDomain.startsWith("mc.")) {
+            return resolvedDomain;
         }
-        return resolvedDomain;
+        if (hasExplicitSubdomain(resolvedDomain)) {
+            return resolvedDomain;
+        }
+        return "mc." + resolvedDomain;
     }
 
     public static String storeUrl() {
@@ -84,5 +87,13 @@ public final class NetworkConstants {
             return DEFAULT_DOMAIN;
         }
         return normalized;
+    }
+
+    private static boolean hasExplicitSubdomain(String host) {
+        int firstDot = host.indexOf('.');
+        if (firstDot < 0) {
+            return false;
+        }
+        return host.indexOf('.', firstDot + 1) >= 0;
     }
 }

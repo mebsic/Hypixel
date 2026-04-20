@@ -301,8 +301,10 @@ services:
       ROLLOUT_UPDATE_SERVICES: "${ROLLOUT_UPDATE_SERVICES:-}"
     volumes:
       - ./docker/production/proxy/velocity.toml:/server/velocity.toml
-      - ./server-icon.png:/server/server-icon.png:ro
-      - ./server-icon.png:/server/plugins/hypixelproxy/server-icon.png:ro
+      - ./server-icon-production.png:/server/server-icon.png:ro
+      - ./server-icon-production.png:/server/plugins/hypixelproxy/server-icon.png:ro
+      - ./server-icon-maintenance.png:/server/server-icon-maintenance.png:ro
+      - ./server-icon-maintenance.png:/server/plugins/hypixelproxy/server-icon-maintenance.png:ro
       - ./docker/production/proxy:/bootstrap/proxy:ro
       - ./docker/production/config.json:/bootstrap/config.json:ro
       - ./docker/production/plugins:/bootstrap/plugins:ro

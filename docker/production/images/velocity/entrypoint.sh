@@ -94,9 +94,14 @@ if [[ -f "${CONFIG_SOURCE}" ]]; then
   apply_network_config_overrides /server/plugins/hypixelproxy/config.json
 fi
 
-if [[ -f /bootstrap/proxy/server-icon.png ]]; then
-  cp /bootstrap/proxy/server-icon.png /server/server-icon.png
-  cp /bootstrap/proxy/server-icon.png /server/plugins/hypixelproxy/server-icon.png
+if [[ -f /bootstrap/proxy/server-icon-production.png ]]; then
+  cp /bootstrap/proxy/server-icon-production.png /server/server-icon.png
+  cp /bootstrap/proxy/server-icon-production.png /server/plugins/hypixelproxy/server-icon.png
+fi
+
+if [[ -f /bootstrap/proxy/server-icon-maintenance.png ]]; then
+  cp /bootstrap/proxy/server-icon-maintenance.png /server/server-icon-maintenance.png
+  cp /bootstrap/proxy/server-icon-maintenance.png /server/plugins/hypixelproxy/server-icon-maintenance.png
 fi
 
 if [[ ! -f /server/velocity.toml ]]; then
