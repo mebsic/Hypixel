@@ -16,9 +16,12 @@ import io.github.mebsic.core.server.ServerTypeResolver;
 import io.github.mebsic.game.manager.GameManager;
 import org.bson.Document;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class ServerRegistryService {
@@ -117,6 +120,15 @@ public class ServerRegistryService {
         if (forcedMaxPlayers != null) {
             maxPlayers = forcedMaxPlayers;
         }
+        List<String> onlinePlayerUuids = new ArrayList<>();
+        List<String> onlinePlayerNames = new ArrayList<>();
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            if (player == null) {
+                continue;
+            }
+            onlinePlayerUuids.add(player.getUniqueId().toString());
+            onlinePlayerNames.add(player.getName());
+        }
         String state = gameManager == null ? "WAITING" : gameManager.getRegistryState();
         Document doc = new Document("_id", serverId)
                 .append("type", type.getId())
@@ -125,6 +137,8 @@ public class ServerRegistryService {
                 .append("port", port)
                 .append("players", players)
                 .append("maxPlayers", maxPlayers)
+                .append("onlinePlayerUuids", onlinePlayerUuids)
+                .append("onlinePlayerNames", onlinePlayerNames)
                 .append("state", state)
                 .append("status", status)
                 .append("lastHeartbeat", System.currentTimeMillis());

@@ -8,18 +8,23 @@ import io.github.mebsic.core.store.ProfileStore;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ProfileService {
     private static final long PRELOGIN_PRELOAD_EXPIRY_TICKS = 20L * 30L;
     private static final long PRELOGIN_PRELOAD_EXPIRY_RETRY_TICKS = 20L * 5L;
+    private static final ZoneId EASTERN_TIME_ZONE = ZoneId.of("America/New_York");
+    private static final DateTimeFormatter LOGIN_TIMESTAMP_FORMAT = DateTimeFormatter.ISO_ZONED_DATE_TIME;
 
     private final CorePlugin plugin;
     private final ProfileStore store;
@@ -88,7 +93,12 @@ public class ProfileService {
                 cosmetics.grantDefaults(profile);
                 applyPendingRankOverride(uuid, profile);
                 applyPendingVisibilityOverride(uuid, profile);
-                if (created && store != null) {
+                boolean saveAfterLoad = created;
+                if (activeSessions.containsKey(uuid)) {
+                    markProfileOnline(profile);
+                    saveAfterLoad = true;
+                }
+                if (saveAfterLoad && store != null) {
                     store.save(profile);
                 }
                 cache.put(uuid, profile);
@@ -203,6 +213,7 @@ public class ProfileService {
             return;
         }
         for (Profile profile : cache.values()) {
+            markProfileOffline(profile);
             saveProfileSync(profile);
         }
     }
@@ -231,6 +242,8 @@ public class ProfileService {
         Profile profile = cache.get(uuid);
         if (profile != null) {
             applyLatestName(profile, player.getName());
+            markProfileOnline(profile);
+            saveProfile(profile);
             plugin.handleProfileLoaded(profile);
             return;
         }
@@ -244,6 +257,10 @@ public class ProfileService {
         UUID uuid = player.getUniqueId();
         activeSessions.remove(uuid);
         pendingPreloads.remove(uuid);
+        Profile profile = cache.get(uuid);
+        if (profile != null) {
+            markProfileOffline(profile);
+        }
         unload(uuid);
     }
 
@@ -446,5 +463,28 @@ public class ProfileService {
         } catch (Exception ex) {
             plugin.getLogger().warning("Failed to save profile for " + profile.getUuid() + "!\n" + ex.getMessage());
         }
+    }
+
+    private void markProfileOnline(Profile profile) {
+        if (profile == null) {
+            return;
+        }
+        String timestamp = easternTimestampNow();
+        if (profile.getFirstLogin() == null || profile.getFirstLogin().trim().isEmpty()) {
+            profile.setFirstLogin(timestamp);
+        }
+        profile.setLastLogin(timestamp);
+        profile.setOnline(true);
+    }
+
+    private void markProfileOffline(Profile profile) {
+        if (profile == null) {
+            return;
+        }
+        profile.setOnline(false);
+    }
+
+    private String easternTimestampNow() {
+        return LOGIN_TIMESTAMP_FORMAT.format(ZonedDateTime.now(EASTERN_TIME_ZONE));
     }
 }

@@ -16,6 +16,9 @@ public class Profile {
     private long hypixelExperience;
     private String plusColor;
     private String mvpPlusPlusPrefixColor;
+    private String firstLogin;
+    private String lastLogin;
+    private boolean online;
     private boolean hasActiveSubscription;
     private long subscriptionExpiresAt;
     private boolean flightEnabled;
@@ -41,6 +44,9 @@ public class Profile {
         this.hypixelExperience = 0L;
         this.plusColor = null;
         this.mvpPlusPlusPrefixColor = null;
+        this.firstLogin = null;
+        this.lastLogin = null;
+        this.online = false;
         this.hasActiveSubscription = false;
         this.subscriptionExpiresAt = 0L;
         this.flightEnabled = false;
@@ -127,6 +133,30 @@ public class Profile {
 
     public void setMvpPlusPlusPrefixColor(String mvpPlusPlusPrefixColor) {
         this.mvpPlusPlusPrefixColor = mvpPlusPlusPrefixColor;
+    }
+
+    public String getFirstLogin() {
+        return firstLogin;
+    }
+
+    public void setFirstLogin(String firstLogin) {
+        this.firstLogin = firstLogin;
+    }
+
+    public String getLastLogin() {
+        return lastLogin;
+    }
+
+    public void setLastLogin(String lastLogin) {
+        this.lastLogin = lastLogin;
+    }
+
+    public boolean isOnline() {
+        return online;
+    }
+
+    public void setOnline(boolean online) {
+        this.online = online;
     }
 
     public boolean hasActiveSubscription() {

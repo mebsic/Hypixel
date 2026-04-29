@@ -3,6 +3,10 @@ package io.github.mebsic.core;
 import io.github.mebsic.core.command.BanCommand;
 import io.github.mebsic.core.command.BuildModeCommand;
 import io.github.mebsic.core.command.ClearCommand;
+import io.github.mebsic.core.command.ClearEffectCommand;
+import io.github.mebsic.core.command.DisplayEndCreditsCommand;
+import io.github.mebsic.core.command.EffectCommand;
+import io.github.mebsic.core.command.FindCommand;
 import io.github.mebsic.core.command.FlyCommand;
 import io.github.mebsic.core.command.FireworkCommand;
 import io.github.mebsic.core.command.GiveCommand;
@@ -241,6 +245,12 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         if (getCommand("clear") != null) {
             getCommand("clear").setExecutor(new ClearCommand(this));
         }
+        if (getCommand("effect") != null) {
+            getCommand("effect").setExecutor(new EffectCommand(this));
+        }
+        if (getCommand("cleareffect") != null) {
+            getCommand("cleareffect").setExecutor(new ClearEffectCommand(this));
+        }
         if (getCommand("teleport") != null) {
             getCommand("teleport").setExecutor(new TeleportCommand(this));
         }
@@ -252,6 +262,12 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         }
         if (getCommand("firework") != null) {
             getCommand("firework").setExecutor(new FireworkCommand(this));
+        }
+        if (getCommand("find") != null) {
+            getCommand("find").setExecutor(new FindCommand(this));
+        }
+        if (getCommand("displayendcredits") != null) {
+            getCommand("displayendcredits").setExecutor(new DisplayEndCreditsCommand(this));
         }
         if (getCommand("parkour") != null) {
             getCommand("parkour").setExecutor(new ParkourCommand(this));

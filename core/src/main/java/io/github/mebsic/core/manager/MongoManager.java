@@ -94,6 +94,9 @@ public class MongoManager {
     public static final String PROFILE_RANKS_GIFTED_KEY = "ranksGifted";
     public static final String PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY = "hasActiveSubscription";
     public static final String PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY = "subscriptionExpiresAt";
+    public static final String PROFILE_FIRST_LOGIN_KEY = "firstLogin";
+    public static final String PROFILE_LAST_LOGIN_KEY = "lastLogin";
+    public static final String PROFILE_ONLINE_KEY = "online";
 
     public static final String PROXY_SETTINGS_DOMAIN_FIELD = "domain";
     public static final String PROXY_SETTINGS_DOMAIN_DOCUMENT_ID = PROXY_SETTINGS_DOMAIN_FIELD;

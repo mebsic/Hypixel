@@ -134,6 +134,10 @@ public class ProfileStore {
         if (!canUseMvpPlusPlusPrefixColor(profile.getRank())) {
             profile.setMvpPlusPlusPrefixColor(null);
         }
+        profile.setFirstLogin(doc.getString(MongoManager.PROFILE_FIRST_LOGIN_KEY));
+        profile.setLastLogin(doc.getString(MongoManager.PROFILE_LAST_LOGIN_KEY));
+        Boolean online = doc.getBoolean(MongoManager.PROFILE_ONLINE_KEY);
+        profile.setOnline(online != null && online);
         Boolean flightEnabled = doc.getBoolean("flightEnabled");
         if (flightEnabled != null) {
             profile.setFlightEnabled(flightEnabled);
@@ -334,6 +338,9 @@ public class ProfileStore {
                 .append("hypixelExperience", profile.getHypixelExperience())
                 .append("plusColor", profile.getPlusColor())
                 .append("mvpPlusPlusPrefixColor", mvpPlusPlusPrefixColor)
+                .append(MongoManager.PROFILE_FIRST_LOGIN_KEY, profile.getFirstLogin())
+                .append(MongoManager.PROFILE_LAST_LOGIN_KEY, profile.getLastLogin())
+                .append(MongoManager.PROFILE_ONLINE_KEY, profile.isOnline())
                 .append("flightEnabled", profile.isFlightEnabled())
                 .append("buildModeExpiresAt", profile.getBuildModeExpiresAt())
                 .append("playerVisibilityEnabled", profile.isPlayerVisibilityEnabled())
@@ -547,7 +554,10 @@ public class ProfileStore {
                 .append("buildModeExpiresAt", 0L)
                 .append(MongoManager.PROFILE_RANKS_GIFTED_KEY, 0)
                 .append(MongoManager.PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY, false)
-                .append(MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY, 0L);
+                .append(MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY, 0L)
+                .append(MongoManager.PROFILE_FIRST_LOGIN_KEY, null)
+                .append(MongoManager.PROFILE_LAST_LOGIN_KEY, null)
+                .append(MongoManager.PROFILE_ONLINE_KEY, false);
     }
 
     private static boolean canUseMvpPlusPlusPrefixColor(Rank rank) {

@@ -37,6 +37,10 @@ commands:
     usage: /give [onlinePlayer] <item> <quantity>
   clear:
     usage: /clear [onlinePlayer]
+  effect:
+    usage: /effect <player/all> <type> <duration|forever> [amount]
+  cleareffect:
+    usage: /cleareffect <player/all>
   teleport:
     usage: /teleport <player> | /teleport <from> <to> | /teleport <x> <y> <z> | /teleport all
     aliases: [tp]
@@ -48,6 +52,10 @@ commands:
   firework:
     usage: /firework
     aliases: [fw]
+  find:
+    usage: /find
+  displayendcredits:
+    usage: /displayendcredits <player/all>
   parkour:
     usage: /parkour [start|reset|checkpoint|cancel]
   news:
