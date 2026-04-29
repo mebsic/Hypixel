@@ -162,7 +162,7 @@ public class EffectCommand implements CommandExecutor {
 
     private void sendUsage(CommandSender sender, String label) {
         sender.sendMessage(ChatColor.RED + "Invalid usage! Correct usage:");
-        sender.sendMessage(ChatColor.RED + "/" + label + " <player/all> <type> <duration|forever> [amount]");
+        sender.sendMessage(ChatColor.RED + "/" + label + " <player/all> <type> <duration/forever> [amount]");
     }
 
     private static Map<String, PotionEffectType> createEffectTypes() {

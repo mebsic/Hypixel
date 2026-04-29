@@ -30,6 +30,7 @@ public class FindCommand implements CommandExecutor {
             return true;
         }
         if (args.length > 0) {
+            player.sendMessage(ChatColor.RED + "Invalid usage! Correct usage:");
             player.sendMessage(ChatColor.RED + "/" + label);
             return true;
         }

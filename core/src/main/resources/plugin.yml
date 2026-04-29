@@ -38,7 +38,7 @@ commands:
   clear:
     usage: /clear [onlinePlayer]
   effect:
-    usage: /effect <player/all> <type> <duration|forever> [amount]
+    usage: /effect <player/all> <type> <duration/forever> [amount]
   cleareffect:
     usage: /cleareffect <player/all>
   teleport:
@@ -57,11 +57,11 @@ commands:
   displayendcredits:
     usage: /displayendcredits <player/all>
   parkour:
-    usage: /parkour [start|reset|checkpoint|cancel]
+    usage: /parkour [start/reset/checkpoint/cancel]
   news:
     usage: /news
   help:
-    usage: /help [report|general|linking]
+    usage: /help [report/general/linking]
   whereami:
     usage: /whereami
   map:

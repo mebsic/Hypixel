@@ -144,8 +144,6 @@ public class FindMenu extends Menu {
         }
         meta.setDisplayName(displayName(target));
         List<String> lore = new ArrayList<String>();
-        lore.add(displayName(target));
-        lore.add("");
         lore.add(ChatColor.GRAY + "First Login: " + ChatColor.GREEN + formatTimestamp(target.firstLogin));
         lore.add(ChatColor.GRAY + "Last Login: " + ChatColor.GREEN + formatTimestamp(target.lastLogin));
         lore.add("");
@@ -165,6 +163,9 @@ public class FindMenu extends Menu {
             return ChatColor.GRAY + "Unknown";
         }
         Rank rank = target.rank == null ? Rank.DEFAULT : target.rank;
+        if (rank == Rank.DEFAULT) {
+            return ChatColor.GRAY + target.name;
+        }
         String prefix = RankFormatUtil.buildPrefix(
                 rank,
                 target.networkLevel,

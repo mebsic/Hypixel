@@ -1034,14 +1034,14 @@ public class PartyCommand implements SimpleCommand {
 
     private void applyAllInviteSetting(Player player, String[] args, int valueIndex) {
         if (args.length > valueIndex + 1) {
-            sendInvalidUsage(player, cmd("setting allinvite [on|off]"));
+            sendInvalidUsage(player, cmd("setting allinvite [on/off]"));
             return;
         }
         Boolean updated;
         if (args.length == valueIndex + 1) {
             Boolean parsed = parseBoolean(args[valueIndex]);
             if (parsed == null) {
-                sendInvalidUsage(player, cmd("setting allinvite [on|off]"));
+                sendInvalidUsage(player, cmd("setting allinvite [on/off]"));
                 return;
             }
             updated = parties.setAllInvite(player.getUniqueId(), parsed.booleanValue());
@@ -1066,14 +1066,14 @@ public class PartyCommand implements SimpleCommand {
 
     private void applyMuteSetting(Player player, String[] args, int valueIndex) {
         if (args.length > valueIndex + 1) {
-            sendInvalidUsage(player, cmd("mute [on|off]"));
+            sendInvalidUsage(player, cmd("mute [on/off]"));
             return;
         }
         Boolean updated;
         if (args.length == valueIndex + 1) {
             Boolean parsed = parseBoolean(args[valueIndex]);
             if (parsed == null) {
-                sendInvalidUsage(player, cmd("mute [on|off]"));
+                sendInvalidUsage(player, cmd("mute [on/off]"));
                 return;
             }
             updated = parties.setPartyChatMuted(player.getUniqueId(), parsed.booleanValue());
