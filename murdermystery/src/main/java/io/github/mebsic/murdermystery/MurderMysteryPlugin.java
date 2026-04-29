@@ -366,7 +366,10 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
         this.knifeMenuStateService.initialize(getServer().getOnlinePlayers());
         KnifeSkinsMenu knifeSkinsMenu = new KnifeSkinsMenu(coreApi, loadKnifeCosts(), knifeMenuStateService);
         KnifeMenu knifeMenu = new KnifeMenu(coreApi, knifeSkinsMenu);
-        this.cosmeticsListener = new HubCosmeticsListener(new MurderMysteryMenu(coreApi, knifeMenu), coreApi);
+        this.cosmeticsListener = new HubCosmeticsListener(
+                new MurderMysteryMenu(coreApi, knifeMenu),
+                coreApi,
+                uuid -> hubParkourListener != null && hubParkourListener.isParkourActive(uuid));
         this.hubParkourListener = new HubParkourListener(this, corePlugin, serverType);
         if (!isCitizensReady()) {
             getLogger().warning("Citizens was not found; hub Profile/Click to Play NPCs are disabled.");
@@ -682,6 +685,9 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
 
     private boolean shouldRefreshHubMenuItem(org.bukkit.entity.Player player) {
         if (player == null) {
+            return false;
+        }
+        if (hubParkourListener != null && hubParkourListener.isParkourActive(player.getUniqueId())) {
             return false;
         }
         return corePlugin == null || !corePlugin.isBuildModeActive(player.getUniqueId());

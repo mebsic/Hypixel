@@ -16,20 +16,32 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.Arrays;
 import java.util.Locale;
 import java.text.NumberFormat;
+import java.util.UUID;
+import java.util.function.Predicate;
 
 public class HubCosmeticsListener implements Listener {
     private static final String MENU_ITEM_NAME = ChatColor.GREEN + "Murder Mystery Menu " + ChatColor.GRAY + "(Right Click)";
+    private static final int MENU_ITEM_SLOT = 2;
     private final Menu menu;
     private final CoreApi coreApi;
     private final NumberFormat numberFormat;
+    private final Predicate<UUID> menuItemSuppressed;
 
     public HubCosmeticsListener(Menu menu, CoreApi coreApi) {
+        this(menu, coreApi, null);
+    }
+
+    public HubCosmeticsListener(Menu menu, CoreApi coreApi, Predicate<UUID> menuItemSuppressed) {
         this.menu = menu;
         this.coreApi = coreApi;
         this.numberFormat = NumberFormat.getIntegerInstance(Locale.US);
+        this.menuItemSuppressed = menuItemSuppressed;
     }
 
     public void giveMenuItem(Player player) {
+        if (player == null || isMenuItemSuppressed(player)) {
+            return;
+        }
         ItemStack item = new ItemStack(Material.EMERALD);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
@@ -39,7 +51,7 @@ public class HubCosmeticsListener implements Listener {
             ));
             item.setItemMeta(meta);
         }
-        player.getInventory().setItem(2, item);
+        player.getInventory().setItem(MENU_ITEM_SLOT, item);
     }
 
     @EventHandler
@@ -54,8 +66,19 @@ public class HubCosmeticsListener implements Listener {
         }
         event.setCancelled(true);
         Player player = event.getPlayer();
+        if (isMenuItemSuppressed(player)) {
+            player.getInventory().setItem(MENU_ITEM_SLOT, null);
+            player.updateInventory();
+            return;
+        }
         giveMenuItem(player);
         menu.open(player);
+    }
+
+    private boolean isMenuItemSuppressed(Player player) {
+        return player != null
+                && menuItemSuppressed != null
+                && menuItemSuppressed.test(player.getUniqueId());
     }
 
     private String formatTokens(Player player) {

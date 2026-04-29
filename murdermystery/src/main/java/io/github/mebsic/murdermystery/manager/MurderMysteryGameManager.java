@@ -873,10 +873,7 @@ public class MurderMysteryGameManager extends GameManager {
         awardTokens(player, getGoldPickupTokenReward(), TOKEN_REASON_PICKED_UP_GOLD);
         mmPlayer.addGold(amount);
         if (mmPlayer.getRole() == MurderMysteryRole.INNOCENT && mmPlayer.getGold() >= GOLD_FOR_BOW) {
-            int arrowsAdded = grantArrowsFromGold(player, mmPlayer, BOW_HOTBAR_SLOT, ARROW_HOTBAR_SLOT);
-            if (arrowsAdded > 0) {
-                player.getInventory().setHeldItemSlot(BOW_HOTBAR_SLOT);
-            }
+            grantArrowsFromGold(player, mmPlayer, BOW_HOTBAR_SLOT, ARROW_HOTBAR_SLOT);
         } else if (mmPlayer.getRole() == MurderMysteryRole.MURDERER && mmPlayer.getGold() >= GOLD_FOR_BOW) {
             grantArrowsFromGold(player, mmPlayer, MURDERER_BOW_HOTBAR_SLOT, MURDERER_ARROW_HOTBAR_SLOT);
         }

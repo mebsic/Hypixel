@@ -71,6 +71,7 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
     private static final String CHECKPOINT_ITEM_NAME = ChatColor.GREEN + "Teleport to Last Checkpoint";
     private static final String RESET_ITEM_NAME = ChatColor.RED + "Reset";
     private static final String CANCEL_ITEM_NAME = ChatColor.RED + "Cancel";
+    private static final int TEMPORARY_HUB_MENU_SLOT = 2;
     private static final int CHECKPOINT_ITEM_SLOT = 3;
     private static final int RESET_ITEM_SLOT = 4;
     private static final int CANCEL_ITEM_SLOT = 5;
@@ -117,6 +118,10 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
         finishLineHintAtByPlayer.clear();
         startTouchSuppressUntilByPlayer.clear();
         despawnVisualMarkers();
+    }
+
+    public boolean isParkourActive(UUID playerUuid) {
+        return playerUuid != null && activeRuns.containsKey(playerUuid);
     }
 
     public void reloadRoutes() {
@@ -425,6 +430,12 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
             if (suppressUntil != null && suppressUntil > now) {
                 return;
             }
+            Location startTeleport = behindPointLocation(player, touchedStart.start, 2.0d);
+            if (startTeleport != null) {
+                event.setTo(startTeleport);
+                player.setFallDistance(0.0f);
+                suppressStartTouch(uuid);
+            }
             startRun(player, touchedStart, active != null);
             return;
         }
@@ -725,10 +736,12 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
         if (player == null || run == null) {
             return;
         }
+        run.previousTemporaryHubMenuItem = cloneItem(player.getInventory().getItem(TEMPORARY_HUB_MENU_SLOT));
         run.previousCheckpointItem = cloneItem(player.getInventory().getItem(CHECKPOINT_ITEM_SLOT));
         run.previousResetItem = cloneItem(player.getInventory().getItem(RESET_ITEM_SLOT));
         run.previousCancelItem = cloneItem(player.getInventory().getItem(CANCEL_ITEM_SLOT));
 
+        player.getInventory().setItem(TEMPORARY_HUB_MENU_SLOT, null);
         player.getInventory().setItem(CHECKPOINT_ITEM_SLOT, runItem(runCheckpointItemMaterial(), CHECKPOINT_ITEM_NAME));
         player.getInventory().setItem(RESET_ITEM_SLOT, runItem(runResetItemMaterial(), RESET_ITEM_NAME));
         player.getInventory().setItem(CANCEL_ITEM_SLOT, runItem(runCancelItemMaterial(), CANCEL_ITEM_NAME));
@@ -740,6 +753,7 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
             return;
         }
 
+        player.getInventory().setItem(TEMPORARY_HUB_MENU_SLOT, cloneItem(run.previousTemporaryHubMenuItem));
         ItemStack currentCheckpoint = player.getInventory().getItem(CHECKPOINT_ITEM_SLOT);
         if (run.previousCheckpointItem != null || isRunItem(currentCheckpoint, CHECKPOINT_ITEM_NAME)) {
             player.getInventory().setItem(CHECKPOINT_ITEM_SLOT, cloneItem(run.previousCheckpointItem));
@@ -940,7 +954,8 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
         }
         int checkpointIndex = active.nextCheckpointIndex - 1;
         if (checkpointIndex < 0 || checkpointIndex >= route.checkpoints.size()) {
-            teleportToPointExact(player, route.start);
+            teleportBehindPoint(player, route.start, 2.0d);
+            suppressStartTouch(player.getUniqueId());
             player.sendMessage(ChatColor.GREEN + "Teleported to the parkour start.");
             return;
         }
@@ -1034,6 +1049,35 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
             return;
         }
         player.teleport(target);
+    }
+
+    private void teleportBehindPoint(Player player, ParkourPoint point, double blocksBehind) {
+        Location target = behindPointLocation(player, point, blocksBehind);
+        if (target == null) {
+            return;
+        }
+        player.teleport(target);
+    }
+
+    private Location behindPointLocation(Player player, ParkourPoint point, double blocksBehind) {
+        if (player == null || point == null) {
+            return null;
+        }
+        Location target = exactLocation(point);
+        if (target == null) {
+            return null;
+        }
+        if (!point.hasRotation) {
+            Location current = player.getLocation();
+            if (current != null) {
+                target.setYaw(current.getYaw());
+                target.setPitch(current.getPitch());
+            }
+        }
+        double distance = Math.max(0.0d, blocksBehind);
+        double yawRadians = Math.toRadians(target.getYaw());
+        target.add(Math.sin(yawRadians) * distance, 0.0d, -Math.cos(yawRadians) * distance);
+        return target;
     }
 
     private Location exactLocation(ParkourPoint point) {
@@ -1744,6 +1788,7 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
         private boolean hadProfileFlightState;
         private boolean previousProfileFlightEnabled;
         private Rank previousRank;
+        private ItemStack previousTemporaryHubMenuItem;
         private ItemStack previousCheckpointItem;
         private ItemStack previousResetItem;
         private ItemStack previousCancelItem;
