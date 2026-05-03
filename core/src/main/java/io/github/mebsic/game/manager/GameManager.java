@@ -66,6 +66,7 @@ public class GameManager {
     private static final String MAP_CONFIG_UPDATE_CHANNEL = "map_config_update";
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
     private static final int DEFAULT_MAP_CONFIG_RELOAD_POLL_SECONDS = 5;
+    private static final int FORCE_START_MIN_PLAYERS = 2;
     private static final double[] SPAWN_Y_CORRECTION_OFFSETS = {0.5D, 1.0D, 1.5D, 2.0D, 2.5D, 3.0D};
     private static final String POST_GAME_FRAME_BAR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
     private static final Sound COUNTDOWN_TICK_SOUND = Sound.CLICK;
@@ -95,6 +96,7 @@ public class GameManager {
     private String serverName;
     private boolean restartServerAfterGameEnd;
     private boolean joinLockedForRestart;
+    private boolean countdownIgnoresMinPlayers;
 
     private BukkitTask countdownTask;
     private BukkitTask gameTask;
@@ -121,6 +123,7 @@ public class GameManager {
         this.endingScoreboardMapName = "";
         publishStateToCore();
         this.joinLockedForRestart = false;
+        this.countdownIgnoresMinPlayers = false;
         loadConfig();
         initializeMapConfigHotReload();
         startNonInGameCleanupTask();
@@ -172,7 +175,7 @@ public class GameManager {
     private int defaultMinPlayers() {
         ServerType type = plugin == null ? ServerType.UNKNOWN : plugin.getServerType();
         if (type == ServerType.MURDER_MYSTERY) {
-            return 2;
+            return 4;
         }
         return 4;
     }
@@ -180,7 +183,7 @@ public class GameManager {
     private int minAllowedPlayers() {
         ServerType type = plugin == null ? ServerType.UNKNOWN : plugin.getServerType();
         if (type == ServerType.MURDER_MYSTERY) {
-            return 2;
+            return 4;
         }
         return 1;
     }
@@ -436,8 +439,8 @@ public class GameManager {
         }
         if (state == GameState.STARTING) {
             refreshMinPlayers();
-            if (players.size() < minPlayers) {
-                cancelCountdownForInsufficientPlayers();
+            if (players.size() < getCountdownRequiredPlayers()) {
+                cancelCountdownForInsufficientPlayers(!countdownIgnoresMinPlayers);
             }
         }
         if (state == GameState.IN_GAME) {
@@ -490,12 +493,16 @@ public class GameManager {
         if (players.size() < minPlayers) {
             return;
         }
-        startCountdown();
+        startCountdown(false, true);
+    }
+
+    public boolean canForceStart() {
+        return state == GameState.WAITING && players.size() >= FORCE_START_MIN_PLAYERS;
     }
 
     public void forceStart() {
-        if (state == GameState.WAITING) {
-            startCountdown();
+        if (canForceStart()) {
+            startCountdown(true, false);
         }
     }
 
@@ -505,12 +512,23 @@ public class GameManager {
     }
 
     protected void startCountdown() {
+        startCountdown(false, true);
+    }
+
+    protected void startCountdown(boolean ignoreMinPlayers) {
+        startCountdown(ignoreMinPlayers, true);
+    }
+
+    protected void startCountdown(boolean ignoreMinPlayers, boolean movePlayersToPregame) {
+        countdownIgnoresMinPlayers = ignoreMinPlayers;
         joinLockedForRestart = false;
         state = GameState.STARTING;
         publishStateToCore();
         countdownRemaining = countdownSeconds;
         cleanupPregameWorldState();
-        teleportToPregame();
+        if (movePlayersToPregame) {
+            teleportToPregame();
+        }
         if (countdownTask != null) {
             countdownTask.cancel();
         }
@@ -518,12 +536,8 @@ public class GameManager {
             @Override
             public void run() {
                 refreshMinPlayers();
-                if (players.size() < minPlayers) {
-                    state = GameState.WAITING;
-                    publishStateToCore();
-                    cleanupPregameWorldState();
-                    broadcast(getNotEnoughPlayersMessage());
-                    cancel();
+                if (players.size() < getCountdownRequiredPlayers()) {
+                    cancelCountdownForInsufficientPlayers(!countdownIgnoresMinPlayers);
                     return;
                 }
                 cleanupPregameWorldState();
@@ -543,6 +557,7 @@ public class GameManager {
     }
 
     protected void startGame() {
+        countdownIgnoresMinPlayers = false;
         joinLockedForRestart = false;
         GameMap activeMap = mapManager.getActiveMap();
         if (activeMap == null || activeMap.getSpawnPoints().isEmpty()) {
@@ -1716,13 +1731,21 @@ public class GameManager {
         return ChatColor.RED + "We don't have enough players! Start cancelled.";
     }
 
-    private void cancelCountdownForInsufficientPlayers() {
+    private int getCountdownRequiredPlayers() {
+        return countdownIgnoresMinPlayers ? FORCE_START_MIN_PLAYERS : minPlayers;
+    }
+
+    private void cancelCountdownForInsufficientPlayers(boolean broadcastMessage) {
         if (state != GameState.STARTING) {
             return;
         }
         state = GameState.WAITING;
         publishStateToCore();
-        broadcast(getNotEnoughPlayersMessage());
+        cleanupPregameWorldState();
+        if (broadcastMessage) {
+            broadcast(getNotEnoughPlayersMessage());
+        }
+        countdownIgnoresMinPlayers = false;
         if (countdownTask != null) {
             countdownTask.cancel();
             countdownTask = null;

@@ -52,6 +52,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -146,7 +147,7 @@ public class MurderMysteryGameManager extends GameManager {
     private ArmorStand droppedBowDisplay;
     private BukkitTask droppedBowTask;
     private float droppedBowYaw;
-    private final Set<Item> activeMapDropItems = new HashSet<>();
+    private final Map<Item, Integer> activeMapDropItems = new HashMap<>();
     private final Set<Arrow> activeRoundArrows = new HashSet<>();
     private final Set<OpenableBlockRef> trackedOpenables = new HashSet<>();
     private UUID originalDetectiveUuid;
@@ -956,7 +957,7 @@ public class MurderMysteryGameManager extends GameManager {
     }
 
     public boolean isTrackedMapDropItem(Item item) {
-        return item != null && activeMapDropItems.contains(item);
+        return item != null && activeMapDropItems.containsKey(item);
     }
 
     public void trackOpenableInteraction(Block block) {
@@ -1043,26 +1044,12 @@ public class MurderMysteryGameManager extends GameManager {
         convertToHero(player, false);
     }
 
-    public void convertDroppedBowCarrierToDetective(Player player) {
+    public void convertDroppedBowCarrierToHero(Player player) {
         MurderMysteryGamePlayer mmPlayer = getMurderMysteryPlayer(player);
         if (mmPlayer == null || !mmPlayer.isAlive() || mmPlayer.getRole() != MurderMysteryRole.INNOCENT) {
             return;
         }
-        mmPlayer.setRole(MurderMysteryRole.DETECTIVE);
-        mmPlayer.setHasDetectiveBow(true);
-        mmPlayer.markDetectiveWeaponGrantedNow();
-        if (!player.getInventory().contains(Material.BOW)) {
-            player.getInventory().setItem(BOW_HOTBAR_SLOT, createGameBowItem(player));
-        }
-        if (!player.getInventory().contains(Material.ARROW)) {
-            player.getInventory().setItem(ARROW_HOTBAR_SLOT, new ItemStack(Material.ARROW, 1));
-        }
-        syncGoldHotbarItem(player, mmPlayer);
-        player.getInventory().setHeldItemSlot(BOW_HOTBAR_SLOT);
-        player.sendMessage(ChatColor.GREEN + "You picked up the bow! "
-                + ChatColor.GOLD + "You are now the Detective!");
-        broadcast(ChatColor.YELLOW + "A player has picked up the Bow!");
-        updateScoreboardAll();
+        convertToHero(player, false);
     }
 
     public void convertToHero(Player player, boolean fromGold) {
@@ -1163,7 +1150,18 @@ public class MurderMysteryGameManager extends GameManager {
                 return;
             }
             List<Location> dropItemSpawns = map.getDropItemSpawns();
-            int dropIndex = (int) (Math.random() * dropItemSpawns.size());
+            List<Integer> availableDropIndexes = new ArrayList<>();
+            for (int index = 0; index < dropItemSpawns.size(); index++) {
+                Location candidate = dropItemSpawns.get(index);
+                if (candidate == null || candidate.getWorld() == null || isMapDropSpawnOccupied(index)) {
+                    continue;
+                }
+                availableDropIndexes.add(index);
+            }
+            if (availableDropIndexes.isEmpty()) {
+                return;
+            }
+            int dropIndex = availableDropIndexes.get((int) (Math.random() * availableDropIndexes.size()));
             Location location = dropItemSpawns.get(dropIndex);
             if (location == null || location.getWorld() == null) {
                 return;
@@ -1180,16 +1178,20 @@ public class MurderMysteryGameManager extends GameManager {
             Item dropped = location.getWorld().dropItemNaturally(location, dropTemplate);
             if (dropped != null) {
                 dropped.setPickupDelay(MAP_GOLD_PICKUP_DELAY_TICKS);
-                activeMapDropItems.add(dropped);
+                activeMapDropItems.put(dropped, dropIndex);
             }
         }, 40L, 60L);
+    }
+
+    private boolean isMapDropSpawnOccupied(int dropIndex) {
+        return activeMapDropItems.containsValue(dropIndex);
     }
 
     private void clearActiveMapDropItems() {
         if (activeMapDropItems.isEmpty()) {
             return;
         }
-        for (Item item : new ArrayList<>(activeMapDropItems)) {
+        for (Item item : new ArrayList<>(activeMapDropItems.keySet())) {
             if (item != null && item.isValid() && !item.isDead()) {
                 item.remove();
             }
@@ -1816,7 +1818,7 @@ public class MurderMysteryGameManager extends GameManager {
             if (player.getLocation().distanceSquared(displayLocation) > DROPPED_BOW_PICKUP_RADIUS_SQUARED) {
                 continue;
             }
-            convertDroppedBowCarrierToDetective(player);
+            convertDroppedBowCarrierToHero(player);
             if (!player.getInventory().contains(Material.BOW)) {
                 continue;
             }

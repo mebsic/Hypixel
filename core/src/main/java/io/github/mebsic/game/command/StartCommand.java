@@ -37,12 +37,12 @@ public class StartCommand implements CommandExecutor {
             player.sendMessage(ChatColor.RED + "The game has already started!");
             return true;
         }
-        if (gameManager.getPlayerCount() < gameManager.getMinPlayers()) {
+        if (!gameManager.canForceStart()) {
             player.sendMessage(gameManager.getNotEnoughPlayersMessage());
             return true;
         }
         gameManager.forceStart();
-        player.sendMessage(ChatColor.GREEN + "Starting game...");
+        player.sendMessage(ChatColor.GREEN + "Done!");
         return true;
     }
 }

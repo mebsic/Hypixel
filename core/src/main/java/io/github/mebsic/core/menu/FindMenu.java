@@ -264,10 +264,7 @@ public class FindMenu extends Menu {
         meta.setDisplayName(displayName(target));
         List<String> lore = new ArrayList<String>();
         lore.add("");
-        lore.add(ChatColor.GRAY + "First Login: " + ChatColor.GREEN + formatTimestamp(target.firstLogin));
-        lore.add(ChatColor.GRAY + "Last Login: " + ChatColor.GREEN + formatTimestamp(target.lastLogin));
-        lore.add("");
-        lore.add(ChatColor.GRAY + "Server: " + ChatColor.GOLD + safeString(target.serverId));
+        lore.add(ChatColor.GRAY + "Server: " + ChatColor.GREEN + safeString(target.serverId));
         lore.add("");
         lore.add(currentServer ? ChatColor.RED + "Already connected!" : ChatColor.YELLOW + "Click to connect!");
         meta.setLore(lore);

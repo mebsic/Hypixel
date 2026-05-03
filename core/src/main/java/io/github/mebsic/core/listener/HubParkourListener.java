@@ -430,12 +430,6 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
             if (suppressUntil != null && suppressUntil > now) {
                 return;
             }
-            Location startTeleport = behindPointLocation(player, touchedStart.start, 2.0d);
-            if (startTeleport != null) {
-                event.setTo(startTeleport);
-                player.setFallDistance(0.0f);
-                suppressStartTouch(uuid);
-            }
             startRun(player, touchedStart, active != null);
             return;
         }

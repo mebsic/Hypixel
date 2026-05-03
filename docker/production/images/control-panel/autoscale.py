@@ -306,9 +306,13 @@ def normalize_policy(raw):
     }
 
 
-def matches_previous_default_policy(doc):
+def matches_previous_default_policy(doc, game_type):
     if not doc:
         return False
+    hub_service = (doc.get("hubService") or "").strip().lower()
+    game_service = (doc.get("gameService") or "").strip().lower()
+    expected_hub = default_game_type_service_name(game_type, "hub").lower()
+    expected_game = default_game_type_service_name(game_type, "game").lower()
     return (
         to_int(doc.get("playersPerStep"), 50) == 50
         and to_int(doc.get("hubPerStep"), 2) == 2
@@ -319,9 +323,79 @@ def matches_previous_default_policy(doc):
         and to_int(doc.get("minGame"), 2) == 2
         and to_int(doc.get("maxHub"), 60) == 60
         and to_int(doc.get("maxGame"), 120) == 120
-        and (doc.get("hubService") or "hub") == "hub"
-        and (doc.get("gameService") or "game") == "game"
+        and hub_service in {"", "hub", expected_hub}
+        and game_service in {"", "game", expected_game}
     )
+
+
+def matches_default_policy_before_game_rebalance(doc, game_type):
+    if not doc:
+        return False
+    hub_service = (doc.get("hubService") or "").strip().lower()
+    game_service = (doc.get("gameService") or "").strip().lower()
+    expected_hub = default_game_type_service_name(game_type, "hub").lower()
+    expected_game = default_game_type_service_name(game_type, "game").lower()
+    return (
+        to_int(doc.get("playersPerStep"), 75) == 75
+        and to_int(doc.get("hubPerStep"), 1) == 1
+        and to_int(doc.get("gamePerStep"), 1) == 1
+        and to_int(doc.get("baseHub"), 2) == 2
+        and to_int(doc.get("baseGame"), 2) == 2
+        and to_int(doc.get("minHub"), 2) == 2
+        and to_int(doc.get("minGame"), 2) == 2
+        and to_int(doc.get("maxHub"), 12) == 12
+        and to_int(doc.get("maxGame"), 24) == 24
+        and to_int(doc.get("hysteresisPlayers"), 20) == 20
+        and hub_service in {"", "hub", expected_hub}
+        and game_service in {"", "game", expected_game}
+    )
+
+
+def game_rebalance_policy_update(game_type):
+    defaults = default_policy(game_type)
+    return {
+        "playersPerStep": defaults["playersPerStep"],
+        "hubPerStep": defaults["hubPerStep"],
+        "gamePerStep": defaults["gamePerStep"],
+        "baseGame": defaults["baseGame"],
+        "minGame": defaults["minGame"],
+        "maxHub": defaults["maxHub"],
+        "maxGame": defaults["maxGame"],
+        "hysteresisPlayers": defaults["hysteresisPlayers"],
+        "updatedAt": now_iso(),
+    }
+
+
+def matches_default_policy_before_max_rebalance(doc, game_type):
+    if not doc:
+        return False
+    hub_service = (doc.get("hubService") or "").strip().lower()
+    game_service = (doc.get("gameService") or "").strip().lower()
+    expected_hub = default_game_type_service_name(game_type, "hub").lower()
+    expected_game = default_game_type_service_name(game_type, "game").lower()
+    return (
+        to_int(doc.get("playersPerStep"), 5) == 5
+        and to_int(doc.get("hubPerStep"), 0) == 0
+        and to_int(doc.get("gamePerStep"), 1) == 1
+        and to_int(doc.get("baseHub"), 2) == 2
+        and to_int(doc.get("baseGame"), 4) == 4
+        and to_int(doc.get("minHub"), 2) == 2
+        and to_int(doc.get("minGame"), 4) == 4
+        and to_int(doc.get("maxHub"), 12) == 12
+        and to_int(doc.get("maxGame"), 24) == 24
+        and to_int(doc.get("hysteresisPlayers"), 0) == 0
+        and hub_service in {"", "hub", expected_hub}
+        and game_service in {"", "game", expected_game}
+    )
+
+
+def max_rebalance_policy_update(game_type):
+    defaults = default_policy(game_type)
+    return {
+        "maxHub": defaults["maxHub"],
+        "maxGame": defaults["maxGame"],
+        "updatedAt": now_iso(),
+    }
 
 
 def conservative_policy_update(game_type):
@@ -339,6 +413,7 @@ def conservative_policy_update(game_type):
         "hubService": defaults["hubService"],
         "gameService": defaults["gameService"],
         "scaleUpCooldownSeconds": AUTOSCALE_SCALE_UP_COOLDOWN_SECONDS,
+        "scaleDownCooldownSeconds": AUTOSCALE_SCALE_DOWN_COOLDOWN_SECONDS,
         "hysteresisPlayers": AUTOSCALE_HYSTERESIS_PLAYERS,
         "drainTimeoutSeconds": AUTOSCALE_DRAIN_TIMEOUT_SECONDS,
         "updatedAt": now_iso(),
@@ -386,13 +461,27 @@ def ensure_policies(db, game_types):
                 legacy_service_update["updatedAt"] = now_iso()
                 collection.update_one({"_id": doc.get("_id")}, {"$set": legacy_service_update})
                 doc.update(legacy_service_update)
-        if doc and matches_previous_default_policy(doc):
+        if doc and matches_previous_default_policy(doc, game_type):
             conservative = conservative_policy_update(game_type)
             collection.update_one(
                 {"_id": doc.get("_id")},
                 {"$set": conservative},
             )
             doc.update(conservative)
+        if doc and matches_default_policy_before_game_rebalance(doc, game_type):
+            rebalance = game_rebalance_policy_update(game_type)
+            collection.update_one(
+                {"_id": doc.get("_id")},
+                {"$set": rebalance},
+            )
+            doc.update(rebalance)
+        if doc and matches_default_policy_before_max_rebalance(doc, game_type):
+            rebalance = max_rebalance_policy_update(game_type)
+            collection.update_one(
+                {"_id": doc.get("_id")},
+                {"$set": rebalance},
+            )
+            doc.update(rebalance)
         policy = normalize_policy(doc or default_policy(game_type))
         normalized.append(policy)
         seen.add(policy["gameType"])
