@@ -61,8 +61,8 @@ Create a `.env` file in the repository root using these placeholders:
 
 ```env
 # Image versions
-MONGO_VERSION=8.x
-REDIS_VERSION=8.x
+MONGO_VERSION=8.2
+REDIS_VERSION=8.6
 
 # MongoDB
 MONGO_ROOT_USERNAME=your_mongo_root_user
