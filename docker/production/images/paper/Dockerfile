@@ -1,11 +1,11 @@
 FROM eclipse-temurin:8-jre
 
 ARG PAPER_VERSION=1.8.8
-ARG USER_AGENT="hypixel-docker/2.0 (https://example.net)"
+ARG USER_AGENT="hycopy-docker/2.0 (https://example.net)"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends bash curl jq unzip ca-certificates \
-    && mkdir -p /data/plugins/Hypixel \
+    && mkdir -p /data/plugins/Hycopy \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /server

@@ -5,11 +5,11 @@ CONFIG_SOURCE="${CONFIG_SOURCE:-/bootstrap/config.json}"
 PLUGIN_SOURCE_DIR="${PLUGIN_SOURCE_DIR:-/bootstrap/plugins}"
 VELOCITY_INSTALL_SCRIPT="${VELOCITY_INSTALL_SCRIPT:-/usr/local/bin/install-velocity.sh}"
 
-mkdir -p /server/plugins/hypixelproxy
+mkdir -p /server/plugins/hycopyproxy
 
 download_velocity() {
   local velocity_version="${VELOCITY_VERSION:-latest}"
-  local user_agent="${USER_AGENT:-hypixel-docker/2.0 (https://example.net)}"
+  local user_agent="${USER_AGENT:-hycopy-docker/2.0 (https://example.net)}"
 
   if [[ ! -x "${VELOCITY_INSTALL_SCRIPT}" ]]; then
     echo "[bootstrap] Velocity installer not found or not executable: ${VELOCITY_INSTALL_SCRIPT}" >&2
@@ -30,7 +30,7 @@ download_velocity() {
 }
 
 stage_proxy_plugin() {
-  local file_name="HypixelProxy.jar"
+  local file_name="HycopyProxy.jar"
   local runtime_target="/server/plugins/${file_name}"
   local source_target=""
 
@@ -90,24 +90,24 @@ apply_network_config_overrides() {
 }
 
 if [[ -f "${CONFIG_SOURCE}" ]]; then
-  cp "${CONFIG_SOURCE}" /server/plugins/hypixelproxy/config.json
-  apply_network_config_overrides /server/plugins/hypixelproxy/config.json
+  cp "${CONFIG_SOURCE}" /server/plugins/hycopyproxy/config.json
+  apply_network_config_overrides /server/plugins/hycopyproxy/config.json
 fi
 
 if [[ -f /bootstrap/proxy/server-icon-production.png ]]; then
   cp /bootstrap/proxy/server-icon-production.png /server/server-icon.png
-  cp /bootstrap/proxy/server-icon-production.png /server/plugins/hypixelproxy/server-icon.png
+  cp /bootstrap/proxy/server-icon-production.png /server/plugins/hycopyproxy/server-icon.png
 fi
 
 if [[ -f /bootstrap/proxy/server-icon-maintenance.png ]]; then
   cp /bootstrap/proxy/server-icon-maintenance.png /server/server-icon-maintenance.png
-  cp /bootstrap/proxy/server-icon-maintenance.png /server/plugins/hypixelproxy/server-icon-maintenance.png
+  cp /bootstrap/proxy/server-icon-maintenance.png /server/plugins/hycopyproxy/server-icon-maintenance.png
 fi
 
 if [[ ! -f /server/velocity.toml ]]; then
   cat > /server/velocity.toml <<'TOML'
 bind = "0.0.0.0:25565"
-motd = "A Hypixel Network"
+motd = "A Hycopy Network"
 show-max-players = 200
 online-mode = false
 force-key-authentication = false

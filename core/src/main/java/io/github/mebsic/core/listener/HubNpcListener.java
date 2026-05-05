@@ -72,10 +72,10 @@ public class HubNpcListener implements Listener {
     private static final String CITIZENS_PLUGIN_NAME = "Citizens";
     private static final String CITIZENS_NAMEPLATE_VISIBLE_KEY = "nameplate-visible";
     private static final String CITIZENS_DEFAULT_NAME = "NPC";
-    private static final String RUNTIME_NPC_REGISTRY_NAME = "hypixel-runtime-hub-npcs";
-    private static final String RUNTIME_NPC_MARKER_KEY = "hypixel-runtime-npc";
-    private static final String RUNTIME_NPC_KIND_KEY = "hypixel-runtime-kind";
-    private static final String RUNTIME_NPC_VIEWER_KEY = "hypixel-profile-viewer";
+    private static final String RUNTIME_NPC_REGISTRY_NAME = "hycopy-runtime-hub-npcs";
+    private static final String RUNTIME_NPC_MARKER_KEY = "hycopy-runtime-npc";
+    private static final String RUNTIME_NPC_KIND_KEY = "hycopy-runtime-kind";
+    private static final String RUNTIME_NPC_VIEWER_KEY = "hycopy-profile-viewer";
     private static final String RUNTIME_PROFILE_NPC_KIND = "PROFILE";
     private static final String RUNTIME_PROFILE_HOLOGRAM_KIND = "PROFILE_HOLOGRAM";
 
@@ -2634,7 +2634,7 @@ public class HubNpcListener implements Listener {
             if (world == null || world.getWorldFolder() == null) {
                 continue;
             }
-            Path markerPath = world.getWorldFolder().toPath().resolve(".hypixel-map-source");
+            Path markerPath = world.getWorldFolder().toPath().resolve(".hycopy-map-source");
             if (!Files.exists(markerPath)) {
                 continue;
             }

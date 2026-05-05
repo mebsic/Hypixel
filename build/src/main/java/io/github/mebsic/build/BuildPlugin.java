@@ -23,9 +23,9 @@ public class BuildPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        Plugin plugin = getServer().getPluginManager().getPlugin("Hypixel");
+        Plugin plugin = getServer().getPluginManager().getPlugin("Hycopy");
         if (!(plugin instanceof CorePlugin)) {
-            getLogger().severe("Hypixel plugin not found. Disabling.");
+            getLogger().severe("Hycopy plugin not found. Disabling.");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }

@@ -7,7 +7,7 @@ import java.util.List;
 
 public class ProxyConfig {
     private String mongoUri = "mongodb://mongo:27017";
-    private String mongoDatabase = "hypixel";
+    private String mongoDatabase = "hycopy";
     private String motdCollection = MongoManager.PROXY_SETTINGS_COLLECTION;
     private String motdDocumentId = MongoManager.PROXY_SETTINGS_MOTD_DOCUMENT_ID;
     private String motdField = MongoManager.PROXY_SETTINGS_MOTD_TEXT_FIELD;

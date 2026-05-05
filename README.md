@@ -23,10 +23,10 @@ Run:
 ```
 
 This builds shaded plugin artifacts and copies runtime `.jar` files into `docker/development/plugins/`:
-- `Hypixel.jar`
+- `Hycopy.jar`
 - `MurderMystery.jar`
-- `HypixelBuild.jar`
-- `HypixelProxy.jar`
+- `HycopyBuild.jar`
+- `HycopyProxy.jar`
 
 ## Stack
 
@@ -45,7 +45,7 @@ This builds shaded plugin artifacts and copies runtime `.jar` files into `docker
    ./gradlew shadowAll
    ```
 2. Set secrets in `.env` (Docker Compose injects these into containers as environment variables).
-3. Optionally edit non-secret runtime settings in `docker/production/config.json` (for example menus/MOTD/proxy defaults).  
+3. Optionally edit non-secret runtime settings in `docker/production/config.json` (for hycopy menus/MOTD/proxy defaults).
    You do not need to edit `mongo.uri` or `redis.password` because entrypoints override them from `.env` when starting.
 4. Start the stack:
    ```bash
@@ -90,8 +90,8 @@ Use strong unique values locally and never commit real secrets.
 
 ## Documentation
 
-- [Getting Started with Docker](https://github.com/mebsic/Hypixel/wiki/Getting-Started-with-Docker)
-- [Creating and Configuring Maps](https://github.com/mebsic/Hypixel/wiki/Creating-and-Configuring-Maps)
+- [Getting Started with Docker](https://github.com/mebsic/Hycopy/wiki/Getting-Started-with-Docker)
+- [Creating and Configuring Maps](https://github.com/mebsic/Hycopy/wiki/Creating-and-Configuring-Maps)
 
 ## Contributing
 
@@ -118,7 +118,7 @@ Use strong unique values locally and never commit real secrets.
 
 ### 4. Check
 
-Before opening a PR, run relevant local checks for your change (for example unit tests and integration flow checks in your local environment).
+Before opening a PR, run relevant local checks for your change (for hycopy unit tests and integration flow checks in your local environment).
 
 ### 5. Open a pull request
 

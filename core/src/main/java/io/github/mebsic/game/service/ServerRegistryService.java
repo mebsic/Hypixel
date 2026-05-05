@@ -58,7 +58,7 @@ public class ServerRegistryService {
         this.heartbeatSeconds = Math.max(1, config.getInt("server.heartbeatSeconds", 2));
         this.forcedMaxPlayers = parsePositiveInt(System.getenv("SERVER_MAX_PLAYERS"));
         this.mongoUri = config.getString("mongo.uri", "mongodb://mongo:27017");
-        this.mongoDatabase = config.getString("mongo.database", "hypixel");
+        this.mongoDatabase = config.getString("mongo.database", "hycopy");
     }
 
     public void start() {

@@ -1,11 +1,11 @@
 FROM eclipse-temurin:21-jre
 
 ARG VELOCITY_VERSION=latest
-ARG USER_AGENT="hypixel-docker/2.0 (https://example.net)"
+ARG USER_AGENT="hycopy-docker/2.0 (https://example.net)"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends bash curl jq ca-certificates \
-    && mkdir -p /server/plugins/hypixelproxy /bootstrap/proxy \
+    && mkdir -p /server/plugins/hycopyproxy /bootstrap/proxy \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /server

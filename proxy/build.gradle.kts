@@ -29,7 +29,7 @@ tasks.withType<JavaCompile> {
 
 tasks.shadowJar {
     archiveClassifier.set("")
-    archiveBaseName.set("HypixelProxy")
+    archiveBaseName.set("HycopyProxy")
     archiveVersion.set("")
     doFirst {
         archiveFile.get().asFile.delete()

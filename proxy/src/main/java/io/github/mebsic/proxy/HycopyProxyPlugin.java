@@ -96,8 +96,8 @@ import java.util.regex.Pattern;
 
 import redis.clients.jedis.Jedis;
 
-@Plugin(id = "hypixelproxy", name = "HypixelProxy", version = "1.0.0")
-public class HypixelProxyPlugin {
+@Plugin(id = "hycopyproxy", name = "HycopyProxy", version = "1.0.0")
+public class HycopyProxyPlugin {
     public static final String PROXY_RESTARTING_MESSAGE = "This proxy is restarting";
     public static final String PROXY_RECONNECT_TO_MESSAGE = "Please reconnect to ";
     private static final int MAINTENANCE_VERSION_PROTOCOL = -1;
@@ -116,7 +116,7 @@ public class HypixelProxyPlugin {
     private static final long DEFERRED_POST_GAME_QUEUE_EXPIRY_MILLIS = 5L * 60L * 1000L;
     private static final long PLAY_AGAIN_INTENT_WINDOW_MILLIS = 7_500L;
     private static final MinecraftChannelIdentifier PLAY_AGAIN_INTENT_CHANNEL =
-            MinecraftChannelIdentifier.from("hypixel:playagain");
+            MinecraftChannelIdentifier.from("hycopy:playagain");
     private static final Component NON_1_8_DISCONNECT_REASON = Component.text(
             "Please connect using Minecraft version ",
             NamedTextColor.RED
@@ -157,7 +157,7 @@ public class HypixelProxyPlugin {
     private final Map<UUID, Long> recentPlayAgainIntents = new ConcurrentHashMap<UUID, Long>();
 
     @Inject
-    public HypixelProxyPlugin(ProxyServer proxy, Logger logger, @DataDirectory Path dataDir) {
+    public HycopyProxyPlugin(ProxyServer proxy, Logger logger, @DataDirectory Path dataDir) {
         this.proxy = proxy;
         this.logger = logger;
         this.dataDir = dataDir;
@@ -835,7 +835,7 @@ public class HypixelProxyPlugin {
             return;
         }
         MongoCollection<Document> collection = mongoDatabase.getCollection(collectionName);
-        Document defaults = new Document("motdFirstLine", "§aHypixel Copy")
+        Document defaults = new Document("motdFirstLine", "§aHycopy Network")
                 .append("motdSecondLine", "")
                 .append("maintenanceMotdFirstLine", "§cMaintenance mode")
                 .append("maintenanceMotdSecondLine", "")

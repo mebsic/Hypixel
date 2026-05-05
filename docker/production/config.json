@@ -1,8 +1,8 @@
 {
   "mongo": {
     "enabled": true,
-    "uri": "mongodb://app_user:change_me@mongo:27017/hypixel?authSource=hypixel",
-    "database": "hypixel"
+    "uri": "mongodb://app_user:change_me@mongo:27017/hycopy?authSource=hycopy",
+    "database": "hycopy"
   },
   "redis": {
     "enabled": true,

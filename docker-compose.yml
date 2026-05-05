@@ -1,6 +1,6 @@
 x-network-env: &network-env
-  MONGO_URI: "mongodb://${MONGO_APP_USERNAME:?Set MONGO_APP_USERNAME in .env}:${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD in .env}@mongo:27017/${MONGO_APP_DATABASE:-hypixel}?authSource=${MONGO_APP_DATABASE:-hypixel}"
-  MONGO_DATABASE: "${MONGO_APP_DATABASE:-hypixel}"
+  MONGO_URI: "mongodb://${MONGO_APP_USERNAME:?Set MONGO_APP_USERNAME in .env}:${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD in .env}@mongo:27017/${MONGO_APP_DATABASE:-hycopy}?authSource=${MONGO_APP_DATABASE:-hycopy}"
+  MONGO_DATABASE: "${MONGO_APP_DATABASE:-hycopy}"
   REDIS_HOST: redis
   REDIS_PORT: "6379"
   REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"
@@ -13,14 +13,10 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: "${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}"
       MONGO_INITDB_ROOT_PASSWORD: "${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}"
-      MONGO_APP_USERNAME: "${MONGO_APP_USERNAME:?Set MONGO_APP_USERNAME in .env}"
-      MONGO_APP_PASSWORD: "${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD in .env}"
-      MONGO_APP_DATABASE: "${MONGO_APP_DATABASE:-hypixel}"
     ports:
       - "${MONGO_BIND_IP:-127.0.0.1}:${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo-data:/data/db
-      - ./docker/production/mongo/create-mongo-user.sh:/docker-entrypoint-initdb.d/create-mongo-user.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --username \"$$MONGO_INITDB_ROOT_USERNAME\" --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval 'db.runCommand({ ping: 1 }).ok'"]
       interval: 10s
@@ -56,6 +52,11 @@ services:
         condition: service_healthy
     environment:
       <<: *network-env
+      MONGO_ROOT_USERNAME: "${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}"
+      MONGO_ROOT_PASSWORD: "${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}"
+      MONGO_APP_USERNAME: "${MONGO_APP_USERNAME:?Set MONGO_APP_USERNAME in .env}"
+      MONGO_APP_PASSWORD: "${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD in .env}"
+      MONGO_APP_DATABASE: "${MONGO_APP_DATABASE:-hycopy}"
       ROLLOUT_TOKEN: "${ROLLOUT_WEBHOOK_TOKEN:-}"
       COMPOSE_PROJECT: "${COMPOSE_PROJECT_NAME:-}"
       ROLLOUT_INCLUDE_SERVICES: "${ROLLOUT_INCLUDE_SERVICES:-}"
@@ -105,7 +106,7 @@ services:
       - |
         mkdir -p /workspace/docker/production/plugins
         missing=0
-        for jar in Hypixel.jar MurderMystery.jar HypixelBuild.jar HypixelProxy.jar; do
+        for jar in Hycopy.jar MurderMystery.jar HycopyBuild.jar HycopyProxy.jar; do
           source="/workspace/docker/development/plugins/$${jar}"
           target="/workspace/docker/production/plugins/$${jar}"
 
@@ -139,12 +140,12 @@ services:
     restart: unless-stopped
 
   murder-mystery-hub:
-    image: hypixel-hub
+    image: hycopy-hub
     build:
       context: ./docker/production/images/paper
       args:
         PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
-        USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
+        USER_AGENT: "hycopy-docker/2.0 (https://example.net)"
     depends_on:
       mongo:
         condition: service_healthy
@@ -174,7 +175,7 @@ services:
       - ./docker/production/config.json:/bootstrap/config.json:ro
       - ./docker/production/maps:/maps
       - ./docker/production/plugins:/bootstrap/plugins:ro
-      - server-port-alloc:/var/lib/hypixel-port
+      - server-port-alloc:/var/lib/hycopy-port
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'port=$(grep -m1 \"^server-port=\" /data/server.properties | cut -d= -f2); [ -n \"$${port}\" ] || port=25565; echo > /dev/tcp/127.0.0.1/$${port}'"]
       interval: 10s
@@ -183,12 +184,12 @@ services:
     mem_limit: 8g
 
   murder-mystery-game:
-    image: hypixel-game
+    image: hycopy-game
     build:
       context: ./docker/production/images/paper
       args:
         PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
-        USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
+        USER_AGENT: "hycopy-docker/2.0 (https://example.net)"
     restart: unless-stopped
     depends_on:
       mongo:
@@ -219,7 +220,7 @@ services:
       - ./docker/production/config.json:/bootstrap/config.json:ro
       - ./docker/production/maps:/maps
       - ./docker/production/plugins:/bootstrap/plugins:ro
-      - server-port-alloc:/var/lib/hypixel-port
+      - server-port-alloc:/var/lib/hycopy-port
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'port=$(grep -m1 \"^server-port=\" /data/server.properties | cut -d= -f2); [ -n \"$${port}\" ] || port=25565; echo > /dev/tcp/127.0.0.1/$${port}'"]
       interval: 10s
@@ -229,12 +230,12 @@ services:
 
   build:
     container_name: build
-    image: hypixel-build
+    image: hycopy-build
     build:
       context: ./docker/production/images/paper
       args:
         PAPER_VERSION: "${PAPER_VERSION:-1.8.8}"
-        USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
+        USER_AGENT: "hycopy-docker/2.0 (https://example.net)"
     depends_on:
       mongo:
         condition: service_healthy
@@ -268,7 +269,7 @@ services:
       - ./docker/production/maps:/production/maps
       - ./docker/development/maps:/development/maps
       - ./docker/production/plugins:/bootstrap/plugins:ro
-      - server-port-alloc:/var/lib/hypixel-port
+      - server-port-alloc:/var/lib/hycopy-port
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'port=$(grep -m1 \"^server-port=\" /data/server.properties | cut -d= -f2); [ -n \"$${port}\" ] || port=25565; echo > /dev/tcp/127.0.0.1/$${port}'"]
       interval: 10s
@@ -278,12 +279,12 @@ services:
 
   velocity:
     container_name: proxy
-    image: hypixel-proxy
+    image: hycopy-proxy
     build:
       context: ./docker/production/images/velocity
       args:
         VELOCITY_VERSION: "latest"
-        USER_AGENT: "hypixel-docker/2.0 (https://example.net)"
+        USER_AGENT: "hycopy-docker/2.0 (https://example.net)"
     ports:
       - "25565:25565"
     depends_on:
@@ -302,9 +303,9 @@ services:
     volumes:
       - ./docker/production/proxy/velocity.toml:/server/velocity.toml
       - ./server-icon-production.png:/server/server-icon.png:ro
-      - ./server-icon-production.png:/server/plugins/hypixelproxy/server-icon.png:ro
+      - ./server-icon-production.png:/server/plugins/hycopyproxy/server-icon.png:ro
       - ./server-icon-maintenance.png:/server/server-icon-maintenance.png:ro
-      - ./server-icon-maintenance.png:/server/plugins/hypixelproxy/server-icon-maintenance.png:ro
+      - ./server-icon-maintenance.png:/server/plugins/hycopyproxy/server-icon-maintenance.png:ro
       - ./docker/production/proxy:/bootstrap/proxy:ro
       - ./docker/production/config.json:/bootstrap/config.json:ro
       - ./docker/production/plugins:/bootstrap/plugins:ro

@@ -70,7 +70,7 @@ import io.github.mebsic.core.server.ServerTypeResolver;
 import io.github.mebsic.core.service.PubSubService;
 import io.github.mebsic.core.manager.RedisManager;
 import io.github.mebsic.core.util.GameRewardUtil;
-import io.github.mebsic.core.util.HypixelExperienceUtil;
+import io.github.mebsic.core.util.HycopyExperienceUtil;
 import io.github.mebsic.core.util.NetworkLevelUpMessageUtil;
 import io.github.mebsic.core.util.DomainSettingsStore;
 import io.github.mebsic.core.util.NetworkConstants;
@@ -123,11 +123,11 @@ import static com.mongodb.client.model.Filters.eq;
 
 public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     private static final String FRIEND_VISIBILITY_UPDATE_CHANNEL = "friend_visibility_update";
-    private static final String PLAY_AGAIN_INTENT_CHANNEL = "hypixel:playagain";
+    private static final String PLAY_AGAIN_INTENT_CHANNEL = "hycopy:playagain";
     private static final long BLOCKED_CACHE_TTL_MILLIS = 5_000L;
     private static final int HOTBAR_SLOT_ONE_INDEX = 0;
     private static final int RANK_COLOR_GIFTED_RANKS_REQUIRED = 100;
-    private static final int WIN_REWARD_HYPIXEL_GOLD = 200;
+    private static final int WIN_REWARD_HYCOPY_GOLD = 200;
     private static final long DAY_MILLIS = 24L * 60L * 60L * 1000L;
     private static final ZoneId EASTERN_TIME_ZONE = ZoneId.of("America/New_York");
     private static final long BUILD_MODE_DURATION_MILLIS = 10L * 60L * 1000L;
@@ -864,12 +864,12 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         profile.getStats().addGame();
         if (result.isWin()) {
             profile.getStats().addWin();
-            profile.setNetworkGold(profile.getNetworkGold() + WIN_REWARD_HYPIXEL_GOLD);
+            profile.setNetworkGold(profile.getNetworkGold() + WIN_REWARD_HYCOPY_GOLD);
         }
         if (result.getKills() > 0) {
             profile.getStats().addKills(result.getKills());
         }
-        int newLevel = addHypixelExperienceInternal(profile, calculateHypixelExperience(result, previousLevel), true, previousLevel);
+        int newLevel = addHycopyExperienceInternal(profile, calculateHycopyExperience(result, previousLevel), true, previousLevel);
         if (newLevel > previousLevel) {
             if (serverType != null && serverType.isGame()) {
                 queuePostGameNetworkLevelUpAnnouncement(profile.getUuid(), newLevel);
@@ -1072,7 +1072,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         }
         int previousLevel = profile.getNetworkLevel();
         profile.setNetworkLevel(level);
-        profile.setHypixelExperience(HypixelExperienceUtil.getTotalExpForLevel(level));
+        profile.setHycopyExperience(HycopyExperienceUtil.getTotalExpForLevel(level));
         profileService.saveProfile(profile);
         if (level > previousLevel) {
             playLevelUpSound(uuid);
@@ -1197,32 +1197,32 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
     }
 
     @Override
-    public long getHypixelExperience(UUID uuid) {
+    public long getHycopyExperience(UUID uuid) {
         Profile profile = profileService.getProfile(uuid);
-        return profile == null ? 0L : profile.getHypixelExperience();
+        return profile == null ? 0L : profile.getHycopyExperience();
     }
 
     @Override
-    public void addHypixelExperience(UUID uuid, long amount) {
+    public void addHycopyExperience(UUID uuid, long amount) {
         Profile profile = profileService.getProfile(uuid);
         if (profile == null) {
             return;
         }
         int previousLevel = profile.getNetworkLevel();
-        int newLevel = addHypixelExperienceInternal(profile, amount, true, previousLevel);
+        int newLevel = addHycopyExperienceInternal(profile, amount, true, previousLevel);
         if (newLevel > previousLevel) {
             sendNetworkLevelUpAnnouncement(profile.getUuid(), newLevel);
         }
         profileService.saveProfile(profile);
     }
 
-    private int addHypixelExperienceInternal(Profile profile, long amount, boolean allowSound, int previousLevel) {
+    private int addHycopyExperienceInternal(Profile profile, long amount, boolean allowSound, int previousLevel) {
         if (amount <= 0 || profile == null) {
             return profile == null ? Math.max(0, previousLevel) : Math.max(0, profile.getNetworkLevel());
         }
-        long total = profile.getHypixelExperience() + amount;
-        profile.setHypixelExperience(total);
-        int newLevel = HypixelExperienceUtil.getLevel(total);
+        long total = profile.getHycopyExperience() + amount;
+        profile.setHycopyExperience(total);
+        int newLevel = HycopyExperienceUtil.getLevel(total);
         profile.setNetworkLevel(newLevel);
         if (allowSound && newLevel > previousLevel) {
             playLevelUpSound(profile.getUuid());
@@ -1243,9 +1243,9 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         });
     }
 
-    private long calculateHypixelExperience(GameResult result, int networkLevel) {
+    private long calculateHycopyExperience(GameResult result, int networkLevel) {
         long baseExperience = GameRewardUtil.calculateTotalExperience(result);
-        return HypixelExperienceUtil.scaleExperienceGain(baseExperience, networkLevel);
+        return HycopyExperienceUtil.scaleExperienceGain(baseExperience, networkLevel);
     }
 
     private void activateBuildMode(Player player, Profile profile, long expiresAt, boolean notifyPlayer) {

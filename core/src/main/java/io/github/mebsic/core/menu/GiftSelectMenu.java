@@ -184,7 +184,7 @@ public class GiftSelectMenu extends Menu {
         List<String> lore = new ArrayList<String>();
         if (rank == Rank.VIP) {
             lore.add(ChatColor.GRAY + "VIP provides basic perks which");
-            lore.add(ChatColor.GRAY + "improve the Hypixel experience!");
+            lore.add(ChatColor.GRAY + "improve the Hycopy experience!");
             lore.add("");
             lore.add(perkLine("Chat Prefix: " + ChatColor.GREEN + "[VIP]"));
             lore.add(perkLine("Name Color: " + ChatColor.GREEN + "GREEN"));
@@ -245,7 +245,7 @@ public class GiftSelectMenu extends Menu {
         lore.add(ChatColor.GRAY + "to your existing MVP++ Rank. MVP++");
         lore.add(ChatColor.GRAY + "allows access to some very useful");
         lore.add(ChatColor.GRAY + "commands and is the best way to");
-        lore.add(ChatColor.GRAY + "support the Hypixel Server.");
+        lore.add(ChatColor.GRAY + "support the Hycopy Server.");
         lore.add(ChatColor.GRAY + "Purchased days will accumulate; If");
         lore.add(ChatColor.GRAY + "you buy 30 days, then 90 days, you");
         lore.add(ChatColor.GRAY + "would have a total of 120 days.");

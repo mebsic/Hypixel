@@ -21,13 +21,13 @@ SERVER_MAX_PLAYERS="${SERVER_MAX_PLAYERS:-}"
 HOST_TOKEN="${HOSTNAME:-paper}"
 CONFIG_SOURCE="${CONFIG_SOURCE:-/bootstrap/config.json}"
 RESTART_SCRIPT_PATH="${RESTART_SCRIPT_PATH:-/usr/local/bin/paper-restart.sh}"
-PORT_ALLOC_ROOT="${PORT_ALLOC_ROOT:-/var/lib/hypixel-port}"
+PORT_ALLOC_ROOT="${PORT_ALLOC_ROOT:-/var/lib/hycopy-port}"
 PORT_ALLOC_MIN="${PORT_ALLOC_MIN:-25590}"
 PORT_ALLOC_MAX="${PORT_ALLOC_MAX:-29999}"
-USER_AGENT="${USER_AGENT:-hypixel-docker/2.0 (https://example.net)}"
+USER_AGENT="${USER_AGENT:-hycopy-docker/2.0 (https://example.net)}"
 PLUGIN_SOURCE_DIR="${PLUGIN_SOURCE_DIR:-/bootstrap/plugins}"
 
-mkdir -p "${DATA_DIR}" "${DATA_DIR}/plugins" "${DATA_DIR}/plugins/Hypixel"
+mkdir -p "${DATA_DIR}" "${DATA_DIR}/plugins" "${DATA_DIR}/plugins/Hycopy"
 
 apply_network_config_overrides() {
   local config_file="$1"
@@ -66,8 +66,8 @@ apply_network_config_overrides() {
 }
 
 if [[ -f "${CONFIG_SOURCE}" ]]; then
-  cp "${CONFIG_SOURCE}" "${DATA_DIR}/plugins/Hypixel/config.json"
-  apply_network_config_overrides "${DATA_DIR}/plugins/Hypixel/config.json"
+  cp "${CONFIG_SOURCE}" "${DATA_DIR}/plugins/Hycopy/config.json"
+  apply_network_config_overrides "${DATA_DIR}/plugins/Hycopy/config.json"
 fi
 
 spigot_file="${DATA_DIR}/spigot.yml"
@@ -214,12 +214,12 @@ stage_plugin() {
 }
 
 stage_required_runtime_plugins() {
-  local required_plugins=("Hypixel.jar")
+  local required_plugins=("Hycopy.jar")
   local plugin_file=""
 
   case "${SERVER_KIND,,}" in
     build)
-      required_plugins+=("HypixelBuild.jar")
+      required_plugins+=("HycopyBuild.jar")
       ;;
     hub|game)
       required_plugins+=("MurderMystery.jar")
@@ -270,7 +270,7 @@ read_existing_level_name() {
 
 resolve_map_name_from_data_world() {
   local world_dir="$1"
-  local marker_file="${world_dir}/.hypixel-map-source"
+  local marker_file="${world_dir}/.hycopy-map-source"
   local raw=""
   local map_name=""
   local link_target=""
@@ -443,7 +443,7 @@ copy_world_template_if_needed() {
   local target_world="$2"
   local force_copy="$3"
   local map_identifier="$4"
-  local marker_file="${target_world}/.hypixel-map-source"
+  local marker_file="${target_world}/.hycopy-map-source"
   local existing_marker=""
   local should_copy="false"
   local target_label
@@ -731,7 +731,7 @@ extract_world_archive() {
 resolve_map_name_from_mongo() {
   local mongo_uri="${MONGO_URI:-}"
   local mongo_database="${MONGO_DATABASE:-}"
-  local core_jar="${DATA_DIR}/plugins/Hypixel.jar"
+  local core_jar="${DATA_DIR}/plugins/Hycopy.jar"
   local resolved=""
 
   if [[ -z "${mongo_uri}" && -f "${CONFIG_SOURCE}" ]]; then

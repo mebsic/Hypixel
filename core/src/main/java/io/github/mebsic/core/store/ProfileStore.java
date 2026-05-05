@@ -6,7 +6,7 @@ import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.model.Stats;
 import io.github.mebsic.core.util.RankColorUtil;
-import io.github.mebsic.core.util.HypixelExperienceUtil;
+import io.github.mebsic.core.util.HycopyExperienceUtil;
 import io.github.mebsic.core.manager.MongoManager;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Filters;
@@ -108,15 +108,15 @@ public class ProfileStore {
                 profile.setRank(Rank.DEFAULT);
             }
         }
-        Long hypixelExperience = doc.getLong("hypixelExperience");
-        if (hypixelExperience != null) {
-            profile.setHypixelExperience(hypixelExperience);
-            profile.setNetworkLevel(HypixelExperienceUtil.getLevel(hypixelExperience));
+        Long hycopyExperience = doc.getLong("hycopyExperience");
+        if (hycopyExperience != null) {
+            profile.setHycopyExperience(hycopyExperience);
+            profile.setNetworkLevel(HycopyExperienceUtil.getLevel(hycopyExperience));
         } else {
             Integer networkLevel = doc.getInteger("networkLevel");
             if (networkLevel != null) {
                 profile.setNetworkLevel(networkLevel);
-                profile.setHypixelExperience(HypixelExperienceUtil.getTotalExpForLevel(networkLevel));
+                profile.setHycopyExperience(HycopyExperienceUtil.getTotalExpForLevel(networkLevel));
             }
         }
         Integer networkGold = doc.getInteger("networkGold");
@@ -335,7 +335,7 @@ public class ProfileStore {
                 .append(MongoManager.PROFILE_RANKS_GIFTED_KEY, Math.max(0, profile.getRanksGifted()))
                 .append(MongoManager.PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY, profile.hasActiveSubscription())
                 .append(MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY, profile.getSubscriptionExpiresAt())
-                .append("hypixelExperience", profile.getHypixelExperience())
+                .append("hycopyExperience", profile.getHycopyExperience())
                 .append("plusColor", profile.getPlusColor())
                 .append("mvpPlusPlusPrefixColor", mvpPlusPlusPrefixColor)
                 .append(MongoManager.PROFILE_FIRST_LOGIN_KEY, profile.getFirstLogin())
@@ -428,7 +428,7 @@ public class ProfileStore {
         MongoCollection<Document> collection = mongo.getProfiles();
         int safeLevel = Math.max(0, level);
         Document update = new Document("networkLevel", safeLevel)
-                .append("hypixelExperience", HypixelExperienceUtil.getTotalExpForLevel(safeLevel));
+                .append("hycopyExperience", HycopyExperienceUtil.getTotalExpForLevel(safeLevel));
         if (name != null && !name.trim().isEmpty()) {
             update.append("name", name);
         }
@@ -464,7 +464,7 @@ public class ProfileStore {
                         "playerVisibilityEnabled",
                         "networkLevel",
                         "networkGold",
-                        "hypixelExperience",
+                        "hycopyExperience",
                         MongoManager.PROFILE_RANKS_GIFTED_KEY,
                         MongoManager.PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY,
                         MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY
@@ -504,9 +504,9 @@ public class ProfileStore {
         }
         Boolean playerVisibilityEnabled = doc.getBoolean("playerVisibilityEnabled");
         int networkLevel = 0;
-        Long hypixelExperience = doc.getLong("hypixelExperience");
-        if (hypixelExperience != null) {
-            networkLevel = HypixelExperienceUtil.getLevel(hypixelExperience);
+        Long hycopyExperience = doc.getLong("hycopyExperience");
+        if (hycopyExperience != null) {
+            networkLevel = HycopyExperienceUtil.getLevel(hycopyExperience);
         } else {
             Integer level = doc.getInteger("networkLevel");
             if (level != null) {

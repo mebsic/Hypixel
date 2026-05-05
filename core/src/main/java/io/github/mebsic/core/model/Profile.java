@@ -13,7 +13,7 @@ public class Profile {
     private int networkLevel;
     private int networkGold;
     private int ranksGifted;
-    private long hypixelExperience;
+    private long hycopyExperience;
     private String plusColor;
     private String mvpPlusPlusPrefixColor;
     private String firstLogin;
@@ -41,7 +41,7 @@ public class Profile {
         this.networkLevel = 0;
         this.networkGold = 0;
         this.ranksGifted = 0;
-        this.hypixelExperience = 0L;
+        this.hycopyExperience = 0L;
         this.plusColor = null;
         this.mvpPlusPlusPrefixColor = null;
         this.firstLogin = null;
@@ -111,12 +111,12 @@ public class Profile {
         this.ranksGifted = Math.max(0, ranksGifted);
     }
 
-    public long getHypixelExperience() {
-        return hypixelExperience;
+    public long getHycopyExperience() {
+        return hycopyExperience;
     }
 
-    public void setHypixelExperience(long hypixelExperience) {
-        this.hypixelExperience = Math.max(0L, hypixelExperience);
+    public void setHycopyExperience(long hycopyExperience) {
+        this.hycopyExperience = Math.max(0L, hycopyExperience);
     }
 
     public String getPlusColor() {

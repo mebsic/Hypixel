@@ -34,6 +34,13 @@ LISTEN_HOST = os.getenv("ROLLOUT_LISTEN_HOST", "0.0.0.0")
 LISTEN_PORT = env_int("ROLLOUT_LISTEN_PORT", 8080, minimum=1)
 ROLLOUT_TOKEN = os.getenv("ROLLOUT_TOKEN", "").strip()
 COMPOSE_PROJECT = os.getenv("COMPOSE_PROJECT", "").strip()
+MONGO_ROOT_USERNAME = os.getenv("MONGO_ROOT_USERNAME", "").strip()
+MONGO_ROOT_PASSWORD = os.getenv("MONGO_ROOT_PASSWORD", "")
+MONGO_ROOT_AUTH_DATABASE = os.getenv("MONGO_ROOT_AUTH_DATABASE", "admin").strip() or "admin"
+MONGO_APP_USERNAME = os.getenv("MONGO_APP_USERNAME", "").strip()
+MONGO_APP_PASSWORD = os.getenv("MONGO_APP_PASSWORD", "")
+MONGO_APP_DATABASE = os.getenv("MONGO_APP_DATABASE", "").strip()
+MONGO_BOOTSTRAP_APP_USER = env_bool("MONGO_BOOTSTRAP_APP_USER", True)
 
 RESTART_TIMEOUT_SECONDS = env_int("ROLLOUT_RESTART_TIMEOUT_SECONDS", 10, minimum=1)
 RESTART_HEALTH_WAIT_SECONDS = env_int("ROLLOUT_RESTART_HEALTH_WAIT_SECONDS", 180, minimum=5)
@@ -70,10 +77,10 @@ ROLLOUT_COMPOSE_ENV_FILE = os.getenv("ROLLOUT_COMPOSE_ENV_FILE", "/workspace/.en
 ROLLOUT_PLUGIN_DIR = os.getenv("ROLLOUT_PLUGIN_DIR", "/workspace/docker/production/plugins").strip()
 ROLLOUT_PLUGIN_SOURCE_DIR = os.getenv("ROLLOUT_PLUGIN_SOURCE_DIR", "/workspace/docker/development/plugins").strip()
 REQUIRED_PLUGIN_FILENAMES = (
-    "Hypixel.jar",
+    "Hycopy.jar",
     "MurderMystery.jar",
-    "HypixelBuild.jar",
-    "HypixelProxy.jar",
+    "HycopyBuild.jar",
+    "HycopyProxy.jar",
 )
 
 AUTOSCALE_ENABLED = env_bool("AUTOSCALE_ENABLED", True)

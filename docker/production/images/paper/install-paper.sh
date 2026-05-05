@@ -2,7 +2,7 @@
 set -eu
 
 version="${PAPER_VERSION:-1.8.8}"
-user_agent="${USER_AGENT:-hypixel-docker/2.0 (https://example.net)}"
+user_agent="${USER_AGENT:-hycopy-docker/2.0 (https://example.net)}"
 api_v3_root="https://fill.papermc.io/v3/projects/paper"
 api_v2_root="https://api.papermc.io/v2/projects/paper"
 

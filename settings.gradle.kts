@@ -1,2 +1,2 @@
-rootProject.name = "Hypixel"
+rootProject.name = "Hycopy"
 include("core", "murdermystery", "proxy", "build")

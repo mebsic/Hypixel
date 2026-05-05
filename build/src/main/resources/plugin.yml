@@ -1,7 +1,7 @@
 name: Build
 main: io.github.mebsic.build.BuildPlugin
 version: 0.1
-depend: [Hypixel]
+depend: [Hycopy]
 commands:
   edit:
     usage: /edit <gameType>

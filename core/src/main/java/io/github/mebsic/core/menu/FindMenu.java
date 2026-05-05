@@ -6,7 +6,7 @@ import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.util.HubMessageUtil;
-import io.github.mebsic.core.util.HypixelExperienceUtil;
+import io.github.mebsic.core.util.HycopyExperienceUtil;
 import io.github.mebsic.core.util.RankFormatUtil;
 import org.bson.Document;
 import org.bukkit.Bukkit;
@@ -450,9 +450,9 @@ public class FindMenu extends Menu {
         if (doc == null) {
             return 0;
         }
-        Long hypixelExperience = doc.getLong("hypixelExperience");
-        if (hypixelExperience != null) {
-            return HypixelExperienceUtil.getLevel(hypixelExperience);
+        Long hycopyExperience = doc.getLong("hycopyExperience");
+        if (hycopyExperience != null) {
+            return HycopyExperienceUtil.getLevel(hycopyExperience);
         }
         Integer networkLevel = doc.getInteger("networkLevel");
         return networkLevel == null ? 0 : Math.max(0, networkLevel);

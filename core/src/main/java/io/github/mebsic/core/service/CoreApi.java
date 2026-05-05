@@ -32,9 +32,9 @@ public interface CoreApi {
 
     void setMvpPlusPlusPrefixColor(UUID uuid, String colorId);
 
-    long getHypixelExperience(UUID uuid);
+    long getHycopyExperience(UUID uuid);
 
-    void addHypixelExperience(UUID uuid, long amount);
+    void addHycopyExperience(UUID uuid, long amount);
 
     ItemStack createKnife(UUID uuid);
 

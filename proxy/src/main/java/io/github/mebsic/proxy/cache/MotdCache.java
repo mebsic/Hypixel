@@ -79,7 +79,7 @@ public class MotdCache {
 
     public void refresh() {
         if (database == null) {
-            motdFirstLine.set("§aHypixel Copy");
+            motdFirstLine.set("§aHycopy Network");
             motdSecondLine.set("");
             maintenanceMotdFirstLine.set("§cMaintenance mode");
             maintenanceMotdSecondLine.set("");
@@ -124,7 +124,7 @@ public class MotdCache {
             maxPlayers.set(configuredMaxPlayers);
             return;
         }
-        motdFirstLine.set("§aHypixel Copy");
+        motdFirstLine.set("§aHycopy Network");
         motdSecondLine.set("");
         maintenanceMotdFirstLine.set("§cMaintenance mode");
         maintenanceMotdSecondLine.set("");

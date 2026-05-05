@@ -1482,7 +1482,7 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
             if (world == null || world.getWorldFolder() == null) {
                 continue;
             }
-            Path markerPath = world.getWorldFolder().toPath().resolve(".hypixel-map-source");
+            Path markerPath = world.getWorldFolder().toPath().resolve(".hycopy-map-source");
             if (!Files.exists(markerPath)) {
                 continue;
             }

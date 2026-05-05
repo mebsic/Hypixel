@@ -1,7 +1,7 @@
 package io.github.mebsic.core.util;
 
-public final class HypixelExperienceUtil {
-    private HypixelExperienceUtil() {
+public final class HycopyExperienceUtil {
+    private HycopyExperienceUtil() {
     }
 
     public static final long BASE = 10000L;

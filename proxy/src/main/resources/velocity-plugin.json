@@ -1,7 +1,7 @@
 {
-  "id": "hypixelproxy",
-  "name": "HypixelProxy",
+  "id": "hycopyproxy",
+  "name": "HycopyProxy",
   "version": "0.1",
-  "authors": ["Hypixel"],
-  "main": "io.github.mebsic.proxy.HypixelProxyPlugin"
+  "authors": ["Hycopy"],
+  "main": "io.github.mebsic.proxy.HycopyProxyPlugin"
 }

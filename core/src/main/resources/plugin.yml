@@ -1,4 +1,4 @@
-name: Hypixel
+name: Hycopy
 main: io.github.mebsic.core.CorePlugin
 version: 0.1
 commands:

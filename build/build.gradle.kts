@@ -11,7 +11,7 @@ dependencies {
 
 tasks.shadowJar {
     archiveClassifier.set("")
-    archiveBaseName.set("HypixelBuild")
+    archiveBaseName.set("HycopyBuild")
     archiveVersion.set("")
     doFirst {
         archiveFile.get().asFile.delete()

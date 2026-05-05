@@ -4,10 +4,13 @@ import threading
 
 import autoscale
 import config
+import mongo_app_user
 from API import RolloutHandler
 
 
 def main():
+    if config.MONGO_BOOTSTRAP_APP_USER:
+        mongo_app_user.ensure_app_user()
     if config.AUTOSCALE_ENABLED:
         thread = threading.Thread(target=autoscale.autoscale_loop, name="autoscale-loop", daemon=True)
         thread.start()

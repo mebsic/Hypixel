@@ -490,7 +490,7 @@ public class MurderMysteryGameManager extends GameManager {
                 + ChatColor.DARK_GREEN + ChatColor.BOLD + formatAmount(tokensEarned) + " Murder Mystery "
                 + (tokensEarned == 1 ? "Token" : "Tokens"));
         lines.add(ChatColor.WHITE.toString() + ChatColor.BOLD + "     • "
-                + ChatColor.DARK_AQUA + ChatColor.BOLD + formatAmount(experienceEarned) + " Hypixel Experience");
+                + ChatColor.DARK_AQUA + ChatColor.BOLD + formatAmount(experienceEarned) + " Hycopy Experience");
         lines.add("");
     }
 

@@ -114,7 +114,7 @@ public final class NetworkLevelUpMessageUtil {
     private static String formatLevelSubtitleLine(int level) {
         int safeLevel = Math.max(0, level);
         return ChatColor.GRAY + "You are now "
-                + ChatColor.DARK_AQUA + "Hypixel Level "
+                + ChatColor.DARK_AQUA + "Hycopy Level "
                 + ChatColor.GREEN + safeLevel
                 + ChatColor.GRAY + "!";
     }

@@ -18,18 +18,18 @@ public class HelpCommand implements CommandExecutor {
     private static final String CLICK_TO_SELECT = "Click to select!";
     private static final String GO_BACK = "Go back";
 
-    private static final String FORUMS_URL = "https://hypixel.net/forums/5/";
-    private static final String MINIGAMES_URL = "https://hypixel.net/forums/#games.67";
-    private static final String BUG_REPORT_URL = "https://hypixel.net/bug-reports/create";
-    private static final String REPORT_INFO_URL = "https://support.hypixel.net/hc/en-us/articles/360019646359-How-To-Report-Rule-Breakers";
-    private static final String SUPPORT_URL = "https://support.hypixel.net/hc/en-us";
-    private static final String ALLOWED_MODS_URL = "https://support.hypixel.net/hc/en-us/articles/6472550754962";
-    private static final String RULES_URL = "https://hypixel.net/rules";
-    private static final String GENERAL_GAMEPLAY_URL = "https://support.hypixel.net/hc/en-us/categories/360003005440-Hypixel-Guides";
-    private static final String RANK_INFO_URL = "https://support.hypixel.net/hc/en-us/articles/360019646559-Hypixel-Ranks-and-How-to-Obtain-Them";
-    private static final String CREATOR_PROGRAM_URL = "https://support.hypixel.net/hc/en-us/categories/360003024319-Creators";
-    private static final String DISCORD_LINK_URL = "https://support.hypixel.net/hc/en-us/articles/360019646539-How-to-join-the-Hypixel-Discord";
-    private static final String FORUM_LINK_URL = "https://support.hypixel.net/hc/en-us/articles/360019647059-Linking-Your-Minecraft-Account-to-Copy-net";
+    private static final String FORUMS_URL = "https://example.net/forums/5/";
+    private static final String MINIGAMES_URL = "https://example.net/forums/#games.67";
+    private static final String BUG_REPORT_URL = "https://example.net/bug-reports/create";
+    private static final String REPORT_INFO_URL = "https://example.net/hc/en-us/articles/360019646359-How-To-Report-Rule-Breakers";
+    private static final String SUPPORT_URL = "https://example.net/hc/en-us";
+    private static final String ALLOWED_MODS_URL = "https://example.net/hc/en-us/articles/6472550754962";
+    private static final String RULES_URL = "https://example.net/rules";
+    private static final String GENERAL_GAMEPLAY_URL = "https://example.net/hc/en-us/categories/360003005440-Hycopy-Guides";
+    private static final String RANK_INFO_URL = "https://example.net/hc/en-us/articles/360019646559-Hycopy-Ranks-and-How-to-Obtain-Them";
+    private static final String CREATOR_PROGRAM_URL = "https://example.net/hc/en-us/categories/360003024319-Creators";
+    private static final String DISCORD_LINK_URL = "https://example.net/hc/en-us/articles/360019646539-How-to-join-the-Hycopy-Discord";
+    private static final String FORUM_LINK_URL = "https://example.net/hc/en-us/articles/360019647059-Linking-Your-Minecraft-Account-to-Copy-net";
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -63,13 +63,13 @@ public class HelpCommand implements CommandExecutor {
         sendHeader(player);
         player.sendMessage(ChatColor.YELLOW + "Click to select a help option...");
         player.sendMessage(" ");
-        sendOption(player, "Hypixel Minigames", ClickEvent.Action.OPEN_URL, MINIGAMES_URL);
+        sendOption(player, "Hycopy Minigames", ClickEvent.Action.OPEN_URL, MINIGAMES_URL);
         sendOption(player, "Found a Server Bug/Issue", ClickEvent.Action.OPEN_URL, BUG_REPORT_URL);
         sendOption(player, "Report a Rule Breaker", ClickEvent.Action.RUN_COMMAND, "/help report");
         sendOption(player, "Store", ClickEvent.Action.OPEN_URL, NetworkConstants.storeUrl());
         sendOption(player, "Support", ClickEvent.Action.OPEN_URL, SUPPORT_URL);
         sendOption(player, "Allowed Modifications", ClickEvent.Action.OPEN_URL, ALLOWED_MODS_URL);
-        sendOption(player, "Hypixel Rules & Policies", ClickEvent.Action.OPEN_URL, RULES_URL);
+        sendOption(player, "Hycopy Rules & Policies", ClickEvent.Action.OPEN_URL, RULES_URL);
         sendOption(player, "General Gameplay/Server", ClickEvent.Action.RUN_COMMAND, "/help general");
         sendFooter(player);
     }
@@ -105,7 +105,7 @@ public class HelpCommand implements CommandExecutor {
 
     private void sendHeader(Player player) {
         player.sendMessage(" ");
-        player.sendMessage(ChatColor.YELLOW.toString() + ChatColor.BOLD + "HYPIXEL NETWORK");
+        player.sendMessage(ChatColor.YELLOW.toString() + ChatColor.BOLD + "HYCOPY NETWORK");
     }
 
     private void sendFooter(Player player) {

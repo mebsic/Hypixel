@@ -48,7 +48,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class SpectatorListener implements Listener {
     private static final String CHANNEL = "BungeeCord";
-    private static final String PLAY_AGAIN_INTENT_CHANNEL = "hypixel:playagain";
+    private static final String PLAY_AGAIN_INTENT_CHANNEL = "hycopy:playagain";
     private static final String DEAD_CHAT_PREFIX = ChatColor.GRAY + "[DEAD CHAT] ";
     private static final long FOLLOW_ACTION_BAR_INTERVAL_TICKS = 1L;
     private static final long TARGET_LOST_ACTION_BAR_MILLIS = 3000L;

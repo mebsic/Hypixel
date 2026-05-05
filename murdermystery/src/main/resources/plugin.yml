@@ -1,7 +1,7 @@
 name: MurderMystery
 main: io.github.mebsic.murdermystery.MurderMysteryPlugin
 version: 0.1
-depend: [Hypixel]
+depend: [Hycopy]
 softdepend: [Citizens]
 commands:
   start:

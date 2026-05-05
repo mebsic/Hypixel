@@ -107,9 +107,9 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
 
     @Override
     public void onEnable() {
-        Plugin plugin = getServer().getPluginManager().getPlugin("Hypixel");
+        Plugin plugin = getServer().getPluginManager().getPlugin("Hycopy");
         if (!(plugin instanceof CorePlugin)) {
-            getLogger().severe("Hypixel plugin not found. Disabling.");
+            getLogger().severe("Hycopy plugin not found. Disabling.");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -534,7 +534,7 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
             if (world == null || world.getWorldFolder() == null) {
                 continue;
             }
-            Path markerPath = world.getWorldFolder().toPath().resolve(".hypixel-map-source");
+            Path markerPath = world.getWorldFolder().toPath().resolve(".hycopy-map-source");
             if (!Files.exists(markerPath)) {
                 continue;
             }
@@ -678,9 +678,9 @@ public class MurderMysteryPlugin extends JavaPlugin implements HubContext {
             return;
         }
         int level = coreApi.getNetworkLevel(player.getUniqueId());
-        long exp = coreApi.getHypixelExperience(player.getUniqueId());
+        long exp = coreApi.getHycopyExperience(player.getUniqueId());
         player.setLevel(Math.max(0, level));
-        player.setExp(io.github.mebsic.core.util.HypixelExperienceUtil.getProgressToNext(exp));
+        player.setExp(io.github.mebsic.core.util.HycopyExperienceUtil.getProgressToNext(exp));
     }
 
     private boolean shouldRefreshHubMenuItem(org.bukkit.entity.Player player) {

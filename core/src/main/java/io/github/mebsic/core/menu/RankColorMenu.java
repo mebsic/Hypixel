@@ -173,7 +173,7 @@ public class RankColorMenu extends Menu {
         } else if (isGiftedRewardColor(color)) {
             lore.add(ChatColor.GOLD + "Unlock by claiming 100 Ranks Gifted Reward!");
         } else {
-            lore.add(ChatColor.DARK_AQUA + "Unlocked at Hypixel Level " + color.getLevel());
+            lore.add(ChatColor.DARK_AQUA + "Unlocked at Hycopy Level " + color.getLevel());
         }
         return lore;
     }

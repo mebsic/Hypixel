@@ -2,7 +2,7 @@ package io.github.mebsic.proxy.service;
 
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
-import io.github.mebsic.core.util.HypixelExperienceUtil;
+import io.github.mebsic.core.util.HycopyExperienceUtil;
 import io.github.mebsic.proxy.manager.MongoManager;
 import org.bson.Document;
 
@@ -137,9 +137,9 @@ public class RankResolver {
         if (profile == null) {
             return 0;
         }
-        Long hypixelExperience = profile.getLong("hypixelExperience");
-        if (hypixelExperience != null) {
-            return HypixelExperienceUtil.getLevel(hypixelExperience);
+        Long hycopyExperience = profile.getLong("hycopyExperience");
+        if (hycopyExperience != null) {
+            return HycopyExperienceUtil.getLevel(hycopyExperience);
         }
         Integer networkLevel = profile.getInteger("networkLevel");
         return networkLevel == null ? 0 : Math.max(0, networkLevel);
