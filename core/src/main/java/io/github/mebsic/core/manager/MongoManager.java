@@ -92,6 +92,7 @@ public class MongoManager {
     public static final String MURDER_MYSTERY_LIFETIME_GAMES_KEY = "lifetimeGames";
 
     public static final String PROFILE_RANKS_GIFTED_KEY = "ranksGifted";
+    public static final String PROFILE_MYSTERY_DUST_KEY = "mysteryDust";
     public static final String PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY = "hasActiveSubscription";
     public static final String PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY = "subscriptionExpiresAt";
     public static final String PROFILE_FIRST_LOGIN_KEY = "firstLogin";

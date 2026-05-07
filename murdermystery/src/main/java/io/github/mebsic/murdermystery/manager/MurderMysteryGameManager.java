@@ -614,6 +614,7 @@ public class MurderMysteryGameManager extends GameManager {
                     DROPPED_BOW_DEATH_DELAY_TICKS
             );
         }
+        sendDeathChatMessage(victim, victimData, killerData, killer, customMessage);
         victimData.setHasDetectiveBow(false);
         victim.getInventory().setArmorContents(null);
         victim.getInventory().clear();
@@ -623,7 +624,6 @@ public class MurderMysteryGameManager extends GameManager {
             victim.setHealth(maxHealth);
         }
         victim.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 60, 1, false, false), true);
-        sendDeathChatMessage(victim, victimData, killerData, killer, customMessage);
         sendSpectatorChatHint(victim);
         boolean endingElimination = aliveBeforeDeath <= 2;
         if (endingElimination) {
@@ -971,12 +971,12 @@ public class MurderMysteryGameManager extends GameManager {
         trackedOpenables.add(OpenableBlockRef.from(normalized));
     }
 
-    public void sendMurdererKnifeKillMessage(Player murderer, Player victim, double distanceMeters) {
-        if (murderer == null || victim == null || !murderer.isOnline()) {
+    public void sendProjectileKillDistanceMessage(Player killer, Player victim, double distanceMeters) {
+        if (killer == null || victim == null || !killer.isOnline()) {
             return;
         }
-        MurderMysteryGamePlayer murdererData = getMurderMysteryPlayer(murderer);
-        if (murdererData == null || murdererData.getRole() != MurderMysteryRole.MURDERER) {
+        MurderMysteryGamePlayer killerData = getMurderMysteryPlayer(killer);
+        if (killerData == null || !isProjectileDistanceMessageRole(killerData.getRole())) {
             return;
         }
         ChatColor victimNameColor = resolveRankNameColor(victim.getUniqueId());
@@ -985,13 +985,19 @@ public class MurderMysteryGameManager extends GameManager {
             victimName = resolveParticipantName(victim.getUniqueId());
         }
         String formattedDistance = String.format(Locale.US, "%.2fm", Math.max(0.0D, distanceMeters));
-        murderer.sendMessage(
+        killer.sendMessage(
                 ChatColor.YELLOW + "Killed "
                         + victimNameColor + victimName
                         + ChatColor.YELLOW + " from "
                         + ChatColor.YELLOW + formattedDistance
                         + ChatColor.YELLOW + " away!"
         );
+    }
+
+    private boolean isProjectileDistanceMessageRole(MurderMysteryRole role) {
+        return role == MurderMysteryRole.MURDERER
+                || role == MurderMysteryRole.DETECTIVE
+                || role == MurderMysteryRole.HERO;
     }
 
     public void trackRoundArrow(Arrow arrow) {

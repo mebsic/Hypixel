@@ -20,6 +20,8 @@ public interface CoreApi {
 
     void setRank(UUID uuid, Rank rank);
 
+    void setRank(UUID uuid, Rank rank, Integer mvpPlusPlusDays, boolean accumulateSubscriptionDuration);
+
     int getNetworkLevel(UUID uuid);
 
     void setNetworkLevel(UUID uuid, int level);
@@ -27,6 +29,10 @@ public interface CoreApi {
     int getNetworkGold(UUID uuid);
 
     void setNetworkGold(UUID uuid, int amount);
+
+    int getMysteryDust(UUID uuid);
+
+    void setMysteryDust(UUID uuid, int amount);
 
     void setPlusColor(UUID uuid, String colorId);
 

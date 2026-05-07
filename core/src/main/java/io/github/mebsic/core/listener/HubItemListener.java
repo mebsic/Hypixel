@@ -4,6 +4,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Filters;
 import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.manager.MongoManager;
+import io.github.mebsic.core.menu.CollectiblesMenu;
 import io.github.mebsic.core.menu.GameMenu;
 import io.github.mebsic.core.menu.LobbySelectorMenu;
 import io.github.mebsic.core.model.Profile;
@@ -33,6 +34,7 @@ import org.bson.Document;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -56,11 +58,13 @@ public class HubItemListener implements Listener {
     private static final String PLAYERS_HIDDEN_NAME =
             ChatColor.WHITE + "Players: " + ChatColor.RED + "Hidden " + ChatColor.GRAY + "(Right Click)";
     private static final String PROFILE_NAME = ChatColor.GREEN + "My Profile " + ChatColor.GRAY + "(Right Click)";
+    private static final String COLLECTIBLES_NAME = ChatColor.GREEN + "Collectibles " + ChatColor.GRAY + "(Right Click)";
     private static final String LOBBY_SELECTOR_NAME = ChatColor.GREEN + "Lobby Selector " + ChatColor.GRAY + "(Right Click)";
     private static final long TOGGLE_COOLDOWN_MS = 3000L;
     private static final long FRIEND_REFRESH_MS = 10_000L;
     private static final int GAME_MENU_SLOT = 0;
     private static final int PROFILE_SLOT = 1;
+    private static final int COLLECTIBLES_SLOT = 4;
     private static final int TOGGLE_SLOT = 7;
     private static final int LOBBY_SELECTOR_SLOT = 8;
     private static final int PORTAL_TRIGGER_RADIUS_BLOCKS = 2;
@@ -76,7 +80,9 @@ public class HubItemListener implements Listener {
 
     private final CorePlugin plugin;
     private final GameMenu gameMenu;
+    private final CollectiblesMenu collectiblesMenu;
     private final LobbySelectorMenu lobbySelectorMenu;
+    private final NumberFormat numberFormat;
     private final Map<UUID, Boolean> visibility;
     private final Map<UUID, Long> toggleCooldown;
     private final Map<UUID, Set<UUID>> cachedFriendUuids;
@@ -92,7 +98,9 @@ public class HubItemListener implements Listener {
     public HubItemListener(CorePlugin plugin, QueueClient queueClient, ServerRegistrySnapshot registrySnapshot) {
         this.plugin = plugin;
         this.gameMenu = new GameMenu(plugin, queueClient, registrySnapshot);
+        this.collectiblesMenu = new CollectiblesMenu(plugin);
         this.lobbySelectorMenu = new LobbySelectorMenu(plugin);
+        this.numberFormat = NumberFormat.getIntegerInstance(Locale.US);
         this.visibility = new ConcurrentHashMap<>();
         this.toggleCooldown = new ConcurrentHashMap<>();
         this.cachedFriendUuids = new ConcurrentHashMap<>();
@@ -211,6 +219,11 @@ public class HubItemListener implements Listener {
             event.getPlayer().sendMessage(ChatColor.RED + "Profiles are currently disabled!");
             return;
         }
+        if (isCollectiblesItem(item)) {
+            event.setCancelled(true);
+            collectiblesMenu.open(event.getPlayer());
+            return;
+        }
         if (LOBBY_SELECTOR_NAME.equals(name) && isLobbySelectorItem(item.getType())) {
             event.setCancelled(true);
             lobbySelectorMenu.open(event.getPlayer());
@@ -225,6 +238,7 @@ public class HubItemListener implements Listener {
     private void giveItems(Player player) {
         player.getInventory().setItem(GAME_MENU_SLOT, buildGameMenuItem());
         player.getInventory().setItem(PROFILE_SLOT, buildProfileItem(player));
+        player.getInventory().setItem(COLLECTIBLES_SLOT, buildCollectiblesItem(player));
         player.getInventory().setItem(TOGGLE_SLOT, buildVisibilityItem(isVisible(player)));
         player.getInventory().setItem(LOBBY_SELECTOR_SLOT, buildLobbySelectorItem());
     }
@@ -277,6 +291,18 @@ public class HubItemListener implements Listener {
         boolean visible = profile.isPlayerVisibilityEnabled();
         visibility.put(player.getUniqueId(), visible);
         applyVisibilityState(player, visible);
+    }
+
+    public void refreshCollectiblesItem(Player player) {
+        if (player == null || isNpcPlayer(player)) {
+            return;
+        }
+        ItemStack current = player.getInventory().getItem(COLLECTIBLES_SLOT);
+        if (current != null && current.getType() != Material.AIR && !isCollectiblesItem(current)) {
+            return;
+        }
+        player.getInventory().setItem(COLLECTIBLES_SLOT, buildCollectiblesItem(player));
+        player.updateInventory();
     }
 
     public void shutdown() {
@@ -719,6 +745,37 @@ public class HubItemListener implements Listener {
             }
         }
         meta.setOwner(player.getName());
+    }
+
+    private ItemStack buildCollectiblesItem(Player player) {
+        ItemStack item = new ItemStack(Material.CHEST);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(COLLECTIBLES_NAME);
+            meta.setLore(CollectiblesMenu.collectiblesLore(formatMysteryDust(player)));
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private boolean isCollectiblesItem(ItemStack item) {
+        if (item == null || item.getType() != Material.CHEST || !item.hasItemMeta()) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null || meta.getDisplayName() == null) {
+            return false;
+        }
+        return COLLECTIBLES_NAME.equals(meta.getDisplayName());
+    }
+
+    private String formatMysteryDust(Player player) {
+        if (player == null || plugin == null) {
+            return "0";
+        }
+        Profile profile = plugin.getProfile(player.getUniqueId());
+        int mysteryDust = profile == null ? 0 : profile.getMysteryDust();
+        return numberFormat.format(Math.max(0, mysteryDust));
     }
 
     private ItemStack buildLobbySelectorItem() {

@@ -123,6 +123,10 @@ public class ProfileStore {
         if (networkGold != null) {
             profile.setNetworkGold(networkGold);
         }
+        Object mysteryDustRaw = doc.get(MongoManager.PROFILE_MYSTERY_DUST_KEY);
+        if (mysteryDustRaw instanceof Number) {
+            profile.setMysteryDust(((Number) mysteryDustRaw).intValue());
+        }
         String plusColor = doc.getString("plusColor");
         if (plusColor != null && !plusColor.trim().isEmpty()) {
             profile.setPlusColor(plusColor);
@@ -332,6 +336,7 @@ public class ProfileStore {
                 .append("rank", rank.name())
                 .append("networkLevel", profile.getNetworkLevel())
                 .append("networkGold", profile.getNetworkGold())
+                .append(MongoManager.PROFILE_MYSTERY_DUST_KEY, profile.getMysteryDust())
                 .append(MongoManager.PROFILE_RANKS_GIFTED_KEY, Math.max(0, profile.getRanksGifted()))
                 .append(MongoManager.PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY, profile.hasActiveSubscription())
                 .append(MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY, profile.getSubscriptionExpiresAt())
@@ -448,6 +453,19 @@ public class ProfileStore {
                 new com.mongodb.client.model.UpdateOptions().upsert(true));
     }
 
+    public void updateMysteryDust(UUID uuid, String name, int amount) {
+        MongoCollection<Document> collection = mongo.getProfiles();
+        Document update = new Document(MongoManager.PROFILE_MYSTERY_DUST_KEY, Math.max(0, amount));
+        if (name != null && !name.trim().isEmpty()) {
+            update.append("name", name);
+        }
+        Document setOnInsert = spectatorDefaultsDocument();
+        setOnInsert.remove(MongoManager.PROFILE_MYSTERY_DUST_KEY);
+        collection.updateOne(eq("uuid", uuid.toString()),
+                new Document("$set", update).append("$setOnInsert", setOnInsert),
+                new com.mongodb.client.model.UpdateOptions().upsert(true));
+    }
+
     public ProfileMeta loadProfileMeta(UUID uuid, String fallbackName) {
         if (uuid == null) {
             return null;
@@ -464,6 +482,7 @@ public class ProfileStore {
                         "playerVisibilityEnabled",
                         "networkLevel",
                         "networkGold",
+                        MongoManager.PROFILE_MYSTERY_DUST_KEY,
                         "hycopyExperience",
                         MongoManager.PROFILE_RANKS_GIFTED_KEY,
                         MongoManager.PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY,
@@ -515,6 +534,11 @@ public class ProfileStore {
         }
         Integer networkGoldRaw = doc.getInteger("networkGold");
         int networkGold = networkGoldRaw == null ? 0 : Math.max(0, networkGoldRaw);
+        int mysteryDust = 0;
+        Object mysteryDustRaw = doc.get(MongoManager.PROFILE_MYSTERY_DUST_KEY);
+        if (mysteryDustRaw instanceof Number) {
+            mysteryDust = Math.max(0, ((Number) mysteryDustRaw).intValue());
+        }
         int giftedRanks = readGiftedRanks(doc);
         boolean hasActiveSubscription = readActiveSubscription(doc);
         long subscriptionExpiresAt = readSubscriptionExpiresAt(doc);
@@ -528,6 +552,7 @@ public class ProfileStore {
                 playerVisibilityEnabled == null || playerVisibilityEnabled,
                 networkLevel,
                 networkGold,
+                mysteryDust,
                 giftedRanks,
                 hasActiveSubscription,
                 subscriptionExpiresAt
@@ -552,6 +577,7 @@ public class ProfileStore {
                 .append("spectatorHideOtherSpectatorsEnabled", false)
                 .append("spectatorFirstPersonEnabled", false)
                 .append("buildModeExpiresAt", 0L)
+                .append(MongoManager.PROFILE_MYSTERY_DUST_KEY, 0)
                 .append(MongoManager.PROFILE_RANKS_GIFTED_KEY, 0)
                 .append(MongoManager.PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY, false)
                 .append(MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY, 0L)
@@ -615,6 +641,7 @@ public class ProfileStore {
         private final boolean playerVisibilityEnabled;
         private final int networkLevel;
         private final int networkGold;
+        private final int mysteryDust;
         private final int giftedRanks;
         private final boolean hasActiveSubscription;
         private final long subscriptionExpiresAt;
@@ -628,6 +655,7 @@ public class ProfileStore {
                            boolean playerVisibilityEnabled,
                            int networkLevel,
                            int networkGold,
+                           int mysteryDust,
                            int giftedRanks,
                            boolean hasActiveSubscription,
                            long subscriptionExpiresAt) {
@@ -640,6 +668,7 @@ public class ProfileStore {
             this.playerVisibilityEnabled = playerVisibilityEnabled;
             this.networkLevel = Math.max(0, networkLevel);
             this.networkGold = Math.max(0, networkGold);
+            this.mysteryDust = Math.max(0, mysteryDust);
             this.giftedRanks = Math.max(0, giftedRanks);
             this.hasActiveSubscription = hasActiveSubscription;
             this.subscriptionExpiresAt = Math.max(0L, subscriptionExpiresAt);
@@ -679,6 +708,10 @@ public class ProfileStore {
 
         public int getNetworkGold() {
             return networkGold;
+        }
+
+        public int getMysteryDust() {
+            return mysteryDust;
         }
 
         public int getGiftedRanks() {

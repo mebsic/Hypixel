@@ -69,6 +69,7 @@ public class MurderMysteryListener implements Listener {
     private static final double THROWN_KNIFE_LAUNCH_HEIGHT = 0.75D;
     private static final double THROWN_KNIFE_SPAWN_FORWARD_OFFSET = 0.7D;
     private static final double THROWN_KNIFE_HIT_RADIUS = 0.9D;
+    private static final double THROWN_KNIFE_ARROW_COLLISION_RADIUS = 0.65D;
     private static final double THROWN_KNIFE_BLOCK_SAMPLE_STEP = 0.2D;
     private static final EulerAngle THROWN_KNIFE_ARM_POSE = new EulerAngle(Math.toRadians(180.0D), 0.0D, 0.0D);
     private static final int GLASS_PANE_BREAK_ANIMATION_STAGE = 4;
@@ -84,6 +85,9 @@ public class MurderMysteryListener implements Listener {
     private static final float MURDERER_KNIFE_DRIP_BLUE = 0.0F;
     private static final int MURDERER_KNIFE_DRIP_PARTICLE_RADIUS = 64;
     private static final Sound GLASS_SHATTER_SOUND = resolveCompatibleSound("GLASS", "BLOCK_GLASS_BREAK");
+    private static final Sound ARROW_KNIFE_CLANK_SOUND = resolveCompatibleSound("ITEM_BREAK", "ENTITY_ITEM_BREAK");
+    private static final float ARROW_KNIFE_CLANK_VOLUME = 1.0F;
+    private static final float ARROW_KNIFE_CLANK_PITCH = 1.35F;
     private static final double ELIMINATED_PLAYER_HEALTH = 0.01D;
 
     private final MurderMysteryPlugin plugin;
@@ -348,7 +352,8 @@ public class MurderMysteryListener implements Listener {
                 cancelArrowHit(event, arrow);
                 return;
             }
-            String distanceSuffix = projectileDistanceSuffix(arrow, shooter, victim);
+            double distanceMeters = projectileDistanceMeters(arrow, shooter, victim);
+            String distanceSuffix = formatDistanceSuffix(distanceMeters);
             if (shooterData.getRole() == MurderMysteryRole.DETECTIVE || shooterData.getRole() == MurderMysteryRole.HERO) {
                 cancelArrowHit(event, arrow);
                 if (shooter.getUniqueId().equals(victim.getUniqueId())) {
@@ -359,6 +364,7 @@ public class MurderMysteryListener implements Listener {
                 if (victimData.getRole() == MurderMysteryRole.MURDERER) {
                     shooterData.addKill();
                 }
+                gameManager.sendProjectileKillDistanceMessage(shooter, victim, distanceMeters);
                 setEliminatedHealth(victim);
                 gameManager.handleDeath(victim, shooter, "A player killed you! " + distanceSuffix, MurderMysteryGameManager.KillType.BOW);
                 return;
@@ -372,6 +378,7 @@ public class MurderMysteryListener implements Listener {
                 }
                 if (victimData.getRole() != MurderMysteryRole.MURDERER) {
                     shooterData.addKill();
+                    gameManager.sendProjectileKillDistanceMessage(shooter, victim, distanceMeters);
                     setEliminatedHealth(victim);
                     gameManager.handleDeath(victim, shooter, "The Murderer shot you! " + distanceSuffix, MurderMysteryGameManager.KillType.BOW);
                     return;
@@ -385,13 +392,22 @@ public class MurderMysteryListener implements Listener {
 
     @EventHandler
     public void onAnyDamage(EntityDamageEvent event) {
-        if (gameManager.isDroppedBowDisplay(event.getEntity()) || isThrownKnifeDisplay(event.getEntity())) {
+        UUID thrownKnifeShooterUuid = findThrownKnifeShooterByDisplay(event.getEntity());
+        if (gameManager.isDroppedBowDisplay(event.getEntity()) || thrownKnifeShooterUuid != null) {
             event.setCancelled(true);
             if (event instanceof EntityDamageByEntityEvent) {
                 EntityDamageByEntityEvent byEntityEvent = (EntityDamageByEntityEvent) event;
                 Entity damager = byEntityEvent.getDamager();
                 if (damager instanceof Arrow) {
-                    removeProjectileEntity(damager);
+                    if (thrownKnifeShooterUuid != null) {
+                        handleArrowKnifeCollision(
+                                thrownKnifeShooterUuid,
+                                (Arrow) damager,
+                                damager.getLocation()
+                        );
+                    } else {
+                        removeProjectileEntity(damager);
+                    }
                 }
             }
             return;
@@ -405,6 +421,16 @@ public class MurderMysteryListener implements Listener {
         }
         if (gameManager.getState() != GameState.IN_GAME) {
             event.setCancelled(true);
+            return;
+        }
+        if (event.getCause() == EntityDamageEvent.DamageCause.DROWNING) {
+            event.setCancelled(true);
+            MurderMysteryGamePlayer mmPlayer = gameManager.getMurderMysteryPlayer(player);
+            if (mmPlayer == null || !mmPlayer.isAlive()) {
+                return;
+            }
+            player.setRemainingAir(player.getMaximumAir());
+            gameManager.handleDeath(player, null, "You drowned!");
             return;
         }
         if (event.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK
@@ -596,13 +622,8 @@ public class MurderMysteryListener implements Listener {
         projectile.setMetadata(PROJECTILE_LAUNCH_Z_META, new FixedMetadataValue(plugin, launch.getZ()));
     }
 
-    private String projectileDistanceSuffix(Entity projectile, Player shooter, Player victim) {
-        double meters = projectileDistanceMeters(projectile, shooter, victim);
-        return formatDistanceSuffix(meters);
-    }
-
     private String formatDistanceSuffix(double meters) {
-        return ChatColor.DARK_GRAY + "(" + String.format(Locale.US, "%.2f", meters) + "m)";
+        return ChatColor.GRAY + "(" + String.format(Locale.US, "%.2f", meters) + "m)";
     }
 
     private double projectileDistanceMeters(Entity projectile, Player shooter, Player victim) {
@@ -790,6 +811,11 @@ public class MurderMysteryListener implements Listener {
         Location blockCollision = firstThrownKnifeBlockCollision(from, to);
         Location hitScanEnd = blockCollision == null ? to : blockCollision;
         shatterGlassPanesAlongPath(from, hitScanEnd, knife);
+        ArrowKnifeCollision arrowCollision = findArrowKnifeCollision(shooter, from, hitScanEnd);
+        if (arrowCollision != null) {
+            handleArrowKnifeCollision(shooterUuid, arrowCollision.arrow, arrowCollision.location);
+            return;
+        }
         Player victim = findKnifeVictim(shooter, from, hitScanEnd);
         if (victim != null) {
             handleThrownKnifeHit(knife, shooter, victim);
@@ -852,6 +878,91 @@ public class MurderMysteryListener implements Listener {
         return null;
     }
 
+    private ArrowKnifeCollision findArrowKnifeCollision(Player knifeShooter, Location from, Location to) {
+        if (knifeShooter == null || from == null || to == null || from.getWorld() == null || to.getWorld() == null) {
+            return null;
+        }
+        if (!from.getWorld().equals(to.getWorld())) {
+            return null;
+        }
+        World world = from.getWorld();
+        Vector knifeStart = from.toVector();
+        Vector knifeEnd = to.toVector();
+        double collisionRadiusSquared = THROWN_KNIFE_ARROW_COLLISION_RADIUS * THROWN_KNIFE_ARROW_COLLISION_RADIUS;
+        ArrowKnifeCollision bestCollision = null;
+        double bestDistanceSquared = Double.MAX_VALUE;
+
+        for (Entity entity : world.getEntities()) {
+            if (!(entity instanceof Arrow)) {
+                continue;
+            }
+            Arrow arrow = (Arrow) entity;
+            if (!isArrowKnifeCollisionCandidate(arrow, knifeShooter, world)) {
+                continue;
+            }
+            Location arrowLocation = arrow.getLocation();
+            Vector arrowEnd = arrowLocation.toVector();
+            Vector arrowStart = arrowEnd.clone().subtract(arrow.getVelocity());
+            double distanceSquared = distanceSquaredSegmentToSegment(knifeStart, knifeEnd, arrowStart, arrowEnd);
+            if (distanceSquared > collisionRadiusSquared || distanceSquared >= bestDistanceSquared) {
+                continue;
+            }
+            bestDistanceSquared = distanceSquared;
+            bestCollision = new ArrowKnifeCollision(
+                    arrow,
+                    closestPointOnSegment(arrowEnd, knifeStart, knifeEnd, world)
+            );
+        }
+        return bestCollision;
+    }
+
+    private boolean isArrowKnifeCollisionCandidate(Arrow arrow, Player knifeShooter, World world) {
+        if (arrow == null || knifeShooter == null || world == null) {
+            return false;
+        }
+        if (!arrow.isValid() || arrow.isDead() || arrow.getWorld() == null || !arrow.getWorld().equals(world)) {
+            return false;
+        }
+        if (arrow.getVelocity() == null || arrow.getVelocity().lengthSquared() <= 0.000001D) {
+            return false;
+        }
+        if (!(arrow.getShooter() instanceof Player)) {
+            return false;
+        }
+        Player shooter = (Player) arrow.getShooter();
+        if (shooter == null || !shooter.isOnline() || !gameManager.isInGame(shooter)) {
+            return false;
+        }
+        MurderMysteryGamePlayer shooterData = gameManager.getMurderMysteryPlayer(shooter);
+        return shooterData != null && shooterData.isAlive();
+    }
+
+    private void handleArrowKnifeCollision(UUID knifeShooterUuid, Arrow arrow, Location collisionLocation) {
+        if (knifeShooterUuid == null || arrow == null) {
+            return;
+        }
+        Location soundLocation = collisionLocation == null ? arrow.getLocation() : collisionLocation;
+        playArrowKnifeClank(soundLocation);
+        removeProjectileEntity(arrow);
+        despawnThrownKnife(knifeShooterUuid);
+    }
+
+    private void playArrowKnifeClank(Location location) {
+        if (location == null || location.getWorld() == null || ARROW_KNIFE_CLANK_SOUND == null) {
+            return;
+        }
+        try {
+            location.getWorld().playSound(
+                    location,
+                    ARROW_KNIFE_CLANK_SOUND,
+                    ARROW_KNIFE_CLANK_VOLUME,
+                    ARROW_KNIFE_CLANK_PITCH
+            );
+        } catch (IllegalArgumentException ignored) {
+            // Sound enum mismatch on legacy/newer API variants.
+        }
+    }
+
     private void handleThrownKnifeHit(ThrownKnife knife, Player shooter, Player victim) {
         if (knife == null || shooter == null || victim == null) {
             return;
@@ -867,7 +978,7 @@ public class MurderMysteryListener implements Listener {
         shooterData.addKill();
         double distanceMeters = distanceFromLaunch(knife.launchLocation, victim.getLocation());
         String distanceSuffix = formatDistanceSuffix(distanceMeters);
-        gameManager.sendMurdererKnifeKillMessage(shooter, victim, distanceMeters);
+        gameManager.sendProjectileKillDistanceMessage(shooter, victim, distanceMeters);
         setEliminatedHealth(victim);
         gameManager.handleDeath(
                 victim,
@@ -1073,20 +1184,21 @@ public class MurderMysteryListener implements Listener {
         }
     }
 
-    private boolean isThrownKnifeDisplay(Entity entity) {
+    private UUID findThrownKnifeShooterByDisplay(Entity entity) {
         if (entity == null || activeThrownKnives.isEmpty()) {
-            return false;
+            return null;
         }
         UUID entityUuid = entity.getUniqueId();
-        for (ThrownKnife knife : activeThrownKnives.values()) {
+        for (Map.Entry<UUID, ThrownKnife> entry : activeThrownKnives.entrySet()) {
+            ThrownKnife knife = entry.getValue();
             if (knife == null || knife.display == null) {
                 continue;
             }
             if (entityUuid.equals(knife.display.getUniqueId())) {
-                return true;
+                return entry.getKey();
             }
         }
-        return false;
+        return null;
     }
 
     private void despawnThrownKnife(UUID shooterUuid) {
@@ -1120,6 +1232,78 @@ public class MurderMysteryListener implements Listener {
         }
         Vector closest = start.clone().add(segment.multiply(projection));
         return point.distanceSquared(closest);
+    }
+
+    private double distanceSquaredSegmentToSegment(Vector firstStart, Vector firstEnd, Vector secondStart, Vector secondEnd) {
+        if (firstStart == null || firstEnd == null || secondStart == null || secondEnd == null) {
+            return Double.MAX_VALUE;
+        }
+        Vector firstDirection = firstEnd.clone().subtract(firstStart);
+        Vector secondDirection = secondEnd.clone().subtract(secondStart);
+        Vector offset = firstStart.clone().subtract(secondStart);
+        double firstLengthSquared = firstDirection.dot(firstDirection);
+        double secondLengthSquared = secondDirection.dot(secondDirection);
+        double secondProjection = secondDirection.dot(offset);
+        double firstScale;
+        double secondScale;
+
+        if (firstLengthSquared <= 0.000001D && secondLengthSquared <= 0.000001D) {
+            return firstStart.distanceSquared(secondStart);
+        }
+        if (firstLengthSquared <= 0.000001D) {
+            firstScale = 0.0D;
+            secondScale = clamp(secondProjection / secondLengthSquared, 0.0D, 1.0D);
+        } else {
+            double firstProjection = firstDirection.dot(offset);
+            if (secondLengthSquared <= 0.000001D) {
+                secondScale = 0.0D;
+                firstScale = clamp(-firstProjection / firstLengthSquared, 0.0D, 1.0D);
+            } else {
+                double directionDot = firstDirection.dot(secondDirection);
+                double denominator = firstLengthSquared * secondLengthSquared - directionDot * directionDot;
+                if (denominator != 0.0D) {
+                    firstScale = clamp(
+                            (directionDot * secondProjection - firstProjection * secondLengthSquared) / denominator,
+                            0.0D,
+                            1.0D
+                    );
+                } else {
+                    firstScale = 0.0D;
+                }
+                double secondNumerator = directionDot * firstScale + secondProjection;
+                if (secondNumerator < 0.0D) {
+                    secondScale = 0.0D;
+                    firstScale = clamp(-firstProjection / firstLengthSquared, 0.0D, 1.0D);
+                } else if (secondNumerator > secondLengthSquared) {
+                    secondScale = 1.0D;
+                    firstScale = clamp((directionDot - firstProjection) / firstLengthSquared, 0.0D, 1.0D);
+                } else {
+                    secondScale = secondNumerator / secondLengthSquared;
+                }
+            }
+        }
+
+        Vector firstClosest = firstStart.clone().add(firstDirection.multiply(firstScale));
+        Vector secondClosest = secondStart.clone().add(secondDirection.multiply(secondScale));
+        return firstClosest.distanceSquared(secondClosest);
+    }
+
+    private Location closestPointOnSegment(Vector point, Vector start, Vector end, World world) {
+        if (point == null || start == null || end == null || world == null) {
+            return null;
+        }
+        Vector segment = end.clone().subtract(start);
+        double lengthSquared = segment.lengthSquared();
+        if (lengthSquared <= 0.000001D) {
+            return start.toLocation(world);
+        }
+        double projection = point.clone().subtract(start).dot(segment) / lengthSquared;
+        Vector closest = start.clone().add(segment.multiply(clamp(projection, 0.0D, 1.0D)));
+        return closest.toLocation(world);
+    }
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private long secondsToMillis(double seconds) {
@@ -1289,6 +1473,16 @@ public class MurderMysteryListener implements Listener {
                 task.cancel();
                 task = null;
             }
+        }
+    }
+
+    private static class ArrowKnifeCollision {
+        private final Arrow arrow;
+        private final Location location;
+
+        private ArrowKnifeCollision(Arrow arrow, Location location) {
+            this.arrow = arrow;
+            this.location = location == null ? null : location.clone();
         }
     }
 }

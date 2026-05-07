@@ -24,6 +24,8 @@ commands:
     usage: /networklevel <player> <level>
   gold:
     usage: /gold <player> <amount>
+  mysterydust:
+    usage: /mysterydust <player> <amount>
   gift:
     usage: /gift <player>
   unlock100ranksgifted:

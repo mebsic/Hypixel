@@ -12,6 +12,7 @@ public class Profile {
     private Rank rank;
     private int networkLevel;
     private int networkGold;
+    private int mysteryDust;
     private int ranksGifted;
     private long hycopyExperience;
     private String plusColor;
@@ -40,6 +41,7 @@ public class Profile {
         this.rank = Rank.DEFAULT;
         this.networkLevel = 0;
         this.networkGold = 0;
+        this.mysteryDust = 0;
         this.ranksGifted = 0;
         this.hycopyExperience = 0L;
         this.plusColor = null;
@@ -101,6 +103,14 @@ public class Profile {
 
     public void setNetworkGold(int networkGold) {
         this.networkGold = Math.max(0, networkGold);
+    }
+
+    public int getMysteryDust() {
+        return mysteryDust;
+    }
+
+    public void setMysteryDust(int mysteryDust) {
+        this.mysteryDust = Math.max(0, mysteryDust);
     }
 
     public int getRanksGifted() {

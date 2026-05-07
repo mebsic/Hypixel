@@ -10,6 +10,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,6 +24,19 @@ public class CosmeticService {
     public static final String DEFAULT_KNIFE_ID = KnifeSkinStore.DEFAULT_KNIFE_ID;
     public static final String RANDOM_KNIFE_ID = "random";
     public static final String RANDOM_FAVORITE_KNIFE_ID = "random_favorite";
+    public static final String RANK_DEFAULT_ID = "default";
+    public static final String RANK_VIP_ID = "vip";
+    public static final String RANK_VIP_PLUS_ID = "vip_plus";
+    public static final String RANK_MVP_ID = "mvp";
+    public static final String RANK_MVP_PLUS_ID = "mvp_plus";
+    public static final String RANK_MVP_PLUS_PLUS_ID = "mvp_plus_plus";
+    private static final List<String> RANK_OPTIONS = Collections.unmodifiableList(Arrays.asList(
+            RANK_VIP_ID,
+            RANK_VIP_PLUS_ID,
+            RANK_MVP_ID,
+            RANK_MVP_PLUS_ID,
+            RANK_MVP_PLUS_PLUS_ID
+    ));
     private static final KnifeSkinDefinition DEFAULT_KNIFE = new KnifeSkinDefinition(
             DEFAULT_KNIFE_ID,
             "IRON_SWORD",
@@ -54,6 +68,9 @@ public class CosmeticService {
     }
 
     public List<String> getOptions(CosmeticType type) {
+        if (type == CosmeticType.RANK) {
+            return RANK_OPTIONS;
+        }
         if (type != CosmeticType.KNIFE) {
             return Collections.emptyList();
         }
@@ -96,7 +113,17 @@ public class CosmeticService {
     }
 
     public boolean unlock(Profile profile, CosmeticType type, String id) {
-        if (profile == null || type != CosmeticType.KNIFE) {
+        if (profile == null) {
+            return false;
+        }
+        if (type == CosmeticType.RANK) {
+            String normalized = normalizeId(id);
+            if (!RANK_OPTIONS.contains(normalized)) {
+                return false;
+            }
+            return profile.getUnlocked().get(type).add(normalized);
+        }
+        if (type != CosmeticType.KNIFE) {
             return false;
         }
         String normalized = normalizeId(id);
@@ -110,7 +137,10 @@ public class CosmeticService {
     }
 
     public boolean select(Profile profile, CosmeticType type, String id) {
-        if (profile == null || type != CosmeticType.KNIFE) {
+        if (profile == null) {
+            return false;
+        }
+        if (type != CosmeticType.KNIFE) {
             return false;
         }
         String normalized = normalizeId(id);

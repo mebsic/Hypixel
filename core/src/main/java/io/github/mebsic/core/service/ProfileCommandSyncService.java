@@ -16,6 +16,7 @@ public class ProfileCommandSyncService {
     private static final String ACTION_SET_RANK = "SET_RANK";
     private static final String ACTION_SET_NETWORK_LEVEL = "SET_NETWORK_LEVEL";
     private static final String ACTION_SET_NETWORK_GOLD = "SET_NETWORK_GOLD";
+    private static final String ACTION_SET_MYSTERY_DUST = "SET_MYSTERY_DUST";
     private static final String ACTION_SET_COUNTER = "SET_COUNTER";
 
     private final CorePlugin plugin;
@@ -93,6 +94,24 @@ public class ProfileCommandSyncService {
                 null,
                 null,
                 Math.max(0, networkGold),
+                targetMessage
+        ));
+    }
+
+    public void dispatchMysteryDustUpdate(UUID targetUuid, int mysteryDust, String targetMessage) {
+        if (targetUuid == null) {
+            return;
+        }
+        publish(new ProfileCommandAction(
+                localServerId,
+                ACTION_SET_MYSTERY_DUST,
+                targetUuid.toString(),
+                null,
+                null,
+                false,
+                null,
+                null,
+                Math.max(0, mysteryDust),
                 targetMessage
         ));
     }
@@ -198,6 +217,11 @@ public class ProfileCommandSyncService {
             }
             case ACTION_SET_NETWORK_GOLD: {
                 plugin.setNetworkGold(targetUuid, Math.max(0, action.networkGold));
+                sendTargetMessage(target, action.targetMessage);
+                return;
+            }
+            case ACTION_SET_MYSTERY_DUST: {
+                plugin.setMysteryDust(targetUuid, Math.max(0, action.mysteryDust));
                 sendTargetMessage(target, action.targetMessage);
                 return;
             }
@@ -324,6 +348,7 @@ public class ProfileCommandSyncService {
         private String clearCounterKey;
         private int networkLevel;
         private int networkGold;
+        private int mysteryDust;
         private int counterValue;
         private String targetMessage;
 
@@ -352,6 +377,8 @@ public class ProfileCommandSyncService {
                 this.networkLevel = value;
             } else if (ACTION_SET_NETWORK_GOLD.equals(action)) {
                 this.networkGold = value;
+            } else if (ACTION_SET_MYSTERY_DUST.equals(action)) {
+                this.mysteryDust = value;
             } else {
                 this.counterValue = value;
             }

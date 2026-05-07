@@ -17,6 +17,7 @@ import io.github.mebsic.core.command.HelpCommand;
 import io.github.mebsic.core.command.KickCommand;
 import io.github.mebsic.core.command.MapCommand;
 import io.github.mebsic.core.command.MuteCommand;
+import io.github.mebsic.core.command.MysteryDustCommand;
 import io.github.mebsic.core.command.NetworkLevelCommand;
 import io.github.mebsic.core.command.NewsCommand;
 import io.github.mebsic.core.command.ParkourCommand;
@@ -227,6 +228,9 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         }
         if (getCommand("gold") != null) {
             getCommand("gold").setExecutor(new GoldCommand(this));
+        }
+        if (getCommand("mysterydust") != null) {
+            getCommand("mysterydust").setExecutor(new MysteryDustCommand(this));
         }
         if (getCommand("gift") != null) {
             getCommand("gift").setExecutor(new GiftCommand(this));
@@ -898,6 +902,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         setRank(uuid, rank, mvpPlusPlusDays, true);
     }
 
+    @Override
     public void setRank(UUID uuid, Rank rank, Integer mvpPlusPlusDays, boolean accumulateSubscriptionDuration) {
         if (uuid == null || rank == null) {
             return;
@@ -1048,6 +1053,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             applyHubSpeedState(player, profile.getRank());
             if (hubItemListener != null) {
                 hubItemListener.applyProfileVisibility(profile);
+                hubItemListener.refreshCollectiblesItem(player);
             }
             refreshBuildTablist();
         };
@@ -1143,6 +1149,26 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         }
         profile.setNetworkGold(amount);
         profileService.saveProfile(profile);
+    }
+
+    @Override
+    public int getMysteryDust(UUID uuid) {
+        Profile profile = profileService.getProfile(uuid);
+        return profile == null ? 0 : profile.getMysteryDust();
+    }
+
+    @Override
+    public void setMysteryDust(UUID uuid, int amount) {
+        Profile profile = profileService.getProfile(uuid);
+        if (profile == null) {
+            return;
+        }
+        profile.setMysteryDust(amount);
+        profileService.saveProfile(profile);
+        Player player = Bukkit.getPlayer(uuid);
+        if (player != null && hubItemListener != null) {
+            hubItemListener.refreshCollectiblesItem(player);
+        }
     }
 
     @Override

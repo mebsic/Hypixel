@@ -6,8 +6,10 @@ import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.GameResult;
 import io.github.mebsic.core.model.Profile;
+import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.server.MapConfigResolver;
 import io.github.mebsic.core.server.ServerType;
+import io.github.mebsic.core.service.CoreApi;
 import io.github.mebsic.core.store.MapConfigStore;
 import io.github.mebsic.core.util.CommonMessages;
 import io.github.mebsic.core.util.GameRewardUtil;
@@ -54,6 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class GameManager {
@@ -67,6 +70,10 @@ public class GameManager {
     private static final String MAP_CONFIG_UPDATE_PREFIX = "maps:";
     private static final int DEFAULT_MAP_CONFIG_RELOAD_POLL_SECONDS = 5;
     private static final int FORCE_START_MIN_PLAYERS = 2;
+    private static final double MYSTERY_DUST_REWARD_CHANCE = 0.40D;
+    private static final int DEFAULT_MIN_MYSTERY_DUST_REWARD = 1;
+    private static final int DEFAULT_MAX_MYSTERY_DUST_REWARD = 10;
+    private static final long MILLIS_PER_DAY = 24L * 60L * 60L * 1000L;
     private static final double[] SPAWN_Y_CORRECTION_OFFSETS = {0.5D, 1.0D, 1.5D, 2.0D, 2.5D, 3.0D};
     private static final String POST_GAME_FRAME_BAR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
     private static final Sound COUNTDOWN_TICK_SOUND = Sound.CLICK;
@@ -79,6 +86,7 @@ public class GameManager {
     private final BossBarService bossBarService;
     private final Map<UUID, GamePlayer> players;
     private final Map<UUID, LinkedHashMap<String, Integer>> roundRewardSummary;
+    private final Map<UUID, Integer> roundMysteryDustRewards;
     private final AtomicBoolean mapConfigReloadQueued;
     private final Map<UUID, ScoreboardTitleAnimation> scoreboardTitleAnimators;
 
@@ -117,6 +125,7 @@ public class GameManager {
         this.bossBarService = bossBarService;
         this.players = new HashMap<>();
         this.roundRewardSummary = new HashMap<>();
+        this.roundMysteryDustRewards = new HashMap<>();
         this.mapConfigReloadQueued = new AtomicBoolean(false);
         this.scoreboardTitleAnimators = new HashMap<>();
         this.state = GameState.WAITING;
@@ -969,6 +978,7 @@ public class GameManager {
             gameTask = null;
         }
         onGameEnding();
+        awardPostGameMysteryDustRewards();
         showPostGameSummary(showQueuedTransferSummaryLine);
         new BukkitRunnable() {
             @Override
@@ -1114,6 +1124,7 @@ public class GameManager {
         appendPostGameSummaryHeader(player, gamePlayer, lines);
         appendPostGameSummaryLines(player, gamePlayer, lines);
         appendPostGameRewardSummary(player, gamePlayer, lines);
+        appendPostGameMysteryDustRewardLine(gamePlayer, lines);
         if (lines.isEmpty()) {
             return;
         }
@@ -1858,6 +1869,86 @@ public class GameManager {
 
     protected void clearRoundRewardSummary() {
         roundRewardSummary.clear();
+        roundMysteryDustRewards.clear();
+    }
+
+    private void awardPostGameMysteryDustRewards() {
+        CoreApi coreApi = plugin == null ? null : plugin.getCoreApi();
+        if (coreApi == null) {
+            return;
+        }
+        roundMysteryDustRewards.clear();
+        for (UUID uuid : new ArrayList<>(players.keySet())) {
+            if (uuid == null) {
+                continue;
+            }
+            if (ThreadLocalRandom.current().nextDouble() >= MYSTERY_DUST_REWARD_CHANCE) {
+                continue;
+            }
+            Profile profile = coreApi.getProfile(uuid);
+            if (profile == null) {
+                continue;
+            }
+            int amount = calculateMysteryDustReward(profile);
+            if (amount <= 0) {
+                continue;
+            }
+            coreApi.setMysteryDust(uuid, profile.getMysteryDust() + amount);
+            roundMysteryDustRewards.put(uuid, amount);
+        }
+    }
+
+    private int calculateMysteryDustReward(Profile profile) {
+        Rank rank = profile == null || profile.getRank() == null ? Rank.DEFAULT : profile.getRank();
+        if (rank == Rank.VIP) {
+            return 5;
+        }
+        if (rank == Rank.VIP_PLUS) {
+            return 10;
+        }
+        if (rank == Rank.MVP) {
+            return 15;
+        }
+        if (rank == Rank.MVP_PLUS) {
+            return 20;
+        }
+        if (rank.isAtLeast(Rank.MVP_PLUS_PLUS)) {
+            return calculateMvpPlusPlusMysteryDustReward(profile);
+        }
+        return ThreadLocalRandom.current().nextInt(
+                DEFAULT_MIN_MYSTERY_DUST_REWARD,
+                DEFAULT_MAX_MYSTERY_DUST_REWARD + 1
+        );
+    }
+
+    private int calculateMvpPlusPlusMysteryDustReward(Profile profile) {
+        if (profile == null || !profile.hasActiveSubscription()) {
+            return 25;
+        }
+        long remainingMillis = Math.max(0L, profile.getSubscriptionExpiresAt() - System.currentTimeMillis());
+        long remainingDays = (remainingMillis + MILLIS_PER_DAY - 1L) / MILLIS_PER_DAY;
+        if (remainingDays >= 365L) {
+            return 40;
+        }
+        if (remainingDays >= 180L) {
+            return 35;
+        }
+        if (remainingDays >= 90L) {
+            return 30;
+        }
+        return 25;
+    }
+
+    private void appendPostGameMysteryDustRewardLine(GamePlayer gamePlayer, List<String> lines) {
+        if (gamePlayer == null || lines == null) {
+            return;
+        }
+        int amount = Math.max(0, roundMysteryDustRewards.getOrDefault(gamePlayer.getUuid(), 0));
+        if (amount <= 0) {
+            return;
+        }
+        lines.add(ChatColor.GRAY + "You earned " + ChatColor.AQUA + amount
+                + ChatColor.GRAY + " Mystery Dust!");
     }
 
     protected CorePlugin getPlugin() {
