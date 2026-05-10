@@ -102,12 +102,12 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
         boolean selected = CollectiblesRankSupport.isSelected(profile, Rank.MVP_PLUS_PLUS);
         boolean hasMvpPlusBase = CollectiblesRankSupport.hasMvpPlusBase(profile);
         java.util.List<String> lore = new java.util.ArrayList<String>();
-        lore.add(ChatColor.YELLOW + "This buys " + days + " days of "
+        lore.add(ChatColor.YELLOW + "This purchases " + days + " days of "
                 + CollectiblesRankSupport.formattedRank(Rank.MVP_PLUS_PLUS)
                 + ChatColor.YELLOW + ".");
         lore.add("");
         lore.add(ChatColor.GRAY + "Purchased days will accumulate, so if");
-        lore.add(ChatColor.GRAY + "you buy 30 days and then decide to");
+        lore.add(ChatColor.GRAY + "you buy 30 days and then decided to");
         lore.add(ChatColor.GRAY + "buy 90 days shortly after, you will");
         lore.add(ChatColor.GRAY + "have the rank for a total of 120");
         lore.add(ChatColor.GRAY + "days.");
@@ -118,8 +118,10 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
             lore.add(ChatColor.YELLOW + "Click to select!");
         } else if (!hasMvpPlusBase) {
             lore.add(CollectiblesRankSupport.mvpPlusRequirementLore());
+        } else if (!CollectiblesRankSupport.hasEnoughMysteryDust(profile, cost)) {
+            lore.add(CollectiblesRankSupport.missingMysteryDustLore(profile, cost));
         } else {
-            lore.add(ChatColor.YELLOW + "Click to buy for " + ChatColor.AQUA
+            lore.add(ChatColor.YELLOW + "Click to purchase for " + ChatColor.AQUA
                     + CollectiblesRankSupport.formatDust(cost)
                     + ChatColor.YELLOW + " Mystery Dust!");
         }

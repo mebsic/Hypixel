@@ -272,7 +272,7 @@ public class NewsEditService implements Listener {
             return;
         }
         event.setCancelled(true);
-        String message = event.getMessage() == null ? "" : event.getMessage().trim();
+        String message = event.getMessage() == null ? "" : event.getMessage();
         Runnable action = () -> handleTextInput(uuid, message, mode);
         if (event.isAsynchronous()) {
             Bukkit.getScheduler().runTask(plugin, action);
@@ -327,27 +327,26 @@ public class NewsEditService implements Listener {
             player.sendMessage(UNAVAILABLE_MESSAGE);
             return;
         }
-        String trimmed = safeText(rawMessage);
-        if (trimmed.isEmpty()) {
+        String typedText = rawMessage == null ? "" : rawMessage;
+        if (typedText.trim().isEmpty()) {
             pendingTextInput.put(uuid, mode);
             player.sendMessage(EMPTY_TEXT_MESSAGE);
             player.sendMessage(ENTER_TEXT_MESSAGE);
             return;
         }
-        final String uppercaseText = trimmed.toUpperCase(Locale.ROOT);
         if (mode == TextInputMode.EDIT_MESSAGE) {
             EditSession session = session(uuid);
             if (session == null) {
                 player.sendMessage(SAVE_FAILED_MESSAGE);
                 return;
             }
-            session.text = uppercaseText;
+            session.text = typedText;
             new EditNewsMenu(this).open(player);
             return;
         }
         EditSession draft = new EditSession();
         draft.messageId = "";
-        draft.text = uppercaseText;
+        draft.text = typedText;
         draft.messageType = MessageType.FLASH;
         draft.startColor = ChatColor.WHITE;
         draft.sweepColor = ChatColor.WHITE;

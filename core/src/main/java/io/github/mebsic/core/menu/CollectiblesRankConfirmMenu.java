@@ -81,7 +81,7 @@ public class CollectiblesRankConfirmMenu extends Menu {
                 player.closeInventory();
                 player.sendMessage(ChatColor.RED + "You need " + ChatColor.AQUA
                         + CollectiblesRankSupport.formatDust(needed)
-                        + ChatColor.RED + " more Mystery Dust to buy "
+                        + ChatColor.RED + " more Mystery Dust to purchase "
                         + purchaseRankText() + ChatColor.RED + "!");
                 return;
             }

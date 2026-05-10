@@ -45,8 +45,7 @@ This builds shaded plugin artifacts and copies runtime `.jar` files into `docker
    ./gradlew shadowAll
    ```
 2. Set secrets in `.env` (Docker Compose injects these into containers as environment variables).
-3. Optionally edit non-secret runtime settings in `docker/production/config.json` (for hycopy menus/MOTD/proxy defaults).
-   You do not need to edit `mongo.uri` or `redis.password` because entrypoints override them from `.env` when starting.
+3. Optionally edit non-secret runtime settings in `docker/production/config.json`. You do not need to edit `mongo.uri` or `redis.password` because entrypoints override them from `.env` when starting.
 4. Start the stack:
    ```bash
    docker compose up --build

@@ -320,7 +320,10 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
                 20L,
                 20L
         );
-        this.buildModeTickTask = Bukkit.getScheduler().runTaskTimer(this, this::tickBuildModeStates, 20L, 20L);
+        this.buildModeTickTask = Bukkit.getScheduler().runTaskTimer(this, () -> {
+            tickBuildModeStates();
+            tickMvpPlusPlusSubscriptions();
+        }, 20L, 20L);
     }
 
     private void setupServices() {
@@ -1058,6 +1061,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             return;
         }
         Runnable applyLoadedProfileState = () -> {
+            expireMvpPlusPlusSubscriptionIfNeeded(profile);
             Player player = Bukkit.getPlayer(profile.getUuid());
             if (player == null) {
                 return;
@@ -1381,6 +1385,55 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             }
             sendBuildModeWarningIfNeeded(player, remainingMillis);
         }
+    }
+
+    private void tickMvpPlusPlusSubscriptions() {
+        if (profileService == null) {
+            return;
+        }
+        boolean expiredAny = false;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player == null || !player.isOnline()) {
+                continue;
+            }
+            Profile profile = profileService.getProfile(player.getUniqueId());
+            if (!expireMvpPlusPlusSubscriptionIfNeeded(profile)) {
+                continue;
+            }
+            expiredAny = true;
+            applyHubFlightState(player, profile);
+            applyHubSpeedState(player, profile.getRank());
+            if (hubItemListener != null) {
+                hubItemListener.refreshCollectiblesItem(player);
+            }
+        }
+        if (expiredAny) {
+            refreshBuildTablist();
+        }
+    }
+
+    private boolean expireMvpPlusPlusSubscriptionIfNeeded(Profile profile) {
+        if (profile == null || !profile.hasActiveSubscription()) {
+            return false;
+        }
+        long expiresAt = profile.getSubscriptionExpiresAt();
+        if (expiresAt <= 0L || expiresAt > System.currentTimeMillis()) {
+            return false;
+        }
+        Rank currentRank = profile.getRank() == null ? Rank.DEFAULT : profile.getRank();
+        if (currentRank == Rank.MVP_PLUS_PLUS) {
+            profile.setRank(Rank.MVP_PLUS);
+            profile.unlockRank(Rank.MVP_PLUS);
+            profile.setFlightEnabled(true);
+        }
+        profile.setHasActiveSubscription(false);
+        profile.setSubscriptionExpiresAt(0L);
+        profile.getUnlockedRanks().remove(Rank.MVP_PLUS_PLUS);
+        if (!canUseMvpPlusPlusPrefixColor(profile.getRank())) {
+            profile.setMvpPlusPlusPrefixColor(null);
+        }
+        profileService.saveProfile(profile);
+        return true;
     }
 
     private void sendBuildModeWarningIfNeeded(Player player, long remainingMillis) {

@@ -157,8 +157,10 @@ public class CollectiblesRanksMenu extends Menu {
             } else {
                 lore.add(CollectiblesRankSupport.mvpPlusRequirementLore());
             }
+        } else if (!CollectiblesRankSupport.hasEnoughMysteryDust(profile, cost)) {
+            lore.add(CollectiblesRankSupport.missingMysteryDustLore(profile, cost));
         } else {
-            lore.add(ChatColor.YELLOW + "Click to buy for " + ChatColor.AQUA
+            lore.add(ChatColor.YELLOW + "Click to purchase for " + ChatColor.AQUA
                     + CollectiblesRankSupport.formatDust(cost)
                     + ChatColor.YELLOW + " Mystery Dust!");
         }

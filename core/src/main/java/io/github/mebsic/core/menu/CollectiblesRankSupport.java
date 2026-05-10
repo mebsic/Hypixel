@@ -102,6 +102,9 @@ final class CollectiblesRankSupport {
         if (profile == null || rank == null || rank == Rank.DEFAULT) {
             return false;
         }
+        if (rank == Rank.MVP_PLUS_PLUS && !hasActiveMvpPlusPlusSubscription(profile)) {
+            return false;
+        }
         for (Rank unlockedRank : profile.getUnlockedRanks()) {
             if (unlockedRank != null && unlockedRank.isAtLeast(rank)) {
                 return true;
@@ -118,14 +121,32 @@ final class CollectiblesRankSupport {
         return isUnlocked(profile, Rank.MVP_PLUS);
     }
 
+    private static boolean hasActiveMvpPlusPlusSubscription(Profile profile) {
+        return profile != null
+                && profile.hasActiveSubscription()
+                && profile.getSubscriptionExpiresAt() > System.currentTimeMillis();
+    }
+
     static String mvpPlusRequirementLore() {
         return ChatColor.RED + "You need " + ChatColor.AQUA + "MVP" + ChatColor.RED + "+"
                 + ChatColor.RED + " rank!";
     }
 
     static String mvpPlusRequirementMessage() {
-        return ChatColor.RED + "You need to have " + ChatColor.AQUA + "MVP" + ChatColor.RED + "+"
+        return ChatColor.RED + "You need to purchase " + ChatColor.AQUA + "MVP" + ChatColor.RED + "+"
                 + ChatColor.RED + " rank!";
+    }
+
+    static boolean hasEnoughMysteryDust(Profile profile, int cost) {
+        int mysteryDust = profile == null ? 0 : Math.max(0, profile.getMysteryDust());
+        return mysteryDust >= Math.max(0, cost);
+    }
+
+    static String missingMysteryDustLore(Profile profile, int cost) {
+        int mysteryDust = profile == null ? 0 : Math.max(0, profile.getMysteryDust());
+        int missing = Math.max(0, Math.max(0, cost) - mysteryDust);
+        return ChatColor.RED + "You need " + ChatColor.AQUA + formatDust(missing)
+                + ChatColor.RED + " more Mystery Dust!";
     }
 
     private static Rank currentRank(Profile profile) {
