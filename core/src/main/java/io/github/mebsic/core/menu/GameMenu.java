@@ -28,29 +28,40 @@ public class GameMenu extends Menu {
     private static final int SIZE = 27;
     private static final int CENTER_SLOT = 13;
     private static final long DEFAULT_REFRESH_TICKS = 2L;
+    private static final long ARROW_BLINK_TICKS = 10L;
+    private static final long ARROW_BLINK_MILLIS = 500L;
     private static final String CHANNEL = "BungeeCord";
     private static final String MURDER_MYSTERY_NAME = ChatColor.GREEN + "Murder Mystery";
-    private static final String CONNECT_ARROW = "▸";
+    private static final String CONNECT_ARROW = "▶";
+    private static final String HIDDEN_CONNECT_ARROW = " ";
 
     private final CorePlugin plugin;
     private final QueueClient queueClient;
     private final ServerRegistrySnapshot registrySnapshot;
     private final BukkitTask refreshTask;
+    private final long playerCountRefreshTicks;
+    private final long animationRefreshTicks;
+    private long ticksSincePlayerCountRefresh;
+    private int cachedMurderMysteryPlayers = -1;
 
     public GameMenu(CorePlugin plugin, QueueClient queueClient, ServerRegistrySnapshot registrySnapshot) {
         super(TITLE, SIZE);
         this.plugin = plugin;
         this.queueClient = queueClient;
         this.registrySnapshot = registrySnapshot;
-        long refreshTicks = plugin == null ? DEFAULT_REFRESH_TICKS
+        this.playerCountRefreshTicks = plugin == null ? DEFAULT_REFRESH_TICKS
                 : Math.max(1L, plugin.getConfig().getLong("menus.gameMenuRefreshTicks", DEFAULT_REFRESH_TICKS));
+        this.animationRefreshTicks = greatestCommonDivisor(playerCountRefreshTicks, ARROW_BLINK_TICKS);
         this.refreshTask = plugin == null ? null
-                : Bukkit.getScheduler().runTaskTimer(plugin, this::refreshOpenMenus, refreshTicks, refreshTicks);
+                : Bukkit.getScheduler().runTaskTimer(plugin, this::refreshOpenMenus, animationRefreshTicks, animationRefreshTicks);
     }
 
     @Override
     protected void populate(Player player, Inventory inventory) {
-        int players = getTotalMurderMysteryPlayers();
+        populate(player, inventory, refreshPlayerCount());
+    }
+
+    private void populate(Player player, Inventory inventory, int players) {
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.DARK_GRAY + "Team Survival");
         lore.add("");
@@ -59,10 +70,31 @@ public class GameMenu extends Menu {
         lore.add(ChatColor.GRAY + "this tense social game of betrayal");
         lore.add(ChatColor.GRAY + "and murder?");
         lore.add("");
-        lore.add(ChatColor.GREEN + CONNECT_ARROW + " Click to Connect");
+        lore.add(ChatColor.GREEN + connectArrow() + " Click to Connect");
         lore.add(ChatColor.GRAY.toString() + players + " currently playing!");
         ItemStack item = item(Material.BOW, MURDER_MYSTERY_NAME, lore);
         set(inventory, CENTER_SLOT, item);
+    }
+
+    private int refreshPlayerCount() {
+        cachedMurderMysteryPlayers = getTotalMurderMysteryPlayers();
+        ticksSincePlayerCountRefresh = 0L;
+        return cachedMurderMysteryPlayers;
+    }
+
+    private int currentPlayerCount() {
+        if (cachedMurderMysteryPlayers < 0) {
+            return refreshPlayerCount();
+        }
+        ticksSincePlayerCountRefresh += animationRefreshTicks;
+        if (ticksSincePlayerCountRefresh >= playerCountRefreshTicks) {
+            return refreshPlayerCount();
+        }
+        return cachedMurderMysteryPlayers;
+    }
+
+    private String connectArrow() {
+        return (System.currentTimeMillis() / ARROW_BLINK_MILLIS) % 2L == 0L ? CONNECT_ARROW : HIDDEN_CONNECT_ARROW;
     }
 
     private int getTotalMurderMysteryPlayers() {
@@ -98,6 +130,7 @@ public class GameMenu extends Menu {
         if (plugin == null) {
             return;
         }
+        Integer players = null;
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (player == null || !player.isOnline()) {
                 continue;
@@ -110,8 +143,22 @@ public class GameMenu extends Menu {
             if (holder.getMenu() != this) {
                 continue;
             }
-            populate(player, top);
+            if (players == null) {
+                players = currentPlayerCount();
+            }
+            populate(player, top, players);
         }
+    }
+
+    private static long greatestCommonDivisor(long a, long b) {
+        long left = Math.abs(a);
+        long right = Math.abs(b);
+        while (right != 0L) {
+            long next = left % right;
+            left = right;
+            right = next;
+        }
+        return Math.max(1L, left);
     }
 
     private ServerType resolveGameType(ItemStack item) {

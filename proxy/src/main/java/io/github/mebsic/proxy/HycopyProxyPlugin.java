@@ -802,7 +802,7 @@ public class HycopyProxyPlugin {
         ensureCollection(config.getRegistryCollection());
         ensureCollection(MongoManager.PROFILES_COLLECTION);
         ensureCollection(MongoManager.MAPS_COLLECTION);
-        ensureCollection(MongoManager.AUTOSCALE_COLLECTION);
+        ensureCollection(config.getAutoscaleCollection());
         ensureCollection(MongoManager.CHAT_MESSAGES_COLLECTION);
         seedMotdDocument();
         seedDomainDocument();

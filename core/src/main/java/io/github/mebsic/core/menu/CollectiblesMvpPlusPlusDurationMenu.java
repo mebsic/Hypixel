@@ -14,14 +14,14 @@ import java.util.Locale;
 
 public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
     public static final String TITLE = "MVP++ Duration";
-    private static final int SIZE = 54;
+    private static final int SIZE = 45;
     private static final int DAYS_30_SLOT = 10;
     private static final int DAYS_90_SLOT = 12;
     private static final int DAYS_180_SLOT = 14;
     private static final int DAYS_365_SLOT = 16;
-    private static final int RESET_SLOT = 40;
-    private static final int BACK_SLOT = 48;
-    private static final int COLLECTIBLES_SLOT = 49;
+    private static final int RESET_SLOT = 31;
+    private static final int BACK_SLOT = 39;
+    private static final int COLLECTIBLES_SLOT = 40;
 
     private final CoreApi coreApi;
     private final CollectiblesRanksMenu parent;
@@ -81,8 +81,7 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
             player.sendMessage(ChatColor.RED + "Your profile is still loading!");
             return;
         }
-        String rankId = CollectiblesRankSupport.idFromRank(Rank.MVP_PLUS_PLUS);
-        if (CollectiblesRankSupport.isUnlocked(profile, rankId)) {
+        if (CollectiblesRankSupport.isUnlocked(profile, Rank.MVP_PLUS_PLUS)) {
             if (parent != null) {
                 parent.selectRank(player, Rank.MVP_PLUS_PLUS);
             }
@@ -94,17 +93,16 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
 
     private ItemStack durationItem(int days, Profile profile) {
         int cost = CollectiblesRankSupport.mvpPlusPlusDurationCost(days);
-        String rankId = CollectiblesRankSupport.idFromRank(Rank.MVP_PLUS_PLUS);
-        boolean unlocked = CollectiblesRankSupport.isUnlocked(profile, rankId);
-        boolean selected = CollectiblesRankSupport.isSelected(profile, rankId);
+        boolean unlocked = CollectiblesRankSupport.isUnlocked(profile, Rank.MVP_PLUS_PLUS);
+        boolean selected = CollectiblesRankSupport.isSelected(profile, Rank.MVP_PLUS_PLUS);
         java.util.List<String> lore = new java.util.ArrayList<String>();
-        lore.add(ChatColor.YELLOW + "This crafts " + days + " days of "
+        lore.add(ChatColor.YELLOW + "This buys " + days + " days of "
                 + CollectiblesRankSupport.formattedRank(Rank.MVP_PLUS_PLUS)
-                + ChatColor.YELLOW + " rank.");
+                + ChatColor.YELLOW + ".");
         lore.add("");
         lore.add(ChatColor.GRAY + "Purchased days will accumulate, so if");
-        lore.add(ChatColor.GRAY + "you craft 30 days and then decide to");
-        lore.add(ChatColor.GRAY + "craft 90 days shortly after, you will");
+        lore.add(ChatColor.GRAY + "you buy 30 days and then decide to");
+        lore.add(ChatColor.GRAY + "buy 90 days shortly after, you will");
         lore.add(ChatColor.GRAY + "have the rank for a total of 120");
         lore.add(ChatColor.GRAY + "days.");
         lore.add("");
@@ -113,12 +111,12 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
         } else if (unlocked) {
             lore.add(ChatColor.YELLOW + "Click to select!");
         } else {
-            lore.add(ChatColor.YELLOW + "Click to craft for " + ChatColor.AQUA
+            lore.add(ChatColor.YELLOW + "Click to buy for " + ChatColor.AQUA
                     + CollectiblesRankSupport.formatDust(cost)
                     + ChatColor.YELLOW + " Mystery Dust!");
         }
         String title = CollectiblesRankSupport.formattedRank(Rank.MVP_PLUS_PLUS)
-                + rankTitleColor(unlocked, selected)
+                + ChatColor.GRAY
                 + " " + days + " DAYS"
                 + saveSuffix(days);
         ItemStack stack = item(Material.GOLD_INGOT, title, lore);
@@ -150,7 +148,7 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
             player.sendMessage(ChatColor.RED + "Your profile is still loading!");
             return;
         }
-        if (CollectiblesRankSupport.isSelected(profile, CollectiblesRankSupport.idFromRank(Rank.DEFAULT))) {
+        if (CollectiblesRankSupport.isSelected(profile, Rank.DEFAULT)) {
             player.sendMessage(ChatColor.RED + "You already have that selected!");
             return;
         }
@@ -168,13 +166,6 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
             return;
         }
         parent.open(player);
-    }
-
-    private ChatColor rankTitleColor(boolean unlocked, boolean selected) {
-        if (selected || unlocked) {
-            return ChatColor.GREEN;
-        }
-        return ChatColor.RED;
     }
 
     private String saveSuffix(int days) {

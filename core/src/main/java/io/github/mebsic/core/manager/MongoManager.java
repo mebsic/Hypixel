@@ -93,6 +93,12 @@ public class MongoManager {
 
     public static final String PROFILE_RANKS_GIFTED_KEY = "ranksGifted";
     public static final String PROFILE_MYSTERY_DUST_KEY = "mysteryDust";
+    public static final String PROFILE_COSMETICS_KEY = "cosmetics";
+    public static final String PROFILE_COSMETIC_SELECTED_KEY = "selected";
+    public static final String PROFILE_COSMETIC_UNLOCKED_KEY = "unlocked";
+    public static final String PROFILE_COSMETIC_FAVORITES_KEY = "favorites";
+    public static final String PROFILE_COSMETIC_SELECTED_META_KEY = "selectedMeta";
+    public static final String PROFILE_COSMETIC_META_KEY = "meta";
     public static final String PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY = "hasActiveSubscription";
     public static final String PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY = "subscriptionExpiresAt";
     public static final String PROFILE_FIRST_LOGIN_KEY = "firstLogin";

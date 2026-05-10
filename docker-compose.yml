@@ -300,6 +300,7 @@ services:
       ROLLOUT_WEBHOOK_TOKEN: "${ROLLOUT_WEBHOOK_TOKEN:-}"
       ROLLOUT_RESTART_MODE: "${ROLLOUT_RESTART_MODE:-rebuild}"
       ROLLOUT_UPDATE_SERVICES: "${ROLLOUT_UPDATE_SERVICES:-}"
+      AUTOSCALE_COLLECTION: "${AUTOSCALE_COLLECTION:-autoscale}"
     volumes:
       - ./docker/production/proxy/velocity.toml:/server/velocity.toml
       - ./server-icon-production.png:/server/server-icon.png:ro

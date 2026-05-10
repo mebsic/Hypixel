@@ -52,6 +52,7 @@ public class ConfigLoader {
                 || root.has("mongoDatabase")
                 || root.has("redisHost")
                 || root.has("registryCollection")
+                || root.has("autoscaleCollection")
                 || root.has("registryGroup")
                 || root.has("hubServer")
                 || root.has("friendsCollection");
@@ -80,6 +81,9 @@ public class ConfigLoader {
         config.setRegistryCollection(firstNonBlank(
                 string(proxy, "registryCollection"),
                 string(registry, "collection")));
+        config.setAutoscaleCollection(firstNonBlank(
+                string(proxy, "autoscaleCollection"),
+                string(registry, "autoscaleCollection")));
 
         String registryGroup = firstNonBlank(
                 string(proxy, "registryGroup"),
@@ -146,6 +150,7 @@ public class ConfigLoader {
         config.setRedisDatabase(intValue(firstNonBlank(env("PROXY_REDIS_DATABASE"), env("REDIS_DATABASE")), config.getRedisDatabase()));
 
         config.setRegistryCollection(env("PROXY_REGISTRY_COLLECTION"));
+        config.setAutoscaleCollection(firstNonBlank(env("PROXY_AUTOSCALE_COLLECTION"), env("AUTOSCALE_COLLECTION")));
         String group = envRaw("PROXY_REGISTRY_GROUP");
         if (group != null) {
             config.setRegistryGroup(group);

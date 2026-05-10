@@ -16,6 +16,7 @@ public class ProxyConfig {
     private String maintenanceIconFile = "server-icon-maintenance.png";
     private String hubServer = "";
     private String registryCollection = MongoManager.SERVER_REGISTRY_COLLECTION;
+    private String autoscaleCollection = MongoManager.AUTOSCALE_COLLECTION;
     private String registryGroup = "";
     private String friendsCollection = MongoManager.FRIENDS_COLLECTION;
     private int registryRefreshSeconds = 1;
@@ -68,6 +69,10 @@ public class ProxyConfig {
 
     public String getRegistryCollection() {
         return registryCollection;
+    }
+
+    public String getAutoscaleCollection() {
+        return autoscaleCollection;
     }
 
     public String getRegistryGroup() {
@@ -169,6 +174,12 @@ public class ProxyConfig {
     public void setRegistryCollection(String registryCollection) {
         if (registryCollection != null && !registryCollection.trim().isEmpty()) {
             this.registryCollection = registryCollection.trim();
+        }
+    }
+
+    public void setAutoscaleCollection(String autoscaleCollection) {
+        if (autoscaleCollection != null && !autoscaleCollection.trim().isEmpty()) {
+            this.autoscaleCollection = autoscaleCollection.trim();
         }
     }
 

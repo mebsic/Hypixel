@@ -1,67 +1,38 @@
 package io.github.mebsic.core.menu;
 
-import io.github.mebsic.core.model.CosmeticType;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
-import io.github.mebsic.core.service.CosmeticService;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 final class CollectiblesRankSupport {
-    static final int VIP_COST = 500;
-    static final int VIP_PLUS_COST = 1_000;
-    static final int MVP_COST = 1_500;
-    static final int MVP_PLUS_COST = 2_000;
-    static final int MVP_PLUS_PLUS_30_DAYS_COST = 2_500;
-    static final int MVP_PLUS_PLUS_90_DAYS_COST = 5_000;
-    static final int MVP_PLUS_PLUS_180_DAYS_COST = 8_000;
-    static final int MVP_PLUS_PLUS_365_DAYS_COST = 12_000;
+    static final int VIP_COST = 5;
+    static final int VIP_PLUS_COST = 10;
+    static final int MVP_COST = 15;
+    static final int MVP_PLUS_COST = 20;
+    static final int MVP_PLUS_PLUS_30_DAYS_COST = 25;
+    static final int MVP_PLUS_PLUS_90_DAYS_COST = 30;
+    static final int MVP_PLUS_PLUS_180_DAYS_COST = 35;
+    static final int MVP_PLUS_PLUS_365_DAYS_COST = 40;
+    private static final List<Rank> PURCHASABLE_RANKS = Collections.unmodifiableList(Arrays.asList(
+            Rank.VIP,
+            Rank.VIP_PLUS,
+            Rank.MVP,
+            Rank.MVP_PLUS,
+            Rank.MVP_PLUS_PLUS
+    ));
 
     private CollectiblesRankSupport() {
     }
 
-    static Rank rankFromId(String id) {
-        String normalized = normalize(id);
-        if (CosmeticService.RANK_VIP_ID.equals(normalized)) {
-            return Rank.VIP;
-        }
-        if (CosmeticService.RANK_VIP_PLUS_ID.equals(normalized)) {
-            return Rank.VIP_PLUS;
-        }
-        if (CosmeticService.RANK_MVP_ID.equals(normalized)) {
-            return Rank.MVP;
-        }
-        if (CosmeticService.RANK_MVP_PLUS_ID.equals(normalized)) {
-            return Rank.MVP_PLUS;
-        }
-        if (CosmeticService.RANK_MVP_PLUS_PLUS_ID.equals(normalized)) {
-            return Rank.MVP_PLUS_PLUS;
-        }
-        return Rank.DEFAULT;
-    }
-
-    static String idFromRank(Rank rank) {
-        if (rank == Rank.VIP) {
-            return CosmeticService.RANK_VIP_ID;
-        }
-        if (rank == Rank.VIP_PLUS) {
-            return CosmeticService.RANK_VIP_PLUS_ID;
-        }
-        if (rank == Rank.MVP) {
-            return CosmeticService.RANK_MVP_ID;
-        }
-        if (rank == Rank.MVP_PLUS) {
-            return CosmeticService.RANK_MVP_PLUS_ID;
-        }
-        if (rank == Rank.MVP_PLUS_PLUS) {
-            return CosmeticService.RANK_MVP_PLUS_PLUS_ID;
-        }
-        return CosmeticService.RANK_DEFAULT_ID;
+    static List<Rank> rankOptions() {
+        return PURCHASABLE_RANKS;
     }
 
     static String formattedRank(Rank rank) {
@@ -123,23 +94,15 @@ final class CollectiblesRankSupport {
         return MVP_PLUS_PLUS_30_DAYS_COST;
     }
 
-    static boolean isUnlocked(Profile profile, String id) {
-        if (profile == null || id == null) {
+    static boolean isUnlocked(Profile profile, Rank rank) {
+        if (profile == null || rank == null || rank == Rank.DEFAULT) {
             return false;
         }
-        if (isSelected(profile, id)) {
-            return true;
-        }
-        Set<String> unlocked = profile.getUnlocked().get(CosmeticType.RANK);
-        return containsIgnoreCase(unlocked, id);
+        return currentRank(profile).isAtLeast(rank);
     }
 
-    static boolean isSelected(Profile profile, String id) {
-        return id != null && id.equalsIgnoreCase(selectedRankId(profile));
-    }
-
-    static String selectedRankId(Profile profile) {
-        return idFromRank(currentRank(profile));
+    static boolean isSelected(Profile profile, Rank rank) {
+        return rank != null && currentRank(profile) == rank;
     }
 
     private static Rank currentRank(Profile profile) {
@@ -197,33 +160,16 @@ final class CollectiblesRankSupport {
             lore.add(perkLine("Ride and Control Lobby Pets"));
         } else if (rank == Rank.MVP_PLUS_PLUS) {
             lore.add(ChatColor.GRAY + "MVP++ is an exclusive Rank Upgrade");
-            lore.add(ChatColor.GRAY + "to your existing MVP++ Rank. MVP++");
-            lore.add(ChatColor.GRAY + "allows access to some very useful");
-            lore.add(ChatColor.GRAY + "commands and is the best way to");
-            lore.add(ChatColor.GRAY + "support the Hycopy Server.");
+            lore.add(ChatColor.GRAY + "to your existing MVP+ rank.");
         }
-        lore.add(ChatColor.GRAY + "and more...");
+        if (rank != Rank.MVP_PLUS_PLUS) {
+            lore.add(ChatColor.GRAY + "and more...");
+        }
         return lore;
     }
 
     static String formatDust(int amount) {
         return String.format(Locale.US, "%,d", Math.max(0, amount));
-    }
-
-    static String normalize(String value) {
-        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private static boolean containsIgnoreCase(Set<String> values, String target) {
-        if (values == null || values.isEmpty() || target == null) {
-            return false;
-        }
-        for (String value : values) {
-            if (value != null && target.equalsIgnoreCase(value.trim())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static String perkLine(String text) {

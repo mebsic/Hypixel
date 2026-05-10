@@ -1,7 +1,7 @@
 package io.github.mebsic.core.menu;
 
-import io.github.mebsic.core.model.CosmeticType;
 import io.github.mebsic.core.model.Profile;
+import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.service.CoreApi;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -35,7 +35,7 @@ public class CollectiblesMenu extends Menu {
         }
         inventory.clear();
         set(inventory, RANKS_SLOT, item(
-                resolveSignMaterial(),
+                Material.SIGN,
                 ChatColor.GREEN + "Ranks",
                 ranksLore(player)
         ));
@@ -93,7 +93,7 @@ public class CollectiblesMenu extends Menu {
     }
 
     private int resolveRankTotal() {
-        return coreApi == null ? 5 : Math.max(0, coreApi.getAvailableCosmetics(CosmeticType.RANK).size());
+        return CollectiblesRankSupport.rankOptions().size();
     }
 
     private int resolveRankUnlocked(Player player) {
@@ -105,25 +105,12 @@ public class CollectiblesMenu extends Menu {
             return 0;
         }
         int count = 0;
-        for (String option : coreApi.getAvailableCosmetics(CosmeticType.RANK)) {
-            if (CollectiblesRankSupport.isUnlocked(profile, option)) {
+        for (Rank rank : CollectiblesRankSupport.rankOptions()) {
+            if (CollectiblesRankSupport.isUnlocked(profile, rank)) {
                 count++;
             }
         }
         return count;
-    }
-
-    private Material resolveSignMaterial() {
-        Material modern = Material.matchMaterial("OAK_SIGN");
-        if (modern != null) {
-            return modern;
-        }
-        Material legacy = Material.matchMaterial("SIGN");
-        if (legacy != null) {
-            return legacy;
-        }
-        Material legacyItem = Material.matchMaterial("SIGN_ITEM");
-        return legacyItem == null ? Material.PAPER : legacyItem;
     }
 
     private static String safeAmount(String mysteryDust) {

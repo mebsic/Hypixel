@@ -1947,7 +1947,7 @@ public class GameManager {
         if (amount <= 0) {
             return;
         }
-        lines.add(ChatColor.GRAY + "You earned " + ChatColor.AQUA + amount
+        lines.add(ChatColor.AQUA + "✦ " + ChatColor.GRAY + "You earned " + ChatColor.AQUA + amount
                 + ChatColor.GRAY + " Mystery Dust!");
     }
 

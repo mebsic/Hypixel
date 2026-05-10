@@ -17,15 +17,15 @@ import java.util.Map;
 
 public class CollectiblesRanksMenu extends Menu {
     public static final String TITLE = "Ranks";
-    private static final int SIZE = 54;
-    private static final int VIP_SLOT = 27;
-    private static final int VIP_PLUS_SLOT = 29;
-    private static final int MVP_SLOT = 31;
-    private static final int MVP_PLUS_SLOT = 33;
-    private static final int MVP_PLUS_PLUS_SLOT = 35;
-    private static final int RESET_SLOT = 40;
-    private static final int BACK_SLOT = 48;
-    private static final int COLLECTIBLES_SLOT = 49;
+    private static final int SIZE = 45;
+    private static final int VIP_SLOT = 9;
+    private static final int VIP_PLUS_SLOT = 11;
+    private static final int MVP_SLOT = 13;
+    private static final int MVP_PLUS_SLOT = 15;
+    private static final int MVP_PLUS_PLUS_SLOT = 17;
+    private static final int RESET_SLOT = 22;
+    private static final int BACK_SLOT = 30;
+    private static final int COLLECTIBLES_SLOT = 31;
 
     private final CoreApi coreApi;
     private final CollectiblesMenu parent;
@@ -102,8 +102,7 @@ public class CollectiblesRanksMenu extends Menu {
             player.sendMessage(ChatColor.RED + "Your profile is still loading!");
             return;
         }
-        String id = CollectiblesRankSupport.idFromRank(rank);
-        if (CollectiblesRankSupport.isUnlocked(profile, id)) {
+        if (CollectiblesRankSupport.isUnlocked(profile, rank)) {
             selectRank(player, rank);
             return;
         }
@@ -114,17 +113,16 @@ public class CollectiblesRanksMenu extends Menu {
         if (player == null || rank == null || coreApi == null) {
             return;
         }
-        String id = CollectiblesRankSupport.idFromRank(rank);
         Profile profile = coreApi.getProfile(player.getUniqueId());
         if (profile == null) {
             player.sendMessage(ChatColor.RED + "Your profile is still loading!");
             return;
         }
-        if (!CollectiblesRankSupport.isUnlocked(profile, id)) {
+        if (!CollectiblesRankSupport.isUnlocked(profile, rank)) {
             player.sendMessage(ChatColor.RED + "You haven't unlocked that rank yet!");
             return;
         }
-        if (CollectiblesRankSupport.isSelected(profile, id)) {
+        if (CollectiblesRankSupport.isSelected(profile, rank)) {
             player.sendMessage(ChatColor.RED + "You already have that selected!");
             return;
         }
@@ -134,9 +132,8 @@ public class CollectiblesRanksMenu extends Menu {
     }
 
     private ItemStack rankItem(Rank rank, Profile profile) {
-        String id = CollectiblesRankSupport.idFromRank(rank);
-        boolean unlocked = CollectiblesRankSupport.isUnlocked(profile, id);
-        boolean selected = CollectiblesRankSupport.isSelected(profile, id);
+        boolean unlocked = CollectiblesRankSupport.isUnlocked(profile, rank);
+        boolean selected = CollectiblesRankSupport.isSelected(profile, rank);
         int cost = CollectiblesRankSupport.rankCost(rank);
         List<String> lore = CollectiblesRankSupport.rankDescription(rank);
         lore.add("");
@@ -147,23 +144,16 @@ public class CollectiblesRanksMenu extends Menu {
         } else if (rank == Rank.MVP_PLUS_PLUS) {
             lore.add(ChatColor.YELLOW + "Click to browse durations!");
         } else {
-            lore.add(ChatColor.YELLOW + "Click to craft for " + ChatColor.AQUA
+            lore.add(ChatColor.YELLOW + "Click to buy for " + ChatColor.AQUA
                     + CollectiblesRankSupport.formatDust(cost)
                     + ChatColor.YELLOW + " Mystery Dust!");
         }
         ItemStack stack = item(
                 CollectiblesRankSupport.rankMaterial(rank),
-                CollectiblesRankSupport.formattedRank(rank) + rankTitleColor(unlocked, selected) + " Rank",
+                CollectiblesRankSupport.formattedRank(rank),
                 lore
         );
         return selected ? GiftSupport.addGlow(stack) : stack;
-    }
-
-    private ChatColor rankTitleColor(boolean unlocked, boolean selected) {
-        if (selected || unlocked) {
-            return ChatColor.GREEN;
-        }
-        return ChatColor.RED;
     }
 
     private void selectDefaultRank(Player player) {
@@ -175,7 +165,7 @@ public class CollectiblesRanksMenu extends Menu {
             player.sendMessage(ChatColor.RED + "Your profile is still loading!");
             return;
         }
-        if (CollectiblesRankSupport.isSelected(profile, CollectiblesRankSupport.idFromRank(Rank.DEFAULT))) {
+        if (CollectiblesRankSupport.isSelected(profile, Rank.DEFAULT)) {
             player.sendMessage(ChatColor.RED + "You already have that selected!");
             return;
         }

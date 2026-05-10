@@ -1,6 +1,5 @@
 package io.github.mebsic.core.menu;
 
-import io.github.mebsic.core.model.CosmeticType;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.service.CoreApi;
@@ -42,7 +41,7 @@ public class CollectiblesRankConfirmMenu extends Menu {
         }
         inventory.clear();
         set(inventory, CONFIRM_SLOT, clayButton(true, ChatColor.GREEN + "Confirm",
-                ChatColor.GRAY + "Craft: " + purchaseRankText(),
+                purchaseRankText(),
                 ChatColor.GRAY + "Cost: " + ChatColor.AQUA + CollectiblesRankSupport.formatDust(cost)
                         + ChatColor.GRAY + " Mystery Dust"));
         set(inventory, CANCEL_SLOT, clayButton(false, ChatColor.RED + "Cancel"));
@@ -74,20 +73,18 @@ public class CollectiblesRankConfirmMenu extends Menu {
             player.sendMessage(ChatColor.RED + "Your profile is still loading!");
             return;
         }
-        String rankId = CollectiblesRankSupport.idFromRank(rank);
-        if (!CollectiblesRankSupport.isUnlocked(profile, rankId)) {
+        if (!CollectiblesRankSupport.isUnlocked(profile, rank)) {
             int currentDust = Math.max(0, profile.getMysteryDust());
             if (currentDust < cost) {
                 int needed = Math.max(0, cost - currentDust);
                 player.closeInventory();
                 player.sendMessage(ChatColor.RED + "You need " + ChatColor.AQUA
                         + CollectiblesRankSupport.formatDust(needed)
-                        + ChatColor.RED + " more Mystery Dust to craft "
+                        + ChatColor.RED + " more Mystery Dust to buy "
                         + purchaseRankText() + ChatColor.RED + "!");
                 return;
             }
             coreApi.setMysteryDust(player.getUniqueId(), currentDust - cost);
-            coreApi.unlockCosmetic(player.getUniqueId(), CosmeticType.RANK, rankId);
             player.sendMessage(ChatColor.GREEN + "You purchased "
                     + purchaseRankText()
                     + ChatColor.GREEN + " for "
@@ -127,17 +124,14 @@ public class CollectiblesRankConfirmMenu extends Menu {
     private String purchaseRankText() {
         String text = CollectiblesRankSupport.formattedRank(rank);
         if (rank == Rank.MVP_PLUS_PLUS && mvpPlusPlusDays != null && mvpPlusPlusDays > 0) {
-            return text + ChatColor.GOLD + " " + mvpPlusPlusDays + " Days";
+            return text + ChatColor.GRAY + " " + mvpPlusPlusDays + " Days";
         }
         return text;
     }
 
     private ItemStack clayButton(boolean green, String name, String... lore) {
-        Material terracotta = Material.matchMaterial("STAINED_CLAY");
-        Material modern = green ? Material.matchMaterial("GREEN_TERRACOTTA") : Material.matchMaterial("RED_TERRACOTTA");
-        Material material = modern != null ? modern : (terracotta == null ? Material.WOOL : terracotta);
-        ItemStack stack = item(material, name, lore);
-        if (terracotta != null && stack != null && stack.getType() == terracotta) {
+        ItemStack stack = item(Material.STAINED_CLAY, name, lore);
+        if (stack != null) {
             stack.setDurability((short) (green ? 13 : 14));
         }
         return stack;

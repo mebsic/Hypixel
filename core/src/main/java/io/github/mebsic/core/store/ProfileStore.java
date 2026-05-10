@@ -202,7 +202,7 @@ public class ProfileStore {
         profile.setRanksGifted(readGiftedRanks(doc));
         profile.setHasActiveSubscription(readActiveSubscription(doc));
         profile.setSubscriptionExpiresAt(readSubscriptionExpiresAt(doc));
-        Document cosmeticsRoot = doc.get("cosmetics", Document.class);
+        Document cosmeticsRoot = doc.get(MongoManager.PROFILE_COSMETICS_KEY, Document.class);
         Document cosmetics = cosmeticsRoot == null ? null : cosmeticsRoot.get(MongoManager.MURDER_MYSTERY_GAME_KEY, Document.class);
         if (cosmetics != null) {
             for (CosmeticType type : CosmeticType.values()) {
@@ -210,7 +210,7 @@ public class ProfileStore {
                 if (typeDoc == null) {
                     continue;
                 }
-                String selected = typeDoc.getString("selected");
+                String selected = typeDoc.getString(MongoManager.PROFILE_COSMETIC_SELECTED_KEY);
                 if (selected != null) {
                     String normalizedSelected = normalizeCosmeticId(type, selected);
                     if (!normalizedSelected.isEmpty()) {
@@ -218,7 +218,7 @@ public class ProfileStore {
                     }
                 }
                 @SuppressWarnings("unchecked")
-                java.util.List<String> unlocked = (java.util.List<String>) typeDoc.get("unlocked");
+                java.util.List<String> unlocked = (java.util.List<String>) typeDoc.get(MongoManager.PROFILE_COSMETIC_UNLOCKED_KEY);
                 if (unlocked != null) {
                     for (String unlockedId : unlocked) {
                         if (unlockedId == null) {
@@ -231,7 +231,7 @@ public class ProfileStore {
                     }
                 }
                 @SuppressWarnings("unchecked")
-                java.util.List<String> favorites = (java.util.List<String>) typeDoc.get("favorites");
+                java.util.List<String> favorites = (java.util.List<String>) typeDoc.get(MongoManager.PROFILE_COSMETIC_FAVORITES_KEY);
                 if (favorites != null) {
                     for (String favorite : favorites) {
                         if (favorite == null) {
@@ -282,7 +282,7 @@ public class ProfileStore {
                 selected = normalizeCosmeticId(typeKey, selected);
             }
             if (selected != null && !selected.isEmpty()) {
-                typeDoc.append("selected", selected);
+                typeDoc.append(MongoManager.PROFILE_COSMETIC_SELECTED_KEY, selected);
             }
             java.util.Set<String> unlockedNormalized = new LinkedHashSet<String>();
             java.util.Set<String> unlockedSource = profile.getUnlocked().get(typeKey);
@@ -294,7 +294,7 @@ public class ProfileStore {
                     }
                 }
             }
-            typeDoc.append("unlocked", unlockedNormalized);
+            typeDoc.append(MongoManager.PROFILE_COSMETIC_UNLOCKED_KEY, unlockedNormalized);
             java.util.Set<String> favorites = profile.getFavorites().get(typeKey);
             java.util.Set<String> validFavorites = new java.util.HashSet<String>();
             if (favorites != null) {
@@ -311,9 +311,9 @@ public class ProfileStore {
                     }
                 }
             }
-            typeDoc.append("favorites", validFavorites);
+            typeDoc.append(MongoManager.PROFILE_COSMETIC_FAVORITES_KEY, validFavorites);
             if (typeKey == CosmeticType.KNIFE && !knifeSkins.isEmpty()) {
-                typeDoc.append("selectedMeta", buildKnifeMeta(selected));
+                typeDoc.append(MongoManager.PROFILE_COSMETIC_SELECTED_META_KEY, buildKnifeMeta(selected));
                 java.util.List<Document> meta = new ArrayList<>();
                 for (String id : unlockedNormalized) {
                     Document knifeMeta = buildKnifeMeta(id);
@@ -321,7 +321,7 @@ public class ProfileStore {
                         meta.add(knifeMeta);
                     }
                 }
-                typeDoc.append("meta", meta);
+                typeDoc.append(MongoManager.PROFILE_COSMETIC_META_KEY, meta);
             }
             cosmeticsByType.append(typeKey.name().toLowerCase(), typeDoc);
         }
@@ -355,7 +355,7 @@ public class ProfileStore {
                 .append("spectatorHideOtherSpectatorsEnabled", profile.isSpectatorHideOtherSpectatorsEnabled())
                 .append("spectatorFirstPersonEnabled", profile.isSpectatorFirstPersonEnabled())
                 .append("stats", stats)
-                .append("cosmetics", cosmetics);
+                .append(MongoManager.PROFILE_COSMETICS_KEY, cosmetics);
         collection.replaceOne(eq("uuid", profile.getUuid().toString()), doc, new ReplaceOptions().upsert(true));
     }
 

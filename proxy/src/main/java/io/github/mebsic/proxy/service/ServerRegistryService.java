@@ -1,7 +1,6 @@
 package io.github.mebsic.proxy.service;
 
 import io.github.mebsic.core.server.ServerType;
-import io.github.mebsic.proxy.manager.MongoManager;
 import io.github.mebsic.proxy.config.ProxyConfig;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
@@ -103,7 +102,7 @@ public class ServerRegistryService {
             return;
         }
         MongoCollection<Document> collection = database.getCollection(config.getRegistryCollection());
-        MongoCollection<Document> drainingCollection = database.getCollection(MongoManager.AUTOSCALE_COLLECTION);
+        MongoCollection<Document> drainingCollection = database.getCollection(config.getAutoscaleCollection());
         String group = config.getRegistryGroup() == null ? "" : config.getRegistryGroup().trim();
         if (now - lastCleanupMillis >= CLEANUP_INTERVAL_MILLIS) {
             cleanupStaleRecords(collection, group, now);
@@ -120,10 +119,7 @@ public class ServerRegistryService {
                 Filters.eq("active", true)
         );
         if (!group.isEmpty()) {
-            drainingFilter = Filters.and(
-                    drainingFilter,
-                    Filters.or(Filters.eq("gameType", group), Filters.eq("group", group))
-            );
+            drainingFilter = Filters.and(drainingFilter, Filters.eq("gameType", group));
         }
         List<Document> drainingDocs = drainingCollection.find(drainingFilter).into(new ArrayList<>());
         for (Document drainDoc : drainingDocs) {
