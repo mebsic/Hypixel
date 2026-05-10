@@ -898,12 +898,25 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
         setRank(uuid, rank, null);
     }
 
+    @Override
+    public void setRank(UUID uuid, Rank rank, boolean preserveMvpPlusPlusSubscription) {
+        setRank(uuid, rank, null, true, preserveMvpPlusPlusSubscription);
+    }
+
     public void setRank(UUID uuid, Rank rank, Integer mvpPlusPlusDays) {
         setRank(uuid, rank, mvpPlusPlusDays, true);
     }
 
     @Override
     public void setRank(UUID uuid, Rank rank, Integer mvpPlusPlusDays, boolean accumulateSubscriptionDuration) {
+        setRank(uuid, rank, mvpPlusPlusDays, accumulateSubscriptionDuration, false);
+    }
+
+    private void setRank(UUID uuid,
+                         Rank rank,
+                         Integer mvpPlusPlusDays,
+                         boolean accumulateSubscriptionDuration,
+                         boolean preserveMvpPlusPlusSubscription) {
         if (uuid == null || rank == null) {
             return;
         }
@@ -936,7 +949,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             }
             hasActiveSubscriptionUpdate = true;
             subscriptionExpiresAtUpdate = calculateSubscriptionExpiryFromBase(baseTimestamp, mvpPlusPlusDays);
-        } else if (shouldExpireSubscriptionOnRankChange(rank)) {
+        } else if (!preserveMvpPlusPlusSubscription && shouldExpireSubscriptionOnRankChange(rank)) {
             hasActiveSubscriptionUpdate = false;
             subscriptionExpiresAtUpdate = 0L;
         }
@@ -945,6 +958,7 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
             profileService.setRank(uuid, rank);
             profile = profileService.getProfile(uuid);
             if (profile != null) {
+                unlockRanksUpTo(profile, rank);
                 if (!canUseMvpPlusPlusPrefixColor(rank)) {
                     profile.setMvpPlusPlusPrefixColor(null);
                 }
@@ -1465,6 +1479,20 @@ public class CorePlugin extends JavaPlugin implements CoreApi, Listener {
 
     private boolean shouldEnableHubPerks(Rank rank) {
         return rank == Rank.MVP_PLUS || rank == Rank.MVP_PLUS_PLUS;
+    }
+
+    private void unlockRanksUpTo(Profile profile, Rank rank) {
+        if (profile == null || rank == null || rank == Rank.DEFAULT) {
+            return;
+        }
+        for (Rank option : Rank.values()) {
+            if (option != Rank.DEFAULT
+                    && option.isAtLeast(Rank.VIP)
+                    && Rank.MVP_PLUS_PLUS.isAtLeast(option)
+                    && rank.isAtLeast(option)) {
+                profile.unlockRank(option);
+            }
+        }
     }
 
     private boolean shouldExpireSubscriptionOnRankChange(Rank rank) {

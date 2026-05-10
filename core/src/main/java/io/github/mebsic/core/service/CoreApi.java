@@ -20,6 +20,8 @@ public interface CoreApi {
 
     void setRank(UUID uuid, Rank rank);
 
+    void setRank(UUID uuid, Rank rank, boolean preserveMvpPlusPlusSubscription);
+
     void setRank(UUID uuid, Rank rank, Integer mvpPlusPlusDays, boolean accumulateSubscriptionDuration);
 
     int getNetworkLevel(UUID uuid);

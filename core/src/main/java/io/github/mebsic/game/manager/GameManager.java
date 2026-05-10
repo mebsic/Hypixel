@@ -6,7 +6,6 @@ import io.github.mebsic.core.CorePlugin;
 import io.github.mebsic.core.manager.MongoManager;
 import io.github.mebsic.core.model.GameResult;
 import io.github.mebsic.core.model.Profile;
-import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.server.MapConfigResolver;
 import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.service.CoreApi;
@@ -73,7 +72,6 @@ public class GameManager {
     private static final double MYSTERY_DUST_REWARD_CHANCE = 0.40D;
     private static final int DEFAULT_MIN_MYSTERY_DUST_REWARD = 1;
     private static final int DEFAULT_MAX_MYSTERY_DUST_REWARD = 10;
-    private static final long MILLIS_PER_DAY = 24L * 60L * 60L * 1000L;
     private static final double[] SPAWN_Y_CORRECTION_OFFSETS = {0.5D, 1.0D, 1.5D, 2.0D, 2.5D, 3.0D};
     private static final String POST_GAME_FRAME_BAR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
     private static final Sound COUNTDOWN_TICK_SOUND = Sound.CLICK;
@@ -1889,7 +1887,7 @@ public class GameManager {
             if (profile == null) {
                 continue;
             }
-            int amount = calculateMysteryDustReward(profile);
+            int amount = calculateMysteryDustReward();
             if (amount <= 0) {
                 continue;
             }
@@ -1898,45 +1896,11 @@ public class GameManager {
         }
     }
 
-    private int calculateMysteryDustReward(Profile profile) {
-        Rank rank = profile == null || profile.getRank() == null ? Rank.DEFAULT : profile.getRank();
-        if (rank == Rank.VIP) {
-            return 5;
-        }
-        if (rank == Rank.VIP_PLUS) {
-            return 10;
-        }
-        if (rank == Rank.MVP) {
-            return 15;
-        }
-        if (rank == Rank.MVP_PLUS) {
-            return 20;
-        }
-        if (rank.isAtLeast(Rank.MVP_PLUS_PLUS)) {
-            return calculateMvpPlusPlusMysteryDustReward(profile);
-        }
+    private int calculateMysteryDustReward() {
         return ThreadLocalRandom.current().nextInt(
                 DEFAULT_MIN_MYSTERY_DUST_REWARD,
                 DEFAULT_MAX_MYSTERY_DUST_REWARD + 1
         );
-    }
-
-    private int calculateMvpPlusPlusMysteryDustReward(Profile profile) {
-        if (profile == null || !profile.hasActiveSubscription()) {
-            return 25;
-        }
-        long remainingMillis = Math.max(0L, profile.getSubscriptionExpiresAt() - System.currentTimeMillis());
-        long remainingDays = (remainingMillis + MILLIS_PER_DAY - 1L) / MILLIS_PER_DAY;
-        if (remainingDays >= 365L) {
-            return 40;
-        }
-        if (remainingDays >= 180L) {
-            return 35;
-        }
-        if (remainingDays >= 90L) {
-            return 30;
-        }
-        return 25;
     }
 
     private void appendPostGameMysteryDustRewardLine(GamePlayer gamePlayer, List<String> lines) {

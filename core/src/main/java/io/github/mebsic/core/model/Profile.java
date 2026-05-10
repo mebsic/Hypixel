@@ -1,6 +1,7 @@
 package io.github.mebsic.core.model;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -31,6 +32,7 @@ public class Profile {
     private boolean spectatorHideOtherSpectatorsEnabled;
     private boolean spectatorFirstPersonEnabled;
     private final Stats stats;
+    private final Set<Rank> unlockedRanks;
     private final Map<CosmeticType, String> selected;
     private final Map<CosmeticType, Set<String>> unlocked;
     private final Map<CosmeticType, Set<String>> favorites;
@@ -60,6 +62,7 @@ public class Profile {
         this.spectatorHideOtherSpectatorsEnabled = false;
         this.spectatorFirstPersonEnabled = false;
         this.stats = new Stats();
+        this.unlockedRanks = EnumSet.noneOf(Rank.class);
         this.selected = new EnumMap<>(CosmeticType.class);
         this.unlocked = new EnumMap<>(CosmeticType.class);
         this.favorites = new EnumMap<>(CosmeticType.class);
@@ -251,6 +254,16 @@ public class Profile {
 
     public Stats getStats() {
         return stats;
+    }
+
+    public Set<Rank> getUnlockedRanks() {
+        return unlockedRanks;
+    }
+
+    public void unlockRank(Rank rank) {
+        if (rank != null && rank != Rank.DEFAULT) {
+            unlockedRanks.add(rank);
+        }
     }
 
     public Map<CosmeticType, String> getSelected() {

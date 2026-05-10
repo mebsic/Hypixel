@@ -3,6 +3,7 @@ package io.github.mebsic.core.menu;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.service.CoreApi;
+import io.github.mebsic.core.util.CommonMessages;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -70,7 +71,7 @@ public class CollectiblesRankConfirmMenu extends Menu {
         }
         Profile profile = coreApi.getProfile(player.getUniqueId());
         if (profile == null) {
-            player.sendMessage(ChatColor.RED + "Your profile is still loading!");
+            player.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
             return;
         }
         if (!CollectiblesRankSupport.isUnlocked(profile, rank)) {

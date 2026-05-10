@@ -332,6 +332,8 @@ public class ProfileService {
             profile.setNetworkLevel(update.meta.getNetworkLevel());
             profile.setNetworkGold(update.meta.getNetworkGold());
             profile.setMysteryDust(update.meta.getMysteryDust());
+            profile.getUnlockedRanks().clear();
+            profile.getUnlockedRanks().addAll(update.meta.getUnlockedRanks());
             profile.setHasActiveSubscription(update.meta.hasActiveSubscription());
             profile.setSubscriptionExpiresAt(update.meta.getSubscriptionExpiresAt());
             boolean giftedChanged = setGiftedRanks(profile, update.meta.getGiftedRanks());
@@ -376,6 +378,9 @@ public class ProfileService {
             return true;
         }
         if (profile.getMysteryDust() != meta.getMysteryDust()) {
+            return true;
+        }
+        if (!profile.getUnlockedRanks().equals(meta.getUnlockedRanks())) {
             return true;
         }
         if (profile.hasActiveSubscription() != meta.hasActiveSubscription()) {
@@ -445,6 +450,21 @@ public class ProfileService {
         Rank override = pendingRankOverrides.remove(uuid);
         if (override != null) {
             profile.setRank(override);
+            unlockRanksUpTo(profile, override);
+        }
+    }
+
+    private void unlockRanksUpTo(Profile profile, Rank rank) {
+        if (profile == null || rank == null || rank == Rank.DEFAULT) {
+            return;
+        }
+        for (Rank option : Rank.values()) {
+            if (option != Rank.DEFAULT
+                    && option.isAtLeast(Rank.VIP)
+                    && Rank.MVP_PLUS_PLUS.isAtLeast(option)
+                    && rank.isAtLeast(option)) {
+                profile.unlockRank(option);
+            }
         }
     }
 

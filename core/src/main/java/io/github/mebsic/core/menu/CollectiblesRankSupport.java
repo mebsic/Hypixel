@@ -65,6 +65,10 @@ final class CollectiblesRankSupport {
         return Material.EMERALD;
     }
 
+    static boolean usesEnchantedVariant(Rank rank) {
+        return rank == Rank.VIP_PLUS || rank == Rank.MVP_PLUS || rank == Rank.MVP_PLUS_PLUS;
+    }
+
     static int rankCost(Rank rank) {
         if (rank == Rank.VIP) {
             return VIP_COST;
@@ -98,11 +102,30 @@ final class CollectiblesRankSupport {
         if (profile == null || rank == null || rank == Rank.DEFAULT) {
             return false;
         }
+        for (Rank unlockedRank : profile.getUnlockedRanks()) {
+            if (unlockedRank != null && unlockedRank.isAtLeast(rank)) {
+                return true;
+            }
+        }
         return currentRank(profile).isAtLeast(rank);
     }
 
     static boolean isSelected(Profile profile, Rank rank) {
         return rank != null && currentRank(profile) == rank;
+    }
+
+    static boolean hasMvpPlusBase(Profile profile) {
+        return isUnlocked(profile, Rank.MVP_PLUS);
+    }
+
+    static String mvpPlusRequirementLore() {
+        return ChatColor.RED + "You need " + ChatColor.AQUA + "MVP" + ChatColor.RED + "+"
+                + ChatColor.RED + " rank!";
+    }
+
+    static String mvpPlusRequirementMessage() {
+        return ChatColor.RED + "You need to have " + ChatColor.AQUA + "MVP" + ChatColor.RED + "+"
+                + ChatColor.RED + " rank!";
     }
 
     private static Rank currentRank(Profile profile) {

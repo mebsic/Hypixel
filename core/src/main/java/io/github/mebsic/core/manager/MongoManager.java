@@ -93,6 +93,7 @@ public class MongoManager {
 
     public static final String PROFILE_RANKS_GIFTED_KEY = "ranksGifted";
     public static final String PROFILE_MYSTERY_DUST_KEY = "mysteryDust";
+    public static final String PROFILE_UNLOCKED_RANKS_KEY = "unlockedRanks";
     public static final String PROFILE_COSMETICS_KEY = "cosmetics";
     public static final String PROFILE_COSMETIC_SELECTED_KEY = "selected";
     public static final String PROFILE_COSMETIC_UNLOCKED_KEY = "unlocked";

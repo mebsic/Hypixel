@@ -3,6 +3,7 @@ package io.github.mebsic.core.menu;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.service.CoreApi;
+import io.github.mebsic.core.util.CommonMessages;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -78,7 +79,11 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
         }
         Profile profile = coreApi == null ? null : coreApi.getProfile(player.getUniqueId());
         if (profile == null) {
-            player.sendMessage(ChatColor.RED + "Your profile is still loading!");
+            player.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
+            return;
+        }
+        if (!CollectiblesRankSupport.hasMvpPlusBase(profile)) {
+            player.sendMessage(CollectiblesRankSupport.mvpPlusRequirementMessage());
             return;
         }
         if (CollectiblesRankSupport.isUnlocked(profile, Rank.MVP_PLUS_PLUS)) {
@@ -95,6 +100,7 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
         int cost = CollectiblesRankSupport.mvpPlusPlusDurationCost(days);
         boolean unlocked = CollectiblesRankSupport.isUnlocked(profile, Rank.MVP_PLUS_PLUS);
         boolean selected = CollectiblesRankSupport.isSelected(profile, Rank.MVP_PLUS_PLUS);
+        boolean hasMvpPlusBase = CollectiblesRankSupport.hasMvpPlusBase(profile);
         java.util.List<String> lore = new java.util.ArrayList<String>();
         lore.add(ChatColor.YELLOW + "This buys " + days + " days of "
                 + CollectiblesRankSupport.formattedRank(Rank.MVP_PLUS_PLUS)
@@ -110,6 +116,8 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
             lore.add(ChatColor.GREEN + "Currently selected!");
         } else if (unlocked) {
             lore.add(ChatColor.YELLOW + "Click to select!");
+        } else if (!hasMvpPlusBase) {
+            lore.add(CollectiblesRankSupport.mvpPlusRequirementLore());
         } else {
             lore.add(ChatColor.YELLOW + "Click to buy for " + ChatColor.AQUA
                     + CollectiblesRankSupport.formatDust(cost)
@@ -120,7 +128,7 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
                 + " " + days + " DAYS"
                 + saveSuffix(days);
         ItemStack stack = item(Material.GOLD_INGOT, title, lore);
-        return selected ? GiftSupport.addGlow(stack) : stack;
+        return GiftSupport.addGlow(stack);
     }
 
     private int daysForSlot(int slot) {
@@ -145,14 +153,14 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
         }
         Profile profile = coreApi.getProfile(player.getUniqueId());
         if (profile == null) {
-            player.sendMessage(ChatColor.RED + "Your profile is still loading!");
+            player.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
             return;
         }
         if (CollectiblesRankSupport.isSelected(profile, Rank.DEFAULT)) {
             player.sendMessage(ChatColor.RED + "You already have that selected!");
             return;
         }
-        coreApi.setRank(player.getUniqueId(), Rank.DEFAULT);
+        coreApi.setRank(player.getUniqueId(), Rank.DEFAULT, true);
         player.sendMessage(ChatColor.GREEN + "You are now DEFAULT");
         open(player);
     }

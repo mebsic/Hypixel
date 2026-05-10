@@ -108,6 +108,9 @@ public class ProfileStore {
                 profile.setRank(Rank.DEFAULT);
             }
         }
+        for (Rank unlockedRank : readUnlockedRanks(doc)) {
+            profile.unlockRank(unlockedRank);
+        }
         Long hycopyExperience = doc.getLong("hycopyExperience");
         if (hycopyExperience != null) {
             profile.setHycopyExperience(hycopyExperience);
@@ -337,6 +340,7 @@ public class ProfileStore {
                 .append("networkLevel", profile.getNetworkLevel())
                 .append("networkGold", profile.getNetworkGold())
                 .append(MongoManager.PROFILE_MYSTERY_DUST_KEY, profile.getMysteryDust())
+                .append(MongoManager.PROFILE_UNLOCKED_RANKS_KEY, unlockedRankNames(profile.getUnlockedRanks()))
                 .append(MongoManager.PROFILE_RANKS_GIFTED_KEY, Math.max(0, profile.getRanksGifted()))
                 .append(MongoManager.PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY, profile.hasActiveSubscription())
                 .append(MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY, profile.getSubscriptionExpiresAt())
@@ -424,8 +428,17 @@ public class ProfileStore {
         if (update.containsKey(MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY)) {
             setOnInsert.remove(MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY);
         }
+        Document operation = new Document("$set", update).append("$setOnInsert", setOnInsert);
+        java.util.List<String> unlockedRankNames = unlockedRankNamesUpTo(rank);
+        if (!unlockedRankNames.isEmpty()) {
+            setOnInsert.remove(MongoManager.PROFILE_UNLOCKED_RANKS_KEY);
+            operation.append("$addToSet", new Document(
+                    MongoManager.PROFILE_UNLOCKED_RANKS_KEY,
+                    new Document("$each", unlockedRankNames)
+            ));
+        }
         collection.updateOne(eq("uuid", uuid.toString()),
-                new Document("$set", update).append("$setOnInsert", setOnInsert),
+                operation,
                 new com.mongodb.client.model.UpdateOptions().upsert(true));
     }
 
@@ -483,6 +496,7 @@ public class ProfileStore {
                         "networkLevel",
                         "networkGold",
                         MongoManager.PROFILE_MYSTERY_DUST_KEY,
+                        MongoManager.PROFILE_UNLOCKED_RANKS_KEY,
                         "hycopyExperience",
                         MongoManager.PROFILE_RANKS_GIFTED_KEY,
                         MongoManager.PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY,
@@ -539,6 +553,7 @@ public class ProfileStore {
         if (mysteryDustRaw instanceof Number) {
             mysteryDust = Math.max(0, ((Number) mysteryDustRaw).intValue());
         }
+        Set<Rank> unlockedRanks = readUnlockedRanks(doc);
         int giftedRanks = readGiftedRanks(doc);
         boolean hasActiveSubscription = readActiveSubscription(doc);
         long subscriptionExpiresAt = readSubscriptionExpiresAt(doc);
@@ -553,6 +568,7 @@ public class ProfileStore {
                 networkLevel,
                 networkGold,
                 mysteryDust,
+                unlockedRanks,
                 giftedRanks,
                 hasActiveSubscription,
                 subscriptionExpiresAt
@@ -578,6 +594,7 @@ public class ProfileStore {
                 .append("spectatorFirstPersonEnabled", false)
                 .append("buildModeExpiresAt", 0L)
                 .append(MongoManager.PROFILE_MYSTERY_DUST_KEY, 0)
+                .append(MongoManager.PROFILE_UNLOCKED_RANKS_KEY, new ArrayList<String>())
                 .append(MongoManager.PROFILE_RANKS_GIFTED_KEY, 0)
                 .append(MongoManager.PROFILE_HAS_ACTIVE_SUBSCRIPTION_KEY, false)
                 .append(MongoManager.PROFILE_SUBSCRIPTION_EXPIRES_AT_KEY, 0L)
@@ -603,6 +620,59 @@ public class ProfileStore {
             return Math.max(0, ((Number) raw).intValue());
         }
         return 0;
+    }
+
+    private Set<Rank> readUnlockedRanks(Document profile) {
+        Set<Rank> ranks = new LinkedHashSet<Rank>();
+        if (profile == null) {
+            return ranks;
+        }
+        Object raw = profile.get(MongoManager.PROFILE_UNLOCKED_RANKS_KEY);
+        if (!(raw instanceof java.util.List)) {
+            return ranks;
+        }
+        for (Object value : (java.util.List<?>) raw) {
+            if (!(value instanceof String)) {
+                continue;
+            }
+            try {
+                Rank rank = Rank.valueOf(((String) value).trim());
+                if (rank != Rank.DEFAULT) {
+                    ranks.add(rank);
+                }
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        return ranks;
+    }
+
+    private java.util.List<String> unlockedRankNames(Set<Rank> ranks) {
+        java.util.List<String> names = new ArrayList<String>();
+        if (ranks == null || ranks.isEmpty()) {
+            return names;
+        }
+        for (Rank rank : Rank.values()) {
+            if (rank != Rank.DEFAULT && ranks.contains(rank)) {
+                names.add(rank.name());
+            }
+        }
+        return names;
+    }
+
+    private java.util.List<String> unlockedRankNamesUpTo(Rank rank) {
+        java.util.List<String> names = new ArrayList<String>();
+        if (rank == null || rank == Rank.DEFAULT) {
+            return names;
+        }
+        for (Rank option : Rank.values()) {
+            if (option != Rank.DEFAULT
+                    && option.isAtLeast(Rank.VIP)
+                    && Rank.MVP_PLUS_PLUS.isAtLeast(option)
+                    && rank.isAtLeast(option)) {
+                names.add(option.name());
+            }
+        }
+        return names;
     }
 
     private boolean readActiveSubscription(Document profile) {
@@ -642,6 +712,7 @@ public class ProfileStore {
         private final int networkLevel;
         private final int networkGold;
         private final int mysteryDust;
+        private final Set<Rank> unlockedRanks;
         private final int giftedRanks;
         private final boolean hasActiveSubscription;
         private final long subscriptionExpiresAt;
@@ -656,6 +727,7 @@ public class ProfileStore {
                            int networkLevel,
                            int networkGold,
                            int mysteryDust,
+                           Set<Rank> unlockedRanks,
                            int giftedRanks,
                            boolean hasActiveSubscription,
                            long subscriptionExpiresAt) {
@@ -669,6 +741,9 @@ public class ProfileStore {
             this.networkLevel = Math.max(0, networkLevel);
             this.networkGold = Math.max(0, networkGold);
             this.mysteryDust = Math.max(0, mysteryDust);
+            this.unlockedRanks = unlockedRanks == null
+                    ? new LinkedHashSet<Rank>()
+                    : new LinkedHashSet<Rank>(unlockedRanks);
             this.giftedRanks = Math.max(0, giftedRanks);
             this.hasActiveSubscription = hasActiveSubscription;
             this.subscriptionExpiresAt = Math.max(0L, subscriptionExpiresAt);
@@ -712,6 +787,10 @@ public class ProfileStore {
 
         public int getMysteryDust() {
             return mysteryDust;
+        }
+
+        public Set<Rank> getUnlockedRanks() {
+            return new LinkedHashSet<Rank>(unlockedRanks);
         }
 
         public int getGiftedRanks() {

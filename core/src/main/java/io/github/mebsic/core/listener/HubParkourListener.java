@@ -9,6 +9,7 @@ import io.github.mebsic.core.model.Stats;
 import io.github.mebsic.core.server.ServerType;
 import io.github.mebsic.core.service.HubParkourCommandHandler;
 import io.github.mebsic.core.store.MapConfigStore;
+import io.github.mebsic.core.util.CommonMessages;
 import org.bson.Document;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -630,7 +631,7 @@ public class HubParkourListener implements Listener, HubParkourCommandHandler {
         player.sendMessage(ChatColor.GRAY + "You finished this part of the parkour in "
                 + ChatColor.GOLD + formatDuration(splitMillis) + ChatColor.GRAY + ".");
         if (!persisted) {
-            player.sendMessage(ChatColor.RED + "Profile is still loading, parkour stats were not saved yet.");
+            player.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING + " Parkour stats were not saved yet.");
         }
         restorePostRunState(player, uuid, run);
     }

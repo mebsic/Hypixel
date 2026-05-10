@@ -3,6 +3,7 @@ package io.github.mebsic.core.menu;
 import io.github.mebsic.core.model.Profile;
 import io.github.mebsic.core.model.Rank;
 import io.github.mebsic.core.service.CoreApi;
+import io.github.mebsic.core.util.CommonMessages;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -23,9 +24,9 @@ public class CollectiblesRanksMenu extends Menu {
     private static final int MVP_SLOT = 13;
     private static final int MVP_PLUS_SLOT = 15;
     private static final int MVP_PLUS_PLUS_SLOT = 17;
-    private static final int RESET_SLOT = 22;
-    private static final int BACK_SLOT = 30;
-    private static final int COLLECTIBLES_SLOT = 31;
+    private static final int RESET_SLOT = 31;
+    private static final int BACK_SLOT = 39;
+    private static final int COLLECTIBLES_SLOT = 40;
 
     private final CoreApi coreApi;
     private final CollectiblesMenu parent;
@@ -87,6 +88,15 @@ public class CollectiblesRanksMenu extends Menu {
             return;
         }
         if (rank == Rank.MVP_PLUS_PLUS) {
+            Profile profile = coreApi == null ? null : coreApi.getProfile(player.getUniqueId());
+            if (profile == null) {
+                player.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
+                return;
+            }
+            if (!CollectiblesRankSupport.hasMvpPlusBase(profile)) {
+                player.sendMessage(CollectiblesRankSupport.mvpPlusRequirementMessage());
+                return;
+            }
             new CollectiblesMvpPlusPlusDurationMenu(coreApi, this).open(player);
             return;
         }
@@ -99,7 +109,7 @@ public class CollectiblesRanksMenu extends Menu {
         }
         Profile profile = coreApi.getProfile(player.getUniqueId());
         if (profile == null) {
-            player.sendMessage(ChatColor.RED + "Your profile is still loading!");
+            player.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
             return;
         }
         if (CollectiblesRankSupport.isUnlocked(profile, rank)) {
@@ -115,7 +125,7 @@ public class CollectiblesRanksMenu extends Menu {
         }
         Profile profile = coreApi.getProfile(player.getUniqueId());
         if (profile == null) {
-            player.sendMessage(ChatColor.RED + "Your profile is still loading!");
+            player.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
             return;
         }
         if (!CollectiblesRankSupport.isUnlocked(profile, rank)) {
@@ -126,7 +136,7 @@ public class CollectiblesRanksMenu extends Menu {
             player.sendMessage(ChatColor.RED + "You already have that selected!");
             return;
         }
-        coreApi.setRank(player.getUniqueId(), rank);
+        coreApi.setRank(player.getUniqueId(), rank, true);
         player.sendMessage(ChatColor.GREEN + "You are now " + CollectiblesRankSupport.rawRankName(rank));
         open(player);
     }
@@ -142,7 +152,11 @@ public class CollectiblesRanksMenu extends Menu {
         } else if (unlocked) {
             lore.add(ChatColor.YELLOW + "Click to select!");
         } else if (rank == Rank.MVP_PLUS_PLUS) {
-            lore.add(ChatColor.YELLOW + "Click to browse durations!");
+            if (CollectiblesRankSupport.hasMvpPlusBase(profile)) {
+                lore.add(ChatColor.YELLOW + "Click to browse durations!");
+            } else {
+                lore.add(CollectiblesRankSupport.mvpPlusRequirementLore());
+            }
         } else {
             lore.add(ChatColor.YELLOW + "Click to buy for " + ChatColor.AQUA
                     + CollectiblesRankSupport.formatDust(cost)
@@ -153,7 +167,9 @@ public class CollectiblesRanksMenu extends Menu {
                 CollectiblesRankSupport.formattedRank(rank),
                 lore
         );
-        return selected ? GiftSupport.addGlow(stack) : stack;
+        return selected || CollectiblesRankSupport.usesEnchantedVariant(rank)
+                ? GiftSupport.addGlow(stack)
+                : stack;
     }
 
     private void selectDefaultRank(Player player) {
@@ -162,14 +178,14 @@ public class CollectiblesRanksMenu extends Menu {
         }
         Profile profile = coreApi.getProfile(player.getUniqueId());
         if (profile == null) {
-            player.sendMessage(ChatColor.RED + "Your profile is still loading!");
+            player.sendMessage(ChatColor.RED + CommonMessages.PROFILE_LOADING);
             return;
         }
         if (CollectiblesRankSupport.isSelected(profile, Rank.DEFAULT)) {
             player.sendMessage(ChatColor.RED + "You already have that selected!");
             return;
         }
-        coreApi.setRank(player.getUniqueId(), Rank.DEFAULT);
+        coreApi.setRank(player.getUniqueId(), Rank.DEFAULT, true);
         player.sendMessage(ChatColor.GREEN + "You are now DEFAULT");
         open(player);
     }

@@ -147,6 +147,7 @@ public class GameMenu extends Menu {
                 players = currentPlayerCount();
             }
             populate(player, top, players);
+            player.updateInventory();
         }
     }
 
