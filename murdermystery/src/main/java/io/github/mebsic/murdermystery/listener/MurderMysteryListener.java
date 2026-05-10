@@ -66,7 +66,7 @@ public class MurderMysteryListener implements Listener {
     private static final double MURDERER_THROW_SLOWNESS_SECONDS = MURDERER_KNIFE_THROWING_SECONDS;
     private static final int MURDERER_THROW_SLOWNESS_AMPLIFIER = 1; // Slowness II
     private static final double THROWN_KNIFE_SPEED_BLOCKS_PER_TICK = 0.55D;
-    private static final double THROWN_KNIFE_LAUNCH_HEIGHT = 0.75D;
+    private static final double THROWN_KNIFE_LAUNCH_HEIGHT = 0.6D;
     private static final double THROWN_KNIFE_SPAWN_FORWARD_OFFSET = 0.7D;
     private static final double THROWN_KNIFE_HIT_RADIUS = 0.9D;
     private static final double THROWN_KNIFE_ARROW_COLLISION_RADIUS = 0.65D;

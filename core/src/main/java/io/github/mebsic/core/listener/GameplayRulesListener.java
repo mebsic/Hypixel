@@ -12,7 +12,10 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDamageEvent;
+import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.block.BlockSpreadEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
@@ -35,6 +38,8 @@ public class GameplayRulesListener implements Listener {
     private final boolean farmlandTrampleBlocked;
     private final boolean paintingBreakBlocked;
     private final boolean beaconInteractionBlocked;
+    private final boolean leverBreakBlocked;
+    private final boolean blockSpreadBlocked;
     private final boolean weatherCycleEnabled;
     private final boolean vanillaAchievementsEnabled;
 
@@ -52,6 +57,8 @@ public class GameplayRulesListener implements Listener {
         this.farmlandTrampleBlocked = this.serverType == ServerType.MURDER_MYSTERY_HUB || this.serverType == ServerType.MURDER_MYSTERY;
         this.paintingBreakBlocked = this.serverType != null && this.serverType.isHub();
         this.beaconInteractionBlocked = this.serverType != null && this.serverType.isHub();
+        this.leverBreakBlocked = this.serverType == ServerType.MURDER_MYSTERY;
+        this.blockSpreadBlocked = this.serverType == ServerType.MURDER_MYSTERY_HUB || this.serverType == ServerType.MURDER_MYSTERY;
         boolean weatherEnabled = resolveToggle(config, "gameplay.weatherCycle", this.serverType, serverName, true);
         if (this.serverType == ServerType.MURDER_MYSTERY_HUB || this.serverType == ServerType.MURDER_MYSTERY) {
             weatherEnabled = false;
@@ -75,6 +82,8 @@ public class GameplayRulesListener implements Listener {
                         + ", farmlandTrampleBlocked=" + farmlandTrampleBlocked
                         + ", paintingBreakBlocked=" + paintingBreakBlocked
                         + ", beaconInteractionBlocked=" + beaconInteractionBlocked
+                        + ", leverBreakBlocked=" + leverBreakBlocked
+                        + ", blockSpreadBlocked=" + blockSpreadBlocked
                         + ", weatherCycle=" + weatherCycleEnabled
                         + ", vanillaAchievements=" + vanillaAchievementsEnabled
         );
@@ -123,10 +132,28 @@ public class GameplayRulesListener implements Listener {
         if (event == null || event.getPlayer() == null) {
             return;
         }
+        if (leverBreakBlocked && isLever(event.getBlock()) && !plugin.isBuildModeActive(event.getPlayer().getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
         if (blockBreakEnabled || plugin.isBuildModeActive(event.getPlayer().getUniqueId())) {
             return;
         }
         event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onBlockDamage(BlockDamageEvent event) {
+        if (!leverBreakBlocked || event == null || event.getPlayer() == null) {
+            return;
+        }
+        if (plugin.isBuildModeActive(event.getPlayer().getUniqueId())) {
+            return;
+        }
+        if (isLever(event.getBlock())) {
+            event.setInstaBreak(false);
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -135,6 +162,24 @@ public class GameplayRulesListener implements Listener {
             return;
         }
         if (blockBreakEnabled || plugin.isBuildModeActive(event.getPlayer().getUniqueId())) {
+            return;
+        }
+        event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockPhysics(BlockPhysicsEvent event) {
+        if (!leverBreakBlocked || event == null) {
+            return;
+        }
+        if (isLever(event.getBlock())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockSpread(BlockSpreadEvent event) {
+        if (!blockSpreadBlocked || event == null) {
             return;
         }
         event.setCancelled(true);
@@ -294,6 +339,17 @@ public class GameplayRulesListener implements Listener {
             return false;
         }
         return "BEACON".equals(material.name());
+    }
+
+    private boolean isLever(Block block) {
+        return block != null && isLever(block.getType());
+    }
+
+    private boolean isLever(Material material) {
+        if (material == null) {
+            return false;
+        }
+        return "LEVER".equals(material.name());
     }
 
     private boolean resolveToggle(FileConfiguration config,
