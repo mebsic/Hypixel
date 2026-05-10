@@ -116,6 +116,10 @@ public class CollectiblesRanksMenu extends Menu {
             selectRank(player, rank);
             return;
         }
+        if (!CollectiblesRankSupport.hasEnoughMysteryDust(profile, cost)) {
+            player.sendMessage(CollectiblesRankSupport.missingMysteryDustLore(profile, cost));
+            return;
+        }
         new CollectiblesRankConfirmMenu(coreApi, this, rank, Math.max(0, cost), null).open(player);
     }
 

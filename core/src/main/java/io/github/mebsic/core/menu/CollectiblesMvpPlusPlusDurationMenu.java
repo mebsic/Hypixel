@@ -93,6 +93,10 @@ public class CollectiblesMvpPlusPlusDurationMenu extends Menu {
             return;
         }
         int cost = CollectiblesRankSupport.mvpPlusPlusDurationCost(days);
+        if (!CollectiblesRankSupport.hasEnoughMysteryDust(profile, cost)) {
+            player.sendMessage(CollectiblesRankSupport.missingMysteryDustLore(profile, cost));
+            return;
+        }
         new CollectiblesRankConfirmMenu(coreApi, parent, Rank.MVP_PLUS_PLUS, cost, days).open(player);
     }
 
