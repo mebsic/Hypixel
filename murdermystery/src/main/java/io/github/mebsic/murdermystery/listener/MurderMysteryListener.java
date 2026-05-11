@@ -88,6 +88,13 @@ public class MurderMysteryListener implements Listener {
     private static final Sound ARROW_KNIFE_CLANK_SOUND = resolveCompatibleSound("ITEM_BREAK", "ENTITY_ITEM_BREAK");
     private static final float ARROW_KNIFE_CLANK_VOLUME = 1.0F;
     private static final float ARROW_KNIFE_CLANK_PITCH = 1.35F;
+    private static final Sound KNIFE_THROW_TICK_SOUND = resolveCompatibleSound("CLICK", "UI_BUTTON_CLICK", "NOTE_STICKS", "BLOCK_NOTE_BLOCK_HAT");
+    private static final float KNIFE_THROW_TICK_VOLUME = 0.8F;
+    private static final float[] KNIFE_THROW_TICK_PITCHES = {1.4F, 1.6F, 1.7F};
+    private static final int KNIFE_THROW_TICK_SOUND_COUNT = KNIFE_THROW_TICK_PITCHES.length;
+    private static final Sound KNIFE_THROW_RELEASE_SOUND = resolveCompatibleSound("ENDERDRAGON_WINGS", "ENTITY_ENDER_DRAGON_FLAP");
+    private static final float KNIFE_THROW_RELEASE_VOLUME = 1.0F;
+    private static final float KNIFE_THROW_RELEASE_PITCH = 1.0F;
     private static final double ELIMINATED_PLAYER_HEALTH = 0.01D;
 
     private final MurderMysteryPlugin plugin;
@@ -682,23 +689,19 @@ public class MurderMysteryListener implements Listener {
         UUID shooterUuid = shooter.getUniqueId();
         cancelPendingKnifeLaunch(shooterUuid);
         ItemStack knifeSnapshot = sourceKnife == null ? null : sourceKnife.clone();
+        PendingKnifeLaunch pendingLaunch = new PendingKnifeLaunch(
+                shooterUuid,
+                knifeSnapshot,
+                lifetimeSeconds,
+                secondsToTicks(MURDERER_KNIFE_THROWING_SECONDS)
+        );
         BukkitTask launchTask;
         try {
-            launchTask = plugin.getServer().getScheduler().runTaskLater(
-                    plugin,
-                    () -> {
-                        pendingKnifeLaunches.remove(shooterUuid);
-                        Player liveShooter = plugin.getServer().getPlayer(shooterUuid);
-                        if (!isValidKnifeShooter(liveShooter)) {
-                            return;
-                        }
-                        launchThrownKnife(liveShooter, knifeSnapshot, lifetimeSeconds);
-                    },
-                    secondsToTicks(MURDERER_KNIFE_THROWING_SECONDS)
-            );
+            launchTask = plugin.getServer().getScheduler().runTaskTimer(plugin, pendingLaunch, 1L, 1L);
         } catch (Throwable ignored) {
             return false;
         }
+        pendingLaunch.setTask(launchTask);
         pendingKnifeLaunches.put(shooterUuid, launchTask);
         return true;
     }
@@ -713,6 +716,40 @@ public class MurderMysteryListener implements Listener {
             return true;
         }
         return false;
+    }
+
+    private int knifeThrowTickSoundIndex(long elapsedTicks, long windupTicks) {
+        if (elapsedTicks <= 0L || windupTicks <= 0L || KNIFE_THROW_TICK_SOUND_COUNT <= 0) {
+            return -1;
+        }
+        for (int index = 0; index < KNIFE_THROW_TICK_SOUND_COUNT; index++) {
+            long soundTick = 1L + ((windupTicks - 1L) * index / KNIFE_THROW_TICK_SOUND_COUNT);
+            if (elapsedTicks == soundTick) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private void playKnifeThrowTick(Player player, int soundIndex) {
+        int pitchIndex = Math.min(Math.max(0, soundIndex), KNIFE_THROW_TICK_PITCHES.length - 1);
+        float pitch = KNIFE_THROW_TICK_PITCHES[pitchIndex];
+        playKnifeThrowSound(player, KNIFE_THROW_TICK_SOUND, KNIFE_THROW_TICK_VOLUME, pitch);
+    }
+
+    private void playKnifeThrowRelease(Player player) {
+        playKnifeThrowSound(player, KNIFE_THROW_RELEASE_SOUND, KNIFE_THROW_RELEASE_VOLUME, KNIFE_THROW_RELEASE_PITCH);
+    }
+
+    private void playKnifeThrowSound(Player player, Sound sound, float volume, float pitch) {
+        if (player == null || player.getWorld() == null || sound == null) {
+            return;
+        }
+        try {
+            player.getWorld().playSound(player.getLocation(), sound, volume, pitch);
+        } catch (IllegalArgumentException ignored) {
+            // Sound enum mismatch on legacy/newer API variants.
+        }
     }
 
     private boolean launchThrownKnife(Player shooter, ItemStack sourceKnife, double lifetimeSeconds) {
@@ -1443,6 +1480,66 @@ public class MurderMysteryListener implements Listener {
             }
         }
         return item.getType() == Material.IRON_SWORD;
+    }
+
+    private class PendingKnifeLaunch implements Runnable {
+        private final UUID shooterUuid;
+        private final ItemStack knifeSnapshot;
+        private final double lifetimeSeconds;
+        private final long windupTicks;
+        private BukkitTask task;
+        private long elapsedTicks;
+
+        private PendingKnifeLaunch(UUID shooterUuid, ItemStack knifeSnapshot, double lifetimeSeconds, long windupTicks) {
+            this.shooterUuid = shooterUuid;
+            this.knifeSnapshot = knifeSnapshot == null ? null : knifeSnapshot.clone();
+            this.lifetimeSeconds = lifetimeSeconds;
+            this.windupTicks = Math.max(1L, windupTicks);
+            this.elapsedTicks = 0L;
+        }
+
+        private void setTask(BukkitTask task) {
+            this.task = task;
+        }
+
+        @Override
+        public void run() {
+            elapsedTicks++;
+            Player liveShooter = plugin.getServer().getPlayer(shooterUuid);
+            if (!isValidKnifeShooter(liveShooter)) {
+                cancel();
+                return;
+            }
+            int tickSoundIndex = knifeThrowTickSoundIndex(elapsedTicks, windupTicks);
+            if (tickSoundIndex >= 0) {
+                playKnifeThrowTick(liveShooter, tickSoundIndex);
+            }
+            if (elapsedTicks < windupTicks) {
+                return;
+            }
+            clearPending();
+            cancelTask();
+            playKnifeThrowRelease(liveShooter);
+            launchThrownKnife(liveShooter, knifeSnapshot, lifetimeSeconds);
+        }
+
+        private void cancel() {
+            clearPending();
+            cancelTask();
+        }
+
+        private void clearPending() {
+            if (pendingKnifeLaunches.get(shooterUuid) == task) {
+                pendingKnifeLaunches.remove(shooterUuid);
+            }
+        }
+
+        private void cancelTask() {
+            if (task != null) {
+                task.cancel();
+                task = null;
+            }
+        }
     }
 
     private static class ThrownKnife {

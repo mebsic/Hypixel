@@ -52,6 +52,7 @@ public class NewsEditService implements Listener {
             ChatColor.DARK_PURPLE,
             ChatColor.DARK_RED
     );
+    private static final ChatColor DEFAULT_NEW_COLOR = COLOR_CYCLE.get(0);
 
     private final CorePlugin plugin;
     private final BossBarMessageStore messageStore;
@@ -159,6 +160,10 @@ public class NewsEditService implements Listener {
     }
 
     public void cycleColor(Player player, ColorSlot slot) {
+        cycleColor(player, slot, false);
+    }
+
+    public void cycleColor(Player player, ColorSlot slot, boolean backwards) {
         if (player == null || slot == null) {
             return;
         }
@@ -167,14 +172,14 @@ public class NewsEditService implements Listener {
             return;
         }
         if (slot == ColorSlot.START) {
-            session.startColor = nextColor(session.startColor);
+            session.startColor = cycleColor(session.startColor, backwards);
             return;
         }
         if (slot == ColorSlot.SWEEP) {
-            session.sweepColor = nextColor(session.sweepColor);
+            session.sweepColor = cycleColor(session.sweepColor, backwards);
             return;
         }
-        session.endColor = nextColor(session.endColor);
+        session.endColor = cycleColor(session.endColor, backwards);
     }
 
     public void saveAndFinish(Player player) {
@@ -348,9 +353,9 @@ public class NewsEditService implements Listener {
         draft.messageId = "";
         draft.text = typedText;
         draft.messageType = MessageType.FLASH;
-        draft.startColor = ChatColor.WHITE;
-        draft.sweepColor = ChatColor.WHITE;
-        draft.endColor = ChatColor.WHITE;
+        draft.startColor = DEFAULT_NEW_COLOR;
+        draft.sweepColor = DEFAULT_NEW_COLOR;
+        draft.endColor = DEFAULT_NEW_COLOR;
         draft.origin = EditOrigin.ADD;
         draft.managePage = 1;
         activeEditSessions.put(uuid, draft);
@@ -451,7 +456,7 @@ public class NewsEditService implements Listener {
         return ChatColor.WHITE;
     }
 
-    private ChatColor nextColor(ChatColor current) {
+    private ChatColor cycleColor(ChatColor current, boolean backwards) {
         if (current == null) {
             return COLOR_CYCLE.get(0);
         }
@@ -459,7 +464,8 @@ public class NewsEditService implements Listener {
         if (index < 0) {
             return COLOR_CYCLE.get(0);
         }
-        int next = (index + 1) % COLOR_CYCLE.size();
+        int offset = backwards ? -1 : 1;
+        int next = (index + offset + COLOR_CYCLE.size()) % COLOR_CYCLE.size();
         return COLOR_CYCLE.get(next);
     }
 

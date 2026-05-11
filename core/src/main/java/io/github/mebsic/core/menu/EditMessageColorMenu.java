@@ -85,33 +85,33 @@ public class EditMessageColorMenu extends Menu {
         NewsEditService.MessageType type = resolveType(snapshot);
         if (type == NewsEditService.MessageType.SWEEP) {
             if (slot == SWEEP_START_COLOR_SLOT) {
-                newsEditService.cycleColor(player, NewsEditService.ColorSlot.START);
+                newsEditService.cycleColor(player, NewsEditService.ColorSlot.START, click.isRightClick());
                 open(player);
                 return;
             }
             if (slot == MIDDLE_COLOR_SLOT) {
-                newsEditService.cycleColor(player, NewsEditService.ColorSlot.SWEEP);
+                newsEditService.cycleColor(player, NewsEditService.ColorSlot.SWEEP, click.isRightClick());
                 open(player);
                 return;
             }
             if (slot == SWEEP_END_COLOR_SLOT) {
-                newsEditService.cycleColor(player, NewsEditService.ColorSlot.END);
+                newsEditService.cycleColor(player, NewsEditService.ColorSlot.END, click.isRightClick());
                 open(player);
             }
             return;
         }
         if (slot == FLASH_START_COLOR_SLOT) {
-            newsEditService.cycleColor(player, NewsEditService.ColorSlot.START);
+            newsEditService.cycleColor(player, NewsEditService.ColorSlot.START, click.isRightClick());
             open(player);
             return;
         }
         if (slot == FLASH_COLOR_SLOT) {
-            newsEditService.cycleColor(player, NewsEditService.ColorSlot.SWEEP);
+            newsEditService.cycleColor(player, NewsEditService.ColorSlot.SWEEP, click.isRightClick());
             open(player);
             return;
         }
         if (slot == FLASH_END_COLOR_SLOT) {
-            newsEditService.cycleColor(player, NewsEditService.ColorSlot.END);
+            newsEditService.cycleColor(player, NewsEditService.ColorSlot.END, click.isRightClick());
             open(player);
         }
     }
@@ -130,7 +130,8 @@ public class EditMessageColorMenu extends Menu {
             lore.add(colorLine(supported, supported == resolved));
         }
         lore.add("");
-        lore.add(ChatColor.YELLOW + "Click to change!");
+        lore.add(ChatColor.YELLOW + "Left-click for next color!");
+        lore.add(ChatColor.DARK_GRAY + "Right-click for previous color");
         return item(
                 Material.SIGN,
                 ChatColor.GREEN + label,
