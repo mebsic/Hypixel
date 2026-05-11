@@ -630,7 +630,7 @@ public class MurderMysteryListener implements Listener {
     }
 
     private String formatDistanceSuffix(double meters) {
-        return ChatColor.GRAY + "(" + String.format(Locale.US, "%.2f", meters) + "m)";
+        return ChatColor.DARK_GRAY + "(" + String.format(Locale.US, "%.2f", meters) + "m)";
     }
 
     private double projectileDistanceMeters(Entity projectile, Player shooter, Player victim) {
