@@ -130,8 +130,8 @@ public class EditMessageColorMenu extends Menu {
             lore.add(colorLine(supported, supported == resolved));
         }
         lore.add("");
-        lore.add(ChatColor.YELLOW + "Left-click for next color!");
-        lore.add(ChatColor.DARK_GRAY + "Right-click for previous color");
+        lore.add(ChatColor.YELLOW + "Click for next color!");
+        lore.add(ChatColor.DARK_GRAY + "Right-click for previous color!");
         return item(
                 Material.SIGN,
                 ChatColor.GREEN + label,
